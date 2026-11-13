@@ -107,6 +107,7 @@ import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
+import Wire.FederationAPIAccess.Galley qualified as GalleyFederation
 import Wire.FederationSubsystem
 import Wire.MeetingNotifier
 import Wire.NotificationSubsystem
@@ -148,11 +149,8 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
   assertMLSEnabled
   imsg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage smsg
   (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
-  events <-
-    map lcuEvent
-      <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) (enableOutOfSyncCheckFromVersion v) imsg
-  t <- toUTCTimeMillis <$> Now.get
-  pure $ MLSMessageSendingStatus events t
+  (updates, t) <- postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) (enableOutOfSyncCheckFromVersion v) imsg
+  pure $ MLSMessageSendingStatus (map lcuEvent updates) t
 
 postMLSTargetedMessagesFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
@@ -175,12 +173,15 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
   assertMLSEnabled
   firstMessage <- note (mlsProtocolError "targeted message batch is empty") (listToMaybe batch.messages)
   (ctype, qualifiedConvOrSubId) <- getConvFromGroupId (persistentTargetedMessageData firstMessage.value).groupId
-  foldQualified
-    lusr
-    (\convOrSubId -> validateAndPropagateTargetedMessages (tUntagged lusr) client ctype convOrSubId batch.messages)
-    (postMLSTargetedMessagesToRemoteConv lusr client ctype batch)
-    qualifiedConvOrSubId
-  t <- toUTCTimeMillis <$> Now.get
+  t <-
+    foldQualified
+      lusr
+      (\convOrSubId -> validateAndPropagateTargetedMessages (tUntagged lusr) client ctype convOrSubId batch.messages)
+      ( \remoteConv -> do
+          timestamp <- postMLSTargetedMessagesToRemoteConv lusr client ctype batch remoteConv
+          maybe (toUTCTimeMillis <$> Now.get) pure timestamp
+      )
+      qualifiedConvOrSubId
   pure $ MLSMessageSendingStatus [] t
 
 postMLSTransientTargetedMessageFromLocalUser ::
@@ -205,12 +206,15 @@ postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
   firstMessage <- note (mlsProtocolError "transient targeted message batch is empty") (listToMaybe batch.transientMessages)
   let message = transientTargetedMessageData firstMessage.value
   (ctype, qualifiedConvOrSubId) <- getConvFromGroupId message.groupId
-  foldQualified
-    lusr
-    (validateAndPropagateTransientTargetedMessages (tUntagged lusr) client ctype message.groupId batch.transientMessages)
-    (postMLSTargetedMessagesToRemoteConv lusr client ctype batch)
-    qualifiedConvOrSubId
-  t <- toUTCTimeMillis <$> Now.get
+  t <-
+    foldQualified
+      lusr
+      (validateAndPropagateTransientTargetedMessages (tUntagged lusr) client ctype message.groupId batch.transientMessages)
+      ( \remoteConv -> do
+          timestamp <- postMLSTargetedMessagesToRemoteConv lusr client ctype batch remoteConv
+          maybe (toUTCTimeMillis <$> Now.get) pure timestamp
+      )
+      qualifiedConvOrSubId
   pure $ MLSMessageSendingStatus [] t
 
 postMLSTransientMessageFromLocalUser ::
@@ -240,12 +244,15 @@ postMLSTransientMessageFromLocalUser lusr client raw = do
   unless (aad.protocolVersion == defaultProtocolVersion) $
     throw ConversationSubsystemErrorMLSUnsupportedMessage
   (ctype, qConvOrSub) <- getConvFromGroupId groupContext.groupId
-  foldQualified
-    lusr
-    (validateAndPropagateTransientMessage (tUntagged lusr) client ctype groupContext.groupId raw)
-    (postTransientMessageToRemoteConv lusr client raw)
-    qConvOrSub
-  t <- toUTCTimeMillis <$> Now.get
+  t <-
+    foldQualified
+      lusr
+      (validateAndPropagateTransientMessage (tUntagged lusr) client ctype groupContext.groupId raw)
+      ( \remoteConv -> do
+          timestamp <- postTransientMessageToRemoteConv lusr client raw remoteConv
+          maybe (toUTCTimeMillis <$> Now.get) pure timestamp
+      )
+      qConvOrSub
   pure $ MLSMessageSendingStatus [] t
 
 validateAndPropagateTransientMessage ::
@@ -265,7 +272,7 @@ validateAndPropagateTransientMessage ::
   GroupId ->
   RawMLS TransientMessage ->
   Local ConvOrSubConvId ->
-  Sem r ()
+  Sem r UTCTimeMillis
 validateAndPropagateTransientMessage sender client ctype groupId raw lconv = do
   lconvOrSub <- fetchConvOrSub sender groupId ctype lconv
   let convOrSub = tUnqualified lconvOrSub
@@ -304,7 +311,7 @@ postTransientMessageToRemoteConv ::
   ClientId ->
   RawMLS TransientMessage ->
   Remote ConvOrSubConvId ->
-  Sem r ()
+  Sem r (Maybe UTCTimeMillis)
 postTransientMessageToRemoteConv lusr client raw rConvOrSubId = do
   flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
   response <-
@@ -317,11 +324,7 @@ postTransientMessageToRemoteConv lusr client raw rConvOrSubId = do
             rawMessage = Base64ByteString raw.raw,
             enableOutOfSyncCheck = Nothing
           }
-  for_ response $ \case
-    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
-    MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
-    MLSMessageResponseUpdates [] -> pure ()
-    _ -> throw $ mlsProtocolError "unexpected federation response for transient message"
+  mlsMessageResponseV5Time response
 
 validateAndPropagateTransientTargetedMessages ::
   ( Members MLSMessageStaticErrors r,
@@ -340,7 +343,7 @@ validateAndPropagateTransientTargetedMessages ::
   GroupId ->
   [RawMLS TransientTargetedMessage] ->
   Local ConvOrSubConvId ->
-  Sem r ()
+  Sem r UTCTimeMillis
 validateAndPropagateTransientTargetedMessages _sender _client _ctype _groupId [] _lconv =
   throw $ mlsProtocolError "transient targeted message batch is empty"
 validateAndPropagateTransientTargetedMessages sender client ctype groupId messages@(_ : _) lconv = do
@@ -363,8 +366,8 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
           SubConv conv subConv -> (conv.mcId, Just subConv.scSubConvId)
       qcnv = fst <$> qualifiedConv
       subConvId = snd (qUnqualified qualifiedConv)
+  now <- Now.get
   for_ validated $ \(raw, recipientClient) -> do
-    now <- Now.get
     let event =
           Event
             { evtConv = qcnv,
@@ -392,6 +395,7 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
                   recipientClient = recipientClient.ciClient,
                   message = Base64ByteString raw.raw
                 }
+  pure $ toUTCTimeMillis now
 
 validateTargetedMessage ::
   ( Member (Error ConversationSubsystemError) r,
@@ -439,7 +443,7 @@ postMLSTargetedMessagesToRemoteConv ::
   ConvType ->
   batch ->
   Remote ConvOrSubConvId ->
-  Sem r ()
+  Sem r (Maybe UTCTimeMillis)
 postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
   -- The conversation-owning backend is authoritative for the MLS membership
   -- map and epoch, so it performs recipient and message validation.
@@ -454,12 +458,21 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
             rawMessage = Base64ByteString (encodeMLS' batch),
             enableOutOfSyncCheck = Nothing
           }
-  for_ response $ \case
-    MLSMessageResponseError responseError -> rethrowErrors @MLSMessageStaticErrors responseError
-    MLSMessageResponseProtocolError protocolError -> throw (mlsProtocolError protocolError)
-    MLSMessageResponseUpdates [] -> pure ()
-    MLSMessageResponseUpdates _ -> throw $ mlsProtocolError "unexpected conversation updates for targeted messages"
-    _ -> throw $ mlsProtocolError "unexpected federation response for targeted messages"
+  mlsMessageResponseV5Time response
+
+mlsMessageResponseV5Time ::
+  ( Members MLSMessageStaticErrors r,
+    Member (Error MLSProtocolError) r,
+    Member (Error FederationError) r
+  ) =>
+  Maybe MLSMessageResponseV5 ->
+  Sem r (Maybe UTCTimeMillis)
+mlsMessageResponseV5Time = traverse $ \case
+  MLSMessageResponseV5Success success
+    | null success.updates -> pure success.time
+  MLSMessageResponseV5Error (MLSMessageResponseError e) -> rethrowErrors @MLSMessageStaticErrors e
+  MLSMessageResponseV5Error (MLSMessageResponseProtocolError e) -> throw (mlsProtocolError e)
+  _ -> throw $ mlsProtocolError "unexpected federation response for targeted or transient message"
 
 -- These application messages do not change MLS group state. Like their queued
 -- notifications, submissions can be dropped when the negotiated federation
@@ -471,8 +484,8 @@ sendMLSMessageWithDropIfUnsupported ::
   ) =>
   Text ->
   Remote ConvOrSubConvId ->
-  FederatorClient 'Galley MLSMessageResponse ->
-  Sem r (Maybe MLSMessageResponse)
+  FederatorClient 'Galley MLSMessageResponseV5 ->
+  Sem r (Maybe MLSMessageResponseV5)
 sendMLSMessageWithDropIfUnsupported path remote action =
   runFederatedEither remote action >>= \case
     Left (FederationCallFailure FederatorClientVersionMismatch) -> do
@@ -503,7 +516,7 @@ validateAndPropagateTargetedMessages ::
   ConvType ->
   Local ConvOrSubConvId ->
   [RawMLS PersistentTargetedMessage] ->
-  Sem r ()
+  Sem r UTCTimeMillis
 validateAndPropagateTargetedMessages _sender _client _ctype _lconv [] =
   throw $ mlsProtocolError "targeted message batch is empty"
 validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMessage : _) = do
@@ -525,8 +538,8 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
           SubConv c s -> (c.mcId, Just s.scSubConvId)
       qcnv = fst <$> qt
       sconv = snd (qUnqualified qt)
+  now <- Now.get
   for_ validated $ \(raw, recipientClient) -> do
-    now <- Now.get
     let event =
           Event
             { evtConv = qcnv,
@@ -555,6 +568,7 @@ validateAndPropagateTargetedMessages sender client ctype lconv messages@(firstMe
                   recipientClient = recipientClient.ciClient,
                   message = Base64ByteString raw.raw
                 }
+  pure $ toUTCTimeMillis now
   where
     firstGroupId = (persistentTargetedMessageData firstMessage.value).groupId
 
@@ -768,7 +782,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       updateOutOfSyncFlag senderIdentity.client lConvOrSub'
       let convOrSub' = tUnqualified lConvOrSub'
           mems = cmIntersect (void convOrSub.members) convOrSub'.members
-      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
+      void $ propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
       pure lConvOrSub'
     pure (events, newClients, lConvOrSub')
 
@@ -781,7 +795,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   -- send application message
   for_ bundle.appMessage $ \msg -> do
     let convOrSub' = tUnqualified lConvOrSub'
-    propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage convOrSub'.members
+    void $ propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage convOrSub'.members
 
   pure events
 
@@ -947,7 +961,7 @@ postMLSMessage ::
   Maybe ConnId ->
   EnableOutOfSyncCheck ->
   IncomingMessage ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UTCTimeMillis)
 postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg = do
   runInputConst oosCheck $
     foldQualified
@@ -988,13 +1002,13 @@ postMLSMessageToLocalConv ::
   IncomingMessage ->
   ConvType ->
   Local ConvOrSubConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UTCTimeMillis)
 postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
   validateMessage qusr c lConvOrSub Nothing msg
 
-  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure []
+  t <- propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
+  pure ([], t)
 
 validateMessage ::
   ( HasProposalEffects r,
@@ -1071,7 +1085,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Remote ConvOrSubConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UTCTimeMillis)
 postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throw ConversationSubsystemErrorConvAccessDenied) qusr
@@ -1079,9 +1093,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   enableOutOfSyncCheck <- Just <$> input
-  resp <-
-    runFederated rConvOrSubId $
-      fedClient @'Galley @"send-mls-message" $
+  let request =
         MLSMessageSendRequest
           { convOrSubId = tUnqualified rConvOrSubId,
             sender = tUnqualified lusr,
@@ -1089,25 +1101,29 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
             rawMessage = Base64ByteString msg.rawMessage.raw,
             enableOutOfSyncCheck
           }
-  case resp of
-    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
-    MLSMessageResponseProtocolError e ->
+  response <- GalleyFederation.sendMLSMessage rConvOrSubId request
+  case response of
+    Left (MLSMessageResponseError e) -> rethrowErrors @MLSMessageStaticErrors e
+    Left (MLSMessageResponseProtocolError e) ->
       throw (mlsProtocolError e)
-    MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
-    MLSMessageResponseUnreachableBackends ds ->
+    Left (MLSMessageResponseProposalFailure e) -> throw (MLSProposalFailure e)
+    Left (MLSMessageResponseUnreachableBackends ds) ->
       throw . InternalErrorWithDescription $
         "An application or proposal message to a remote conversation should \
         \not ever return a non-empty list of domains a commit could not be \
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
-    MLSMessageResponseUpdates updates -> do
-      fmap fst . runOutputList $
-        for_ updates $ \update -> do
-          me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
-          for_ me $ \e -> output (LocalConversationUpdate e update)
-    MLSMessageResponseNonFederatingBackends e -> throw e
-    MLSMessageResponseGroupInfoDiagnostics e -> throw e
-    MLSMessageResponseOutOfSyncError e -> throw e
+    Right success -> do
+      localUpdates <-
+        fmap fst . runOutputList $
+          for_ success.updates $ \update -> do
+            me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
+            for_ me $ \e -> output (LocalConversationUpdate e update)
+      pure (localUpdates, success.time)
+    Left (MLSMessageResponseNonFederatingBackends e) -> throw e
+    Left (MLSMessageResponseGroupInfoDiagnostics e) -> throw e
+    Left (MLSMessageResponseOutOfSyncError e) -> throw e
+    Left (MLSMessageResponseUpdates _) -> throw $ mlsProtocolError "unexpected success in federation error response"
 
 storeGroupInfo ::
   (Member ConversationStore r) =>

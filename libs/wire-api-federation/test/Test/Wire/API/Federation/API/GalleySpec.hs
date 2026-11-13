@@ -21,6 +21,7 @@ module Test.Wire.API.Federation.API.GalleySpec where
 
 import Data.Aeson
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Set as Set
 import Imports
 import Test.Hspec
@@ -37,6 +38,54 @@ spec = describe "Wire.API.Federation.API.Galley" $ do
 
   describe "ConversationProtocol Aeson" $ do
     specConversationCreated
+
+  describe "MLS send response timestamps" $ do
+    let timestamp = toUTCTimeMillis (read "2026-11-11 10:54:51.693 UTC")
+        legacySuccess = MLSMessageResponseUpdates []
+        timedSuccess = MLSMessageResponseV5Success (MLSMessageSendSuccess [] timestamp)
+        timedSuccessJSON =
+          [r|{"tag":"MLSMessageResponseV5Success","contents":{"updates":[],"time":"2026-11-11T10:54:51.693Z"}}|]
+
+    it "keeps the V0-V4 success format unchanged" $ do
+      toJSON legacySuccess
+        `shouldBe` object
+          [ "tag" .= String "MLSMessageResponseUpdates",
+            "contents" .= ([] :: [Value])
+          ]
+
+    it "round-trips legacy successes without a timestamp" $ do
+      eitherDecode (encode legacySuccess) `shouldBe` Right legacySuccess
+
+    it "preserves the required V5 timestamp" $ do
+      eitherDecode (encode timedSuccess) `shouldBe` Right timedSuccess
+
+    it "encodes the expected V5 success JSON structure" $ do
+      eitherDecode @Value (encode timedSuccess) `shouldBe` eitherDecode @Value timedSuccessJSON
+
+    it "decodes an explicit V5 success JSON response" $ do
+      eitherDecode timedSuccessJSON `shouldBe` Right timedSuccess
+
+    it "round-trips legacy errors" $ do
+      let response = MLSMessageResponseProtocolError "invalid message"
+      eitherDecode (encode response) `shouldBe` Right response
+
+    it "requires the V5 success format with a timestamp" $ do
+      let successContents fields = object ["tag" .= String "MLSMessageResponseV5Success", "contents" .= object ("updates" .= ([] :: [Value]) : fields)]
+      for_ [toJSON legacySuccess, successContents [], successContents ["time" .= Null], successContents ["time" .= String "invalid"]] $ \value ->
+        case fromJSON @MLSMessageResponseV5 value of
+          Error _ -> pure ()
+          Success _ -> expectationFailure "a V5 success without a timestamp was accepted"
+
+    it "converts V5 successes to the legacy response at the V4 route" $ do
+      mlsMessageResponseV5ToLegacy timedSuccess `shouldBe` legacySuccess
+
+    it "preserves errors when converting V5 to V4" $ do
+      let response = MLSMessageResponseProtocolError "invalid message"
+      mlsMessageResponseV5ToLegacy (MLSMessageResponseV5Error response) `shouldBe` response
+
+    it "round-trips V5 errors" $ do
+      let response = MLSMessageResponseV5Error (MLSMessageResponseProtocolError "invalid message")
+      eitherDecode (encode response) `shouldBe` Right response
 
 specConversationCreated :: Spec
 specConversationCreated = describe "ConversationCreated" $ do

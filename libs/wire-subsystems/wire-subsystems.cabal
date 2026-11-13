@@ -369,6 +369,7 @@ library
     Wire.FeaturesConfigSubsystem.Types
     Wire.FeaturesConfigSubsystem.Utils
     Wire.FederationAPIAccess
+    Wire.FederationAPIAccess.Galley
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
@@ -671,6 +672,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.FederationAPIAccess.GalleySpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec

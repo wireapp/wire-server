@@ -674,22 +674,23 @@ handleMLSMessageErrors ::
               ': r
           )
   ) =>
-  Sem r1 MLSMessageResponse ->
-  Sem r MLSMessageResponse
-handleMLSMessageErrors =
-  fmap (either (MLSMessageResponseProtocolError . unTagged) Imports.id)
+  (MLSMessageResponse -> a) ->
+  Sem r1 a ->
+  Sem r a
+handleMLSMessageErrors onError =
+  fmap (either (onError . MLSMessageResponseProtocolError . unTagged) Imports.id)
     . runError @MLSProtocolError
-    . fmap (either MLSMessageResponseError Imports.id)
+    . fmap (either (onError . MLSMessageResponseError) Imports.id)
     . runError
-    . fmap (either (MLSMessageResponseProposalFailure . pfInner) Imports.id)
+    . fmap (either (onError . MLSMessageResponseProposalFailure . pfInner) Imports.id)
     . runError
-    . fmap (either MLSMessageResponseNonFederatingBackends Imports.id)
+    . fmap (either (onError . MLSMessageResponseNonFederatingBackends) Imports.id)
     . runError
-    . fmap (either (MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) Imports.id)
+    . fmap (either (onError . MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) Imports.id)
     . runError @UnreachableBackends
-    . fmap (either MLSMessageResponseGroupInfoDiagnostics Imports.id)
+    . fmap (either (onError . MLSMessageResponseGroupInfoDiagnostics) Imports.id)
     . runError @GroupInfoDiagnostics
-    . fmap (either MLSMessageResponseOutOfSyncError Imports.id)
+    . fmap (either (onError . MLSMessageResponseOutOfSyncError) Imports.id)
     . runError @MLSOutOfSyncError
     . mapToGalleyError @MLSBundleStaticErrors
 
@@ -724,7 +725,7 @@ sendMLSCommitBundle ::
   Domain ->
   MLSMessageSendRequest ->
   Sem r MLSMessageResponse
-sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
+sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors Imports.id $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
@@ -781,8 +782,8 @@ sendMLSMessage ::
   ) =>
   Domain ->
   MLSMessageSendRequest ->
-  Sem r MLSMessageResponse
-sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
+  Sem r MLSMessageResponseV5
+sendMLSMessage remoteDomain msr = handleMLSMessageErrors MLSMessageResponseV5Error $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
@@ -790,8 +791,8 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   msg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
-  MLSMessageResponseUpdates . map lcuUpdate
-    <$> postMLSMessage
+  (updates, timestamp) <-
+    postMLSMessage
       loc
       (tUntagged sender)
       msr.senderClient
@@ -800,6 +801,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
       Nothing
       (fromMaybe def msr.enableOutOfSyncCheck)
       msg
+  pure $ MLSMessageResponseV5Success (MLSMessageSendSuccess (map lcuUpdate updates) timestamp)
 
 sendMLSTargetedMessage ::
   ( Members MLSMessageStaticErrors r,
@@ -818,8 +820,8 @@ sendMLSTargetedMessage ::
   ) =>
   Domain ->
   MLSMessageSendRequest ->
-  Sem r MLSMessageResponse
-sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE escapeLeafIndexError $ do
+  Sem r MLSMessageResponseV5
+sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors MLSMessageResponseV5Error . catchCSE escapeLeafIndexError $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain req.sender
@@ -834,9 +836,13 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
       when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
       foldQualified
         loc
-        ( \convOrSubId -> do
-            validateAndPropagateTransientTargetedMessages (tUntagged sender) req.senderClient ctype groupId batch.transientMessages convOrSubId
-            pure (MLSMessageResponseUpdates [])
+        ( fmap (MLSMessageResponseV5Success . MLSMessageSendSuccess [])
+            . validateAndPropagateTransientTargetedMessages
+              (tUntagged sender)
+              req.senderClient
+              ctype
+              groupId
+              batch.transientMessages
         )
         (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
         qConvOrSub
@@ -846,10 +852,7 @@ sendMLSTargetedMessage remoteDomain req = handleMLSMessageErrors . catchCSE esca
       when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
       foldQualified
         loc
-        ( \convOrSubId -> do
-            validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages
-            pure (MLSMessageResponseUpdates [])
-        )
+        (\convOrSubId -> MLSMessageResponseV5Success . MLSMessageSendSuccess [] <$> validateAndPropagateTargetedMessages (tUntagged sender) req.senderClient ctype convOrSubId batch.messages)
         (\_ -> throw $ mlsProtocolError "federated targeted message was not sent to its conversation backend")
         qConvOrSub
     (Left _, Left decodeError) -> throw (mlsProtocolError decodeError)
@@ -878,8 +881,8 @@ sendMLSTransientMessage ::
   ) =>
   Domain ->
   MLSMessageSendRequest ->
-  Sem r MLSMessageResponse
-sendMLSTransientMessage remoteDomain req = handleMLSMessageErrors $ do
+  Sem r MLSMessageResponseV5
+sendMLSTransientMessage remoteDomain req = handleMLSMessageErrors MLSMessageResponseV5Error $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain req.sender
@@ -892,9 +895,13 @@ sendMLSTransientMessage remoteDomain req = handleMLSMessageErrors $ do
   when (qUnqualified qConvOrSub /= req.convOrSubId) $ throw ConversationSubsystemErrorMLSGroupConversationMismatch
   foldQualified
     loc
-    ( \localConv -> do
-        validateAndPropagateTransientMessage (tUntagged sender) req.senderClient ctype aad.groupContext.groupId (RawMLS messageBytes transient) localConv
-        pure (MLSMessageResponseUpdates [])
+    ( fmap (MLSMessageResponseV5Success . MLSMessageSendSuccess [])
+        . validateAndPropagateTransientMessage
+          (tUntagged sender)
+          req.senderClient
+          ctype
+          aad.groupContext.groupId
+          (RawMLS messageBytes transient)
     )
     (\_ -> throw $ mlsProtocolError "federated transient message was not sent to its conversation backend")
     qConvOrSub

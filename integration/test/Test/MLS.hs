@@ -51,11 +51,13 @@ testSendMessageNoReturnToSender = do
   -- the message
   withWebSockets [alice1, alice2, bob1, bob2] $ \(wsSender : wss) -> do
     mp <- createApplicationMessage convId alice1 "hello, bob"
-    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-      resp.status `shouldMatchInt` 201
+    response <- postMLSMessage mp.sender mp.message >>= getJSON 201
     for_ wss $ \ws -> do
       n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+      -- The sender and recipients must store the same message timestamp for
+      -- reply quote verification to succeed.
+      nPayload n %. "time" `shouldMatch` (response %. "time")
     expectFailure (const $ pure ())
       $ awaitMatch
         ( \n ->
@@ -65,6 +67,50 @@ testSendMessageNoReturnToSender = do
               (nPayload n %. "data" `isEqual` T.decodeUtf8 (Base64.encode mp.message))
         )
         wsSender
+
+testSendMessageToRemoteConversationTimestamp :: (HasCallStack) => App ()
+testSendMessageToRemoteConversationTimestamp = do
+  senderDomain <- make OwnDomain
+  ownerDomain <- make OtherDomain
+  sendMessageToRemoteConversation True senderDomain ownerDomain
+
+testSendMessageFederationV3ToV5 :: (HasCallStack) => FedDomain 3 -> App ()
+testSendMessageFederationV3ToV5 legacyDomain = do
+  currentDomain <- make OwnDomain
+  legacy <- make legacyDomain
+  -- The released V3 sender must accept the current owner's legacy response.
+  sendMessageToRemoteConversation False legacy currentDomain
+
+testSendMessageFederationV5ToV3 :: (HasCallStack) => FedDomain 3 -> App ()
+testSendMessageFederationV5ToV3 legacyDomain = do
+  currentDomain <- make OwnDomain
+  legacy <- make legacyDomain
+  -- V3 has no authoritative response timestamp; verify delivery through the
+  -- legacy client route without asserting response/event timestamp equality.
+  sendMessageToRemoteConversation False currentDomain legacy
+
+sendMessageToRemoteConversation :: (HasCallStack) => Bool -> Value -> Value -> App ()
+sendMessageToRemoteConversation checkTimestamp senderDomain ownerDomain = do
+  [alice, bob] <- createAndConnectUsers [senderDomain, ownerDomain]
+  [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, alice2]
+  -- Bob hosts the conversation; Alice sends through her own backend, which
+  -- forwards the message to Bob's backend over federation.
+  convId <- createNewGroup def bob1
+  void $ createAddCommit bob1 convId [alice] >>= sendAndConsumeCommitBundle
+
+  withWebSockets [alice2, bob1] $ \wss -> do
+    mp <- createApplicationMessage convId alice1 "hello, bob"
+    response <- postMLSMessage mp.sender mp.message >>= getJSON 201
+    [senderTime, ownerTime] <- for wss $ \ws -> do
+      n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+      nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+      -- Check both a recipient on the owning backend and Alice's other client,
+      -- which receives the event through federation.
+      eventTime <- nPayload n %. "time"
+      when checkTimestamp $ eventTime `shouldMatch` (response %. "time")
+      pure eventTime
+    senderTime `shouldMatch` ownerTime
 
 testPastStaleApplicationMessage :: (HasCallStack) => Domain -> App ()
 testPastStaleApplicationMessage otherDomain = do

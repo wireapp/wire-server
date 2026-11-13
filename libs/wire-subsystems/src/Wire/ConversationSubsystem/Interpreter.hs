@@ -173,7 +173,7 @@ interpretConversationSubsystem = interpret $ \case
       "MLS commit bundle failed"
       (mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle)
   PostMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg ->
-    mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
+    mapErrors $ fst <$> MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
     mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
   PostMLSTargetedMessagesFromLocalUser lusr c batch ->

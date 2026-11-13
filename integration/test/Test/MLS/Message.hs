@@ -57,12 +57,16 @@ testApplicationMessage = do
     traverse_ (awaitMatch isMemberJoinNotif) wss
 
     -- alex sends a message
-    void $ createApplicationMessage convId alex1 "hello" >>= sendAndConsumeMessage
-    traverse_ (awaitMatch isNewMLSMessageNotif) wss
+    localResponse <- createApplicationMessage convId alex1 "hello" >>= sendAndConsumeMessage
+    for_ wss $ \ws -> do
+      notification <- awaitMatch isNewMLSMessageNotif ws
+      notification %. "payload.0.time" `shouldMatch` (localResponse %. "time")
 
     -- bob sends a message
-    void $ createApplicationMessage convId bob1 "hey" >>= sendAndConsumeMessage
-    traverse_ (awaitMatch isNewMLSMessageNotif) wss
+    remoteResponse <- createApplicationMessage convId bob1 "hey" >>= sendAndConsumeMessage
+    for_ wss $ \ws -> do
+      notification <- awaitMatch isNewMLSMessageNotif ws
+      notification %. "payload.0.time" `shouldMatch` (remoteResponse %. "time")
 
 -- @END
 
@@ -98,12 +102,13 @@ testTransientMessageFederatedBroadcast = do
     void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
     traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs]
     transient <- createTransientMessage convId alice1 "transient broadcast"
-    postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
+    response <- postMLSTransientMessage transient.sender transient.message >>= getJSON 201
     for_ [bobWs, charlieWs] $ \ws -> do
       notification <- awaitMatch isNewMLSTransientMessageNotif ws
       event <- notification %. "payload.0"
       event %. "from" `shouldMatch` transient.sender.user
       event %. "data" `shouldMatch` (B8.unpack (Base64.encode transient.message))
+      event %. "time" `shouldMatch` (response %. "time")
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientMessageNotif aliceWs
 
 testTransientMessageFederatedSender :: (HasCallStack) => App ()
@@ -118,8 +123,13 @@ testTransientMessageFederatedSender = do
     void $ createAddCommit alice1 convId [bob, charlie, david] >>= sendAndConsumeCommitBundle
     traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs, davidWs]
     transient <- createTransientMessage convId bob1 "federated transient sender"
-    postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
-    traverse_ (awaitMatch isNewMLSTransientMessageNotif) [aliceWs, charlieWs, davidWs]
+    response <- postMLSTransientMessage transient.sender transient.message >>= getJSON 201
+    for_ [aliceWs, charlieWs, davidWs] $ \ws -> do
+      notification <- awaitMatch isNewMLSTransientMessageNotif ws
+      event <- notification %. "payload.0"
+      event %. "from" `shouldMatch` transient.sender.user
+      event %. "data" `shouldMatch` (B8.unpack (Base64.encode transient.message))
+      event %. "time" `shouldMatch` (response %. "time")
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientMessageNotif bobWs
 
 testTransientMessageOfflineIsNotSynced :: (HasCallStack) => App ()
@@ -202,7 +212,7 @@ testTransientMessageSubConversationBroadcast = do
     traverse_ (awaitMatch isNewMLSMessageNotif) [aliceWs, bobWs]
 
     transient <- createTransientMessage subConvId alice1 "transient subconversation broadcast"
-    postMLSTransientMessage transient.sender transient.message >>= assertStatus 201
+    response <- postMLSTransientMessage transient.sender transient.message >>= getJSON 201
 
     notification <- awaitMatch isNewMLSTransientMessageNotif bobWs
     event <- notification %. "payload.0"
@@ -210,6 +220,7 @@ testTransientMessageSubConversationBroadcast = do
     lookupField event "subconv" `shouldMatch` subConvId.subconvId
     event %. "from" `shouldMatch` alice1.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode transient.message))
+    event %. "time" `shouldMatch` (response %. "time")
 
 testTransientMessageRejectsMalformedPayload :: (HasCallStack) => App ()
 testTransientMessageRejectsMalformedPayload = do
@@ -233,13 +244,14 @@ testTargetedMessageFederatedRecipient = do
     void $ awaitMatch isMemberJoinNotif charlieWs
 
     targeted <- createTargetedMessage convId alice1 bob1 "federated targeted hello"
-    postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+    response <- postMLSTargetedMessage targeted.sender targeted.message >>= getJSON 201
 
     notification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
     event <- notification %. "payload.0"
     event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     event %. "from" `shouldMatch` targeted.sender.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+    event %. "time" `shouldMatch` (response %. "time")
 
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
@@ -259,23 +271,25 @@ testTargetedMessageFederatedSender = do
     traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs, davidWs]
 
     targetedToLocal <- createTargetedMessage convId charlie1 bob1 "targeted from remote to local"
-    postMLSTargetedMessage targetedToLocal.sender targetedToLocal.message >>= assertStatus 201
+    localResponse <- postMLSTargetedMessage targetedToLocal.sender targetedToLocal.message >>= getJSON 201
     localNotification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
     localEvent <- localNotification %. "payload.0"
     localEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     localEvent %. "from" `shouldMatch` targetedToLocal.sender.user
     localEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode targetedToLocal.message))
+    localEvent %. "time" `shouldMatch` (localResponse %. "time")
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif davidWs
 
     targetedToRemote <- createTargetedMessage convId charlie1 david1 "targeted from remote to remote"
-    postMLSTargetedMessage targetedToRemote.sender targetedToRemote.message >>= assertStatus 201
+    remoteResponse <- postMLSTargetedMessage targetedToRemote.sender targetedToRemote.message >>= getJSON 201
     remoteNotification <- awaitMatch isNewMLSTargetedMessageNotif davidWs
     remoteEvent <- remoteNotification %. "payload.0"
     remoteEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     remoteEvent %. "from" `shouldMatch` targetedToRemote.sender.user
     remoteEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode targetedToRemote.message))
+    remoteEvent %. "time" `shouldMatch` (remoteResponse %. "time")
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif bobWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
@@ -340,13 +354,14 @@ testTargetedMessage = do
     void $ awaitMatch isMemberJoinNotif charlieWs
 
     targeted <- createTargetedMessage convId alice1 bob1 "targeted hello"
-    postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+    response <- postMLSTargetedMessage targeted.sender targeted.message >>= getJSON 201
 
     notification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
     event <- notification %. "payload.0"
     event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     event %. "from" `shouldMatch` targeted.sender.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+    event %. "time" `shouldMatch` (response %. "time")
 
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif charlieWs
@@ -362,7 +377,7 @@ testTargetedMessageNotificationSync = do
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   targeted <- createTargetedMessage convId alice1 bob1 "targeted message notification sync"
-  postMLSTargetedMessage targeted.sender targeted.message >>= assertStatus 201
+  response <- postMLSTargetedMessage targeted.sender targeted.message >>= getJSON 201
 
   -- The recipient has no websocket open while the message is sent. It must be
   -- available later through the persistent notification sync endpoint.
@@ -371,6 +386,7 @@ testTargetedMessageNotificationSync = do
   event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
   event %. "from" `shouldMatch` targeted.sender.user
   event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+  event %. "time" `shouldMatch` (response %. "time")
 
 testTransientTargetedMessage :: (HasCallStack) => App ()
 testTransientTargetedMessage = do
@@ -385,15 +401,15 @@ testTransientTargetedMessage = do
     void $ awaitMatch isMemberJoinNotif charlieWs
 
     targeted <- createTransientTargetedMessage convId alice1 bob1 "transient targeted hello"
-    postMLSTransientTargetedMessage targeted.sender targeted.message `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    response <- postMLSTransientTargetedMessage targeted.sender targeted.message >>= getJSON 201
+    response %. "events" `shouldMatch` ([] :: [Value])
 
     notification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     event <- notification %. "payload.0"
     event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     event %. "from" `shouldMatch` targeted.sender.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode targeted.message))
+    event %. "time" `shouldMatch` (response %. "time")
 
     assertNoNotifications bob bob1.client Nothing isNewMLSTransientTargetedMessageNotif
 
@@ -429,19 +445,20 @@ testTransientTargetedMessageBatch = do
 
     bobMessage <- createTransientTargetedMessage convId alice1 bob1 "transient hello bob"
     charlieMessage <- createTransientTargetedMessage convId alice1 charlie1 "transient hello charlie"
-    postMLSTransientTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    response <- postMLSTransientTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) >>= getJSON 201
+    response %. "events" `shouldMatch` ([] :: [Value])
 
     bobNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     bobEvent <- bobNotification %. "payload.0"
     bobEvent %. "from" `shouldMatch` alice1.user
     bobEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode bobMessage.message))
+    bobEvent %. "time" `shouldMatch` (response %. "time")
 
     charlieNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
     charlieEvent <- charlieNotification %. "payload.0"
     charlieEvent %. "from" `shouldMatch` alice1.user
     charlieEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode charlieMessage.message))
+    charlieEvent %. "time" `shouldMatch` (response %. "time")
 
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
 
@@ -485,21 +502,22 @@ testTransientTargetedMessageFederatedRecipients = do
 
     bobMessage <- createTransientTargetedMessage convId alice1 bob1 "federated transient hello bob"
     charlieMessage <- createTransientTargetedMessage convId alice1 charlie1 "federated transient hello charlie"
-    postMLSTransientTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    response <- postMLSTransientTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) >>= getJSON 201
+    response %. "events" `shouldMatch` ([] :: [Value])
 
     bobNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     bobEvent <- bobNotification %. "payload.0"
     bobEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     bobEvent %. "from" `shouldMatch` alice1.user
     bobEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode bobMessage.message))
+    bobEvent %. "time" `shouldMatch` (response %. "time")
 
     charlieNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
     charlieEvent <- charlieNotification %. "payload.0"
     charlieEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     charlieEvent %. "from" `shouldMatch` alice1.user
     charlieEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode charlieMessage.message))
+    charlieEvent %. "time" `shouldMatch` (response %. "time")
 
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
 
@@ -524,27 +542,27 @@ testTransientTargetedMessageFederatedSender = do
     traverse_ (awaitMatch isMemberJoinNotif) [bobWs, charlieWs, davidWs]
 
     transientToLocal <- createTransientTargetedMessage convId charlie1 bob1 "transient from remote to local"
-    postMLSTransientTargetedMessage transientToLocal.sender transientToLocal.message `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    localResponse <- postMLSTransientTargetedMessage transientToLocal.sender transientToLocal.message >>= getJSON 201
+    localResponse %. "events" `shouldMatch` ([] :: [Value])
     localNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     localEvent <- localNotification %. "payload.0"
     localEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     localEvent %. "from" `shouldMatch` charlie1.user
     localEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode transientToLocal.message))
+    localEvent %. "time" `shouldMatch` (localResponse %. "time")
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif davidWs
 
     transientToRemote <- createTransientTargetedMessage convId charlie1 david1 "transient from remote to remote"
-    postMLSTransientTargetedMessage transientToRemote.sender transientToRemote.message `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "events" `shouldMatch` ([] :: [Value])
+    remoteResponse <- postMLSTransientTargetedMessage transientToRemote.sender transientToRemote.message >>= getJSON 201
+    remoteResponse %. "events" `shouldMatch` ([] :: [Value])
     remoteNotification <- awaitMatch isNewMLSTransientTargetedMessageNotif davidWs
     remoteEvent <- remoteNotification %. "payload.0"
     remoteEvent %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     remoteEvent %. "from" `shouldMatch` charlie1.user
     remoteEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode transientToRemote.message))
+    remoteEvent %. "time" `shouldMatch` (remoteResponse %. "time")
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif aliceWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif bobWs
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTransientTargetedMessageNotif charlieWs
@@ -575,17 +593,19 @@ testTargetedMessageBatch = do
 
     bobMessage <- createTargetedMessage convId alice1 bob1 "targeted hello bob"
     charlieMessage <- createTargetedMessage convId alice1 charlie1 "targeted hello charlie"
-    postMLSTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) >>= assertStatus 201
+    response <- postMLSTargetedMessage alice1 (bobMessage.message <> charlieMessage.message) >>= getJSON 201
 
     bobNotification <- awaitMatch isNewMLSTargetedMessageNotif bobWs
     bobEvent <- bobNotification %. "payload.0"
     bobEvent %. "from" `shouldMatch` alice1.user
     bobEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode bobMessage.message))
+    bobEvent %. "time" `shouldMatch` (response %. "time")
 
     charlieNotification <- awaitMatch isNewMLSTargetedMessageNotif charlieWs
     charlieEvent <- charlieNotification %. "payload.0"
     charlieEvent %. "from" `shouldMatch` alice1.user
     charlieEvent %. "data" `shouldMatch` (B8.unpack (Base64.encode charlieMessage.message))
+    charlieEvent %. "time" `shouldMatch` (response %. "time")
 
     expectFailure (const (pure ())) $ awaitMatch isNewMLSTargetedMessageNotif aliceWs
 
