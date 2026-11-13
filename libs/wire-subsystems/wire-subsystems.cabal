@@ -506,8 +506,6 @@ library
     Wire.TeamStore
     Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries
-    Wire.TeamStore.DualWrite
-    Wire.TeamStore.Migration
     Wire.TeamStore.Postgres
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI

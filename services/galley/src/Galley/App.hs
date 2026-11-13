@@ -193,7 +193,6 @@ import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
-import Wire.TeamStore.DualWrite (interpretTeamStoreMetadataToCassandraAndPostgres)
 import Wire.TeamStore.Postgres (interpretTeamStoreMetadataToPostgres)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter
@@ -452,11 +451,13 @@ evalGalley e =
           CassandraStorage -> interpretCustomBackendStoreToCassandra
           MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCustomBackendStoreToPostgres
+      -- The dual-write machinery was removed: 'MigrationToPostgresql' is
+      -- treated as 'PostgresqlStorage'.
       teamStoreInterpreter =
         case (e ^. options . postgresMigration).team of
           CassandraStorage -> interpretTeamStoreToCassandra
-          MigrationToPostgresql -> interpretTeamStoreMetadataToCassandraAndPostgres
           PostgresqlStorage -> interpretTeamStoreMetadataToPostgres
+          MigrationToPostgresql -> interpretTeamStoreMetadataToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig

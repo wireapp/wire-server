@@ -22,7 +22,6 @@ import Cassandra.Util (Writetime)
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
-import Data.UUID (UUID)
 import Imports
 import Text.RawString.QQ
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -31,31 +30,6 @@ import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 
 -- Teams --------------------------------------------------------------------
-
-selectAllTeams ::
-  PrepQuery
-    R
-    ()
-    ( UUID,
-      UserId,
-      Text,
-      Maybe (Writetime Text),
-      Icon,
-      Maybe (Writetime Icon),
-      Maybe Text,
-      Maybe (Writetime Text),
-      Bool,
-      Maybe TeamStatus,
-      Maybe (Writetime TeamStatus),
-      Maybe TeamBinding,
-      Maybe (Writetime TeamBinding),
-      Maybe Icon,
-      Maybe (Writetime Icon),
-      Maybe TeamSearchVisibility,
-      Maybe (Writetime TeamSearchVisibility)
-    )
-selectAllTeams =
-  "select team, creator, name, writetime(name), icon, writetime(icon), icon_key, writetime(icon_key), deleted, status, writetime(status), binding, writetime(binding), splash_screen, writetime(splash_screen), search_visibility, writetime(search_visibility) from team"
 
 selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe Icon)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"
@@ -144,12 +118,6 @@ selectUserTeamsFrom = "select team from user_team where user = ? and team > ? or
 insertTeam :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 
--- | Like 'insertTeam', but with an explicit client-chosen writetime so that
--- dual-written rows converge under LWW on both Cassandra and Postgres (see
--- Wire.TeamStore.DualWrite).
-insertTeamTimestamped :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus, TeamBinding, Int64) ()
-insertTeamTimestamped = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?) using timestamp ?"
-
 insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) ()
 insertTeamMember = "insert into team_member (team, user, perms, invited_by, invited_at) values (?, ?, ?, ?, ?)"
 
@@ -203,27 +171,6 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 updateTeamSplashScreen :: PrepQuery W (Text, TeamId) ()
 updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
-
--- | Timestamped variants of the dual-written per-column updates above; the
--- Int64 writetime (microseconds since the epoch) is applied with
--- @using timestamp@ so both legs of a dual write carry the same LWW stamp.
-updateTeamNameTimestamped :: PrepQuery W (Int64, Text, TeamId) ()
-updateTeamNameTimestamped = "update team using timestamp ? set name = ? where team = ?"
-
-updateTeamIconTimestamped :: PrepQuery W (Int64, Text, TeamId) ()
-updateTeamIconTimestamped = "update team using timestamp ? set icon = ? where team = ?"
-
-updateTeamIconKeyTimestamped :: PrepQuery W (Int64, Text, TeamId) ()
-updateTeamIconKeyTimestamped = "update team using timestamp ? set icon_key = ? where team = ?"
-
-updateTeamSplashScreenTimestamped :: PrepQuery W (Int64, Text, TeamId) ()
-updateTeamSplashScreenTimestamped = "update team using timestamp ? set splash_screen = ? where team = ?"
-
-updateTeamStatusTimestamped :: PrepQuery W (Int64, TeamStatus, TeamId) ()
-updateTeamStatusTimestamped = "update team using timestamp ? set status = ? where team = ?"
-
-updateSearchVisibilityTimestamped :: PrepQuery W (Int64, TeamSearchVisibility, TeamId) ()
-updateSearchVisibilityTimestamped = "update team using timestamp ? set search_visibility = ? where team = ?"
 
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
 selectSearchVisibility =
