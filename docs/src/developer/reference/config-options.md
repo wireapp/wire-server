@@ -2391,6 +2391,7 @@ galley:
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
+      userPendingActivation: postgresql
       passwordReset: postgresql
       customBackend: postgresql
       budget: postgresql

@@ -137,8 +137,8 @@ import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
-import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserStore as UserStore
+import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -150,7 +150,8 @@ import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
   forall r p.
-  ( Member BlockListStore r,
+  (
+    Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
@@ -1120,3 +1121,4 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.internalDeleteApp tid uid >> 
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
+

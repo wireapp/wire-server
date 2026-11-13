@@ -521,6 +521,7 @@ library
     Wire.UserList
     Wire.UserPendingActivationStore
     Wire.UserPendingActivationStore.Cassandra
+    Wire.UserPendingActivationStore.Postgres
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
     Wire.UserSearch.Types

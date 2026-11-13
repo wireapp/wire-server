@@ -1,0 +1,1 @@
+Migration of user pending activation store from cassandra to postgres

@@ -51,6 +51,7 @@ usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
     insertExpiration :: PrepQuery W (UserId, UTCTime) ()
     insertExpiration = "INSERT INTO users_pending_activation (user, expires_at) VALUES (?, ?)"
 
+-- | Full-table select, used by the Postgres migration copy loop.
 usersPendingActivationList :: (MonadClient m) => m (Page UserPendingActivation)
 usersPendingActivationList = do
   uncurry UserPendingActivation <$$> retry x1 (paginate selectExpired (params LocalQuorum ()))
