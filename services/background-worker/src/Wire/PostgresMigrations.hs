@@ -126,7 +126,6 @@ users migOpts = do
   duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_users_migration_duration_seconds" "Duration of user migration attempts") defaultBuckets
 
   migrationLoop <- async . lift $ UserStore.migrateUsersLoop migOpts cassClient pgPool logger count finished failed duration
-
   Log.info logger $ Log.msg (Log.val "started user migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling user migration")

@@ -1,0 +1,5 @@
+Migration of team invitations from cassandra to postgres
+
+Expired team invitations are deleted daily by the new pg_cron job expire-team-invitations; requires the pg_cron extension in shared_preload_libraries (the migration warns if absent)
+
+While in migration-to-postgresql mode, reads and writes of a team's invitations and pending SCIM users are serialized against the background copy loop by a per-team migration lock, and the copied Cassandra partitions are deleted in the same locked section (mirroring the connections migration).

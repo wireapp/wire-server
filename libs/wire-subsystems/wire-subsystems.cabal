@@ -401,6 +401,7 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.InvitationStore.Postgres
     Wire.JobSubsystem
     Wire.JobSubsystem.ArbiterAdapter
     Wire.JobSubsystem.Interpreter

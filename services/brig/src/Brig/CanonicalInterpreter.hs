@@ -117,6 +117,7 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.InvitationStore.Postgres (interpretInvitationStoreToPostgres)
 import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
@@ -543,7 +544,21 @@ runBrigToIO e (AppT ma) = do
               . connectionsStoreInterpreter
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
-              . interpretInvitationStoreToCassandra e.casClient
+              -- The dual-write machinery was removed: 'MigrationToPostgresql'
+              -- is treated as 'PostgresqlStorage'.
+              . ( case e.postgresMigration.invitations of
+                    CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
+                    PostgresqlStorage ->
+                      runInputConst e.hasqlPool
+                        . mapError postgresUsageErrorToHttpError
+                        . interpretInvitationStoreToPostgres
+                        . raiseUnder2
+                    MigrationToPostgresql ->
+                      runInputConst e.hasqlPool
+                        . mapError postgresUsageErrorToHttpError
+                        . interpretInvitationStoreToPostgres
+                        . raiseUnder2
+                )
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
