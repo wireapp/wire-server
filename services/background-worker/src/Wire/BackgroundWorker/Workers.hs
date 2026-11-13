@@ -47,6 +47,7 @@ import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Migrations (runJobMigrations)
 import Wire.MeetingsCleanupWorker
 
+
 -- | Runtime settings shared by every job runner in a process.
 --
 -- These values deliberately mirror the Arbiter worker defaults that we use.
@@ -121,10 +122,11 @@ toJobJitter = \case
 -- | Start the worker pools for the job queues.
 --
 -- Each domain queue has its own Arbiter table and worker pool. The meetings
--- pool owns the recurring cleanup cron job, while the conversations pool owns
--- the adminless one-off jobs. Both pools are supervised by Arbiter's
--- multi-pool runner, so they share the process lifecycle without sharing a
--- payload type or queue.
+-- pool owns a recurring cleanup cron job (expired activation keys are cleaned
+-- up by a pg_cron-scheduled statement instead, see ADR-0005), while the
+-- conversations pool owns the adminless one-off jobs. All pools are
+-- supervised by Arbiter's multi-pool runner, so they share the process
+-- lifecycle without sharing a payload type or queue.
 runJobRunner ::
   Env ->
   ExtEnv ->

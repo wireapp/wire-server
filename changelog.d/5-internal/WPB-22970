@@ -1,0 +1,2 @@
+Migration of activation keys from cassandra to postgres
+Expired activation keys in Postgres are now deleted by the pg_cron job expire-activation-keys (nightly, batched) instead of the background-worker Arbiter cron job; the activationKeysCleanup background-worker config key was removed.

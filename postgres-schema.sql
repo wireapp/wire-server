@@ -1328,6 +1328,23 @@ CREATE TABLE arbiter.schema_migrations (
 ALTER TABLE arbiter.schema_migrations OWNER TO "wire-server";
 
 --
+-- Name: activation_keys; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.activation_keys (
+    key text NOT NULL,
+    key_type text NOT NULL,
+    key_text text NOT NULL,
+    code text NOT NULL,
+    user_id uuid,
+    retries integer NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.activation_keys OWNER TO "wire-server";
+
+--
 -- Name: apps; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2033,6 +2050,14 @@ ALTER TABLE ONLY arbiter.meetings_results
 
 
 --
+-- Name: activation_keys activation_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.activation_keys
+    ADD CONSTRAINT activation_keys_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: apps apps_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -2604,6 +2629,13 @@ CREATE INDEX idx_meetings_ungrouped_ready_ranking ON arbiter.meetings USING btre
 
 
 --
+-- Name: activation_keys_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX activation_keys_expires_at_idx ON public.activation_keys USING btree (expires_at);
+
+
+--
 -- Name: asset_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2933,6 +2965,26 @@ ALTER TABLE ONLY public.local_conversation_remote_member
 
 ALTER TABLE ONLY public.subconversation
     ADD CONSTRAINT subconversation_conv_id_fkey FOREIGN KEY (conv_id) REFERENCES public.conversation(id) ON DELETE CASCADE;
+
+
+--
+-- Name: activation_keys_deletions; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.activation_keys_deletions (
+    key text NOT NULL,
+    deleted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.activation_keys_deletions OWNER TO "wire-server";
+
+--
+-- Name: activation_keys_deletions activation_keys_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.activation_keys_deletions
+    ADD CONSTRAINT activation_keys_deletions_pkey PRIMARY KEY (key);
 
 
 --
