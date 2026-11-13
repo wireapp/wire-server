@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
+
 -- {-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -48,8 +49,7 @@ spec = describe "FederationConfigSubsystem.Interpreter" do
     \(domain :: Domain) ->
       let cfgs = Map.empty
           (_, res) = runAllEffects . interpretFederationConfigSubsystem (Just AllowAll) cfgs $ do
-            conf <- getFederationConfig domain
-            pure conf
+            getFederationConfig domain
        in res === Nothing
   prop "gets config locally if it exists there" $
     \(domain :: Domain)
@@ -60,25 +60,25 @@ spec = describe "FederationConfigSubsystem.Interpreter" do
          in res === Just cfg
   prop "returns changed config after update" $
     \(cfg :: FederationDomainConfig) ->
-        let cfgs = Map.empty
-            oldConf = cfg {restriction = FederationRestrictionAllowAll}
-            domain = oldConf.domain
-            newConf = cfg {restriction = FederationRestrictionByTeam []}
-            (_, (updateResult, resConf)) = runAllEffects . interpretFederationConfigSubsystem (Just AllowAll) cfgs $ do
-              _ <- addFederationConfig oldConf
-              updated <- updateFederationConfig newConf
-              conf <- getFederationConfig domain
-              pure (updated, conf)
-         in (updateResult, resConf) =/= (Store.UpdateFederationSuccess, Just oldConf)
-              .&. (updateResult, resConf) === (Store.UpdateFederationSuccess, Just newConf)
+      let cfgs = Map.empty
+          oldConf = cfg {restriction = FederationRestrictionAllowAll}
+          domain = oldConf.domain
+          newConf = cfg {restriction = FederationRestrictionByTeam []}
+          (_, (updateResult, resConf)) = runAllEffects . interpretFederationConfigSubsystem (Just AllowAll) cfgs $ do
+            _ <- addFederationConfig oldConf
+            updated <- updateFederationConfig newConf
+            conf <- getFederationConfig domain
+            pure (updated, conf)
+       in (updateResult, resConf) =/= (Store.UpdateFederationSuccess, Just oldConf)
+            .&. (updateResult, resConf) === (Store.UpdateFederationSuccess, Just newConf)
   prop "gets config from db if it does not exist locally" $
     \(cfg :: FederationDomainConfig) ->
-        let cfgs = Map.empty
-            (_, (addResult, res)) = runAllEffects . interpretFederationConfigSubsystem (Just AllowAll) cfgs $ do
-              actual <- addFederationConfig cfg
-              conf <- getFederationConfig cfg.domain
-              pure (actual, conf)
-         in (addResult, res) === (Store.AddFederationRemoteSuccess, Just cfg)
+      let cfgs = Map.empty
+          (_, (addResult, res)) = runAllEffects . interpretFederationConfigSubsystem (Just AllowAll) cfgs $ do
+            actual <- addFederationConfig cfg
+            conf <- getFederationConfig cfg.domain
+            pure (actual, conf)
+       in (addResult, res) === (Store.AddFederationRemoteSuccess, Just cfg)
   where
     runAllEffects ::
       Sem AllEffects a ->
