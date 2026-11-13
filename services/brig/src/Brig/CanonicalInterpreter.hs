@@ -117,7 +117,6 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
-import Wire.InvitationStore.DualWrite (interpretInvitationStoreToCassandraAndPostgres)
 import Wire.InvitationStore.Postgres (interpretInvitationStoreToPostgres)
 import Wire.JwtTools
 import Wire.MigrationLock
@@ -545,6 +544,8 @@ runBrigToIO e (AppT ma) = do
               . connectionsStoreInterpreter
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
+              -- The dual-write machinery was removed: 'MigrationToPostgresql'
+              -- is treated as 'PostgresqlStorage'.
               . ( case e.postgresMigration.invitations of
                     CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
                     PostgresqlStorage ->
@@ -552,17 +553,11 @@ runBrigToIO e (AppT ma) = do
                         . mapError postgresUsageErrorToHttpError
                         . interpretInvitationStoreToPostgres
                         . raiseUnder2
-                    -- The locked dual-write additionally needs Error
-                    -- MigrationLockError (mapped to HttpError here); Input
-                    -- Pool and Error UsageError are supplied locally like the
-                    -- PostgresqlStorage branch.  TinyLog, Async, Race and
-                    -- Resource come from the surrounding stack.
                     MigrationToPostgresql ->
                       runInputConst e.hasqlPool
                         . mapError postgresUsageErrorToHttpError
-                        . mapError migrationLockErrorToHttpError
-                        . interpretInvitationStoreToCassandraAndPostgres e.casClient
-                        . raiseUnder3
+                        . interpretInvitationStoreToPostgres
+                        . raiseUnder2
                 )
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
