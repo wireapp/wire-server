@@ -187,7 +187,6 @@ library
     Test.Migration.DomainRegistration
     Test.Migration.MeetingLinks
     Test.Migration.Nonce
-    Test.Migration.OAuthAuthCode
     Test.Migration.PasswordReset
     Test.Migration.TeamFeatures
     Test.Migration.User
