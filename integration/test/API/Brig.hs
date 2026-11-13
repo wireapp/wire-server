@@ -1384,51 +1384,11 @@ getSystemSettingsInternal user = do
 ----------------------------------------------------------------
 -- TOTP
 
--- Raw request bodies allow testing second-factor parsing, including malformed codes.
-deleteSelfWithBody :: (HasCallStack, MakesValue user) => user -> Value -> App Response
-deleteSelfWithBody user body = do
-  req <- baseRequest user Brig Versioned "/self"
-  submit "DELETE" $ req & addJSON body
-
+-- Raw request body, so that malformed second factors can be sent as well.
 putPasswordWithBody :: (HasCallStack, MakesValue user) => user -> Value -> App Response
 putPasswordWithBody user body = do
   req <- baseRequest user Brig Versioned "/self/password"
   submit "PUT" $ req & addJSON body
-
-addClientWithBody :: (HasCallStack, MakesValue user) => user -> Value -> App Response
-addClientWithBody user body = do
-  req <- baseRequest user Brig Versioned "/clients"
-  submit "POST" $ req & addJSON body
-
-deleteClientWithBody :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
-deleteClientWithBody user cid body = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["clients", cid]
-  submit "DELETE" $ req & addJSON body
-
-completePasswordResetWithBody :: (HasCallStack, MakesValue user) => user -> Value -> App Response
-completePasswordResetWithBody user body = do
-  req <- baseRequest user Brig Versioned "/password-reset/complete"
-  submit "POST" $ req & addJSON body
-
-updateEmailWithBody :: (HasCallStack, MakesValue user) => user -> String -> String -> Value -> App Response
-updateEmailWithBody user cookie token body = do
-  req <- baseRequest user Brig Versioned "/access/self/email"
-  submit "PUT" $ req & addJSON body & setCookie cookie & addHeader "Authorization" ("Bearer " <> token)
-
-acceptTeamInvitationWithBody :: (HasCallStack, MakesValue user) => user -> Value -> App Response
-acceptTeamInvitationWithBody user body = do
-  req <- baseRequest user Brig Versioned "/teams/invitations/accept"
-  submit "POST" $ req & addJSON body
-
-createAppWithBody :: (HasCallStack, MakesValue user) => user -> String -> Value -> App Response
-createAppWithBody user tid body = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
-  submit "POST" $ req & addJSON body
-
-deleteOAuthSessionsWithBody :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> Value -> App Response
-deleteOAuthSessionsWithBody user cid tokenId body = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath (["oauth", "applications", cid, "sessions"] <> toList tokenId)
-  submit "DELETE" $ req & addJSON body
 
 enrolTotp :: (HasCallStack, MakesValue user) => user -> Value -> App Response
 enrolTotp user body = do

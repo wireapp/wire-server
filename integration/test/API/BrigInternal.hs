@@ -348,12 +348,6 @@ getActivationCode domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/activation-code"
   submit "GET" $ req & addQueryParams [("email", email)]
 
-reauthenticateWithBody :: (HasCallStack, MakesValue user) => user -> Value -> App Response
-reauthenticateWithBody user body = do
-  uid <- objId user
-  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "reauthenticate"]
-  submit "GET" $ req & addJSON body
-
 getPasswordResetCode :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 getPasswordResetCode domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/password-reset-code"
