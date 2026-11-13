@@ -31,7 +31,7 @@ data StorageLocation
     MigrationToPostgresql
   | -- | Use after migrating to postgresql
     PostgresqlStorage
-  deriving (Show)
+  deriving (Show, Eq)
 
 instance FromJSON StorageLocation where
   parseJSON =
