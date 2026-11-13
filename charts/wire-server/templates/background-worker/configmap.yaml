@@ -94,7 +94,6 @@ data:
     migrateCustomBackend: {{ .migrateCustomBackend }}
     migrateNonce: {{ .migrateNonce }}
     migrateConnections: {{ .migrateConnections }}
-    migrateVerificationCodes: {{ .migrateVerificationCodes }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
