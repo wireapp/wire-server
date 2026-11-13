@@ -1075,7 +1075,12 @@ testGhostMemberRowRepair :: (HasCallStack) => App ()
 testGhostMemberRowRepair = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
-  traverse_ (uploadNewKeyPackage def) [alice2, bob1]
+  -- Bob needs a KP for the add commit and another for the final re-add.
+  -- Alice2's KP must NOT exist yet: the first commit of a conversation
+  -- validates the sender's user against brig (all MLS-capable clients must be
+  -- covered by Add proposals), so an unused KP for alice2 here would make
+  -- galley reject the commit with 409 mls-client-mismatch.
+  traverse_ (uploadNewKeyPackage def) [bob1, bob1]
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
@@ -1092,6 +1097,8 @@ testGhostMemberRowRepair = do
         (\m -> nPayload m %. "type" `isEqual` "conversation.mls-message-add")
         wsBob
 
+  -- alice2 needs a registered KP to join via external commit.
+  void $ uploadNewKeyPackage def alice2
   -- Any commit bundle triggers the repair from the stored ratchet tree; the
   -- external commit must come from a non-member (galley rejects external commits
   -- from existing members without a self-remove proposal), so a fresh client of
