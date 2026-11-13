@@ -28,6 +28,9 @@ module Wire.API.Meeting
     renderMeetingType,
     parseMeetingType,
 
+    -- * External meeting manager
+    ExternalManager (..),
+
     -- * Meetings (V19)
     Meeting (..),
     MeetingWithConversation (..),
@@ -150,6 +153,10 @@ data Meeting = Meeting
     endTime :: UTCTime,
     tzid :: TimeZone,
     mtype :: MeetingType,
+    -- | Lifecycle owner of the meeting when externally managed (e.g. the
+    -- calendar integration); absent = wire-managed. Set at creation and
+    -- immutable.
+    externallyManagedBy :: Maybe ExternalManager,
     recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
@@ -214,6 +221,7 @@ meetingObject =
     <*> (.endTime) .= field "end_time" utcTimeSchema
     <*> (.tzid) .= field "tzid" schema
     <*> (.mtype) .= field "type" schema
+    <*> (.externallyManagedBy) .= maybe_ (optField "externally_managed_by" schema)
     <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
     <*> (.conversationId) .= field "qualified_conversation" schema
     <*> (.invitedEmails) .= field "invited_emails" (array schema)
@@ -345,6 +353,14 @@ data NewMeeting = NewMeeting
     endTime :: UTCTime,
     tzid :: TimeZone,
     mtype :: MeetingType,
+    -- | Lifecycle owner of the meeting when externally managed (e.g.
+    -- @google_calendar@, @outlook@); required (validation-level, free text)
+    -- for calendar-integration (OAuth) callers creating meetings.
+    externallyManagedBy :: Maybe ExternalManager,
+    -- | External calendar references; required (validation-level) for
+    -- externally-managed creates and rejected for wire-managed ones.
+    externallyCalendarEventId :: Maybe Text,
+    externallyCalendarId :: Maybe Text,
     recurrence :: Maybe Recurrence,
     title :: Range 1 256 Text,
     invitedEmails :: [EmailAddress],
@@ -373,6 +389,9 @@ instance ToSchema NewMeeting where
         <*> (.endTime) .= field "end_time" utcTimeSchema
         <*> (.tzid) .= field "tzid" schema
         <*> (.mtype) .= field "type" schema
+        <*> (.externallyManagedBy) .= maybe_ (optField "externally_managed_by" schema)
+        <*> (.externallyCalendarEventId) .= maybe_ (optField "externally_calendar_event_id" schema)
+        <*> (.externallyCalendarId) .= maybe_ (optField "externally_calendar_id" schema)
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
@@ -456,6 +475,19 @@ parseMeetingType = \case
   "immediate" -> Just Immediate
   "scheduled" -> Just Scheduled
   _ -> Nothing
+
+-- | Lifecycle owner of a meeting when externally managed (e.g. the calendar
+-- integration). Free text; @google_calendar@ and @outlook@ are client
+-- conventions. Absent ('Nothing') = wire-managed. Set at creation and
+-- immutable.
+newtype ExternalManager = ExternalManager Text
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ExternalManager)
+
+instance ToSchema ExternalManager where
+  schema =
+    (\(ExternalManager t) -> t)
+      .= parsedText "ExternalManager" (Right . ExternalManager)
 
 -- | Request to update an existing meeting. @tzid@ is optional: 'Just'
 -- sets the meeting's IANA time zone, while omitting it leaves the stored time
@@ -575,6 +607,9 @@ fromLegacyNewMeeting tz nm =
       recurrence = nm.recurrence,
       title = nm.title,
       invitedEmails = nm.invitedEmails,
+      externallyManagedBy = Nothing,
+      externallyCalendarEventId = Nothing,
+      externallyCalendarId = Nothing,
       password = Nothing
     }
 
@@ -591,6 +626,9 @@ fromLegacyNewMeetingV18 nm =
       recurrence = nm.recurrence,
       title = nm.title,
       invitedEmails = nm.invitedEmails,
+      externallyManagedBy = Nothing,
+      externallyCalendarEventId = Nothing,
+      externallyCalendarId = Nothing,
       password = Nothing
     }
 

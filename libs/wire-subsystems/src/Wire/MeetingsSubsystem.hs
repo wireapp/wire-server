@@ -34,23 +34,35 @@ import Wire.API.User.EmailAddress (EmailAddress)
 data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     NewMeeting ->
     MeetingsSubsystem m MeetingWithConversation
   UpdateMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     Qualified MeetingId ->
     UpdateMeeting ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
   DeleteMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     Qualified MeetingId ->
     MeetingsSubsystem m Bool
   RefreshMeetingLink ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     Qualified MeetingId ->
     RefreshMeetingLinkRequest ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
@@ -138,6 +150,10 @@ data MeetingsSubsystem m a where
     MeetingsSubsystem m [MeetingV18]
   AddInvitedEmails ::
     Local UserId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     Qualified MeetingId ->
     [EmailAddress] ->
     -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
@@ -145,11 +161,19 @@ data MeetingsSubsystem m a where
     MeetingsSubsystem m Bool
   RemoveInvitedEmails ::
     Local UserId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     Qualified MeetingId ->
     [EmailAddress] ->
     MeetingsSubsystem m Bool
   ReplaceInvitedEmails ::
     Local UserId ->
+    Maybe ConnId ->
+    -- | Value of the caller's optional @Z-Client@ header ('Just "Calendar"'
+    -- for the calendar integration).
+    Maybe Text ->
     Qualified MeetingId ->
     [EmailAddress] ->
     -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
