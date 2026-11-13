@@ -2388,6 +2388,7 @@ galley:
       conversation: postgresql
       conversationCodes: postgresql
       teamFeatures: postgresql
+      teamStore: postgresql
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
@@ -2437,7 +2438,6 @@ The current settings and their background-worker flags are:
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
 - `domainRegistration` -> `migrateDomainRegistration`
-- `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
@@ -2461,6 +2461,7 @@ The current settings and their background-worker flags are:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
+         teamStore: migration-to-postgresql
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
          blockList: cassandra
@@ -2542,6 +2543,7 @@ The current settings and their background-worker flags are:
          conversation: postgresql
          conversationCodes: postgresql
          teamFeatures: postgresql
+         teamStore: postgresql
          domainRegistration: postgresql
          user: postgresql
          blockList: cassandra
