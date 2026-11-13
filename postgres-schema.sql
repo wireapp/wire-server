@@ -7,7 +7,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
+\restrict 0bfdefbfbf668c2f830346aaeb145f39102cb40511a96ac2aafcdfee817a748
 
 -- Dumped from database version 17.11
 -- Dumped by pg_dump version 17.11
@@ -1674,11 +1674,37 @@ CREATE TABLE public.nonce (
     user_id uuid NOT NULL,
     key text NOT NULL,
     nonce uuid NOT NULL,
+-- Name: notification_payload; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.notification_payload (
+    id uuid NOT NULL,
+    payload bytea NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL
 );
 
 
 ALTER TABLE public.nonce OWNER TO "wire-server";
+ALTER TABLE public.notification_payload OWNER TO "wire-server";
+
+--
+-- Name: notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.notifications (
+    user_id uuid NOT NULL,
+    id uuid NOT NULL,
+    payload bytea,
+    payload_ref uuid,
+    payload_ref_size integer,
+    clients text[] DEFAULT '{}'::text[] NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.notifications OWNER TO "wire-server";
 
 --
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
@@ -2198,6 +2224,19 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
+-- Name: notification_payload notification_payload_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.notification_payload
+    ADD CONSTRAINT notification_payload_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_pkey PRIMARY KEY (user_id, id);
 
 
 --
@@ -2751,6 +2790,27 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 
 
 --
+-- Name: notification_payload_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX notification_payload_expires_at_idx ON public.notification_payload USING btree (expires_at);
+
+
+--
+-- Name: notifications_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX notifications_expires_at_idx ON public.notifications USING btree (expires_at);
+
+
+--
+-- Name: notifications_user_occurred_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX notifications_user_occurred_at_idx ON public.notifications USING btree (user_id, occurred_at);
+
+
+--
 -- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2946,4 +3006,4 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
+\unrestrict 0bfdefbfbf668c2f830346aaeb145f39102cb40511a96ac2aafcdfee817a748

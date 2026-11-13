@@ -2445,8 +2445,7 @@ The current settings and their background-worker flags are:
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
 
-`notifications` (gundeck NotificationStore) has no background-worker flag yet; its
-tables and migration arrive with the NotificationStore migration. Gundeck itself now
+Gundeck itself now
 requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` block
 (including `notifications`) to boot (strict config parsing).
 

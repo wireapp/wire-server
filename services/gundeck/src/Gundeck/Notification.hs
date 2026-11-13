@@ -31,8 +31,8 @@ import Data.Id
 import Data.Range
 import Data.UUID qualified as UUID
 import Gundeck.Monad
-import Gundeck.Notification.Data qualified as Data
 import Gundeck.Notification.Metrics
+import Gundeck.NotificationStoreBridge (runNotificationStore)
 import Gundeck.Options (brig)
 import Imports hiding (getLast)
 import Network.HTTP.Types (status400)
@@ -43,6 +43,7 @@ import System.Logger.Class qualified as Log
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Internal.Notification
 import Wire.API.Notification
+import Wire.NotificationStore (fetchNotifications, resultGap, resultHasMore, resultSeq)
 
 data PaginateResult = PaginateResult
   { paginateResultGap :: Bool,
@@ -55,21 +56,21 @@ paginate uid since mclt size = do
   for_ mclt $ \clt -> updateActivity uid clt
 
   time <- posixTime
-  rs <- Data.fetch uid mclt since size
+  rs <- runNotificationStore (fetchNotifications uid mclt since size)
   observeFetch
     FetchStats
       { hasClient = isJust mclt,
         hasSince = isJust since,
-        gap = Data.resultGap rs,
-        hasMore = Data.resultHasMore rs,
-        returned = length (Data.resultSeq rs)
+        gap = resultGap rs,
+        hasMore = resultHasMore rs,
+        returned = length (resultSeq rs)
       }
-  pure $ PaginateResult (Data.resultGap rs) (resultList time rs)
+  pure $ PaginateResult (resultGap rs) (resultList time rs)
   where
     resultList time rs =
       queuedNotificationList
-        (toList (Data.resultSeq rs))
-        (Data.resultHasMore rs)
+        (toList (resultSeq rs))
+        (resultHasMore rs)
         (Just (msToUTCSecs time))
 
     validateNotificationId :: NotificationId -> Gundeck ()
