@@ -2391,6 +2391,7 @@ galley:
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
+      providerPassword: postgresql
       passwordReset: postgresql
       customBackend: postgresql
       budget: postgresql
@@ -2543,6 +2544,7 @@ The current settings and their background-worker flags are:
          conversationCodes: postgresql
          teamFeatures: postgresql
          domainRegistration: postgresql
+         providerPassword: postgresql
          user: postgresql
          blockList: cassandra
          passwordReset: postgresql
