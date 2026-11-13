@@ -3001,25 +3001,6 @@ ALTER TABLE ONLY public.subconversation
     ADD CONSTRAINT subconversation_conv_id_fkey FOREIGN KEY (conv_id) REFERENCES public.conversation(id) ON DELETE CASCADE;
 
 
---
--- Name: vcodes_deletions; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.vcodes_deletions (
-    key text NOT NULL,
-    scope integer NOT NULL,
-    deleted_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
-ALTER TABLE public.vcodes_deletions OWNER TO "wire-server";
-
---
--- Name: vcodes_deletions vcodes_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.vcodes_deletions
-    ADD CONSTRAINT vcodes_deletions_pkey PRIMARY KEY (key, scope);
 
 
 --

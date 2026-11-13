@@ -188,7 +188,6 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
 import Wire.VerificationCodeStore
 import Wire.VerificationCodeStore.Cassandra
-import Wire.VerificationCodeStore.DualWrite (interpretVerificationCodeStoreToCassandraAndPostgres)
 import Wire.VerificationCodeStore.Postgres (interpretVerificationCodeStoreToPostgres)
 import Wire.VerificationCodeSubsystem
 import Wire.VerificationCodeSubsystem.Interpreter
@@ -464,15 +463,13 @@ runBrigToIO e (AppT ma) = do
       verificationCodeStoreInterpreter =
         case e.postgresMigration.verificationCodes of
           CassandraStorage -> interpretVerificationCodeStoreCassandra e.casClient
+          -- The copy loop is gone; the legacy migration setting degrades to
+          -- Cassandra-only reads/writes.
+          MigrationToPostgresql -> interpretVerificationCodeStoreCassandra e.casClient
           PostgresqlStorage ->
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretVerificationCodeStoreToPostgres
-              . raiseUnder2
-          MigrationToPostgresql ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretVerificationCodeStoreToCassandraAndPostgres e.casClient
               . raiseUnder2
 
       passwordResetCodeStoreInterpreter =
