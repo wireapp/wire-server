@@ -1,0 +1,1 @@
+Connections migration now copies per user under an exclusive migration lock and deletes the copied Cassandra partitions in the same locked section.
