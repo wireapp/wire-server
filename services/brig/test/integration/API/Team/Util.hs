@@ -261,7 +261,7 @@ deleteTeam g tid u = do
         . paths ["teams", toByteString' tid]
         . zUser u
         . zConn "conn"
-        . json (newTeamDeleteData $ Just Util.defPassword)
+        . json (TeamDeleteData (Just Util.defPassword) Nothing Nothing)
     )
     !!! const 202
       === statusCode
@@ -482,5 +482,5 @@ setUserEmail brig from uid email = do
         . zUser from
         . zConn "conn"
         . contentJson
-        . body (RequestBodyLBS . encode $ Public.EmailUpdate email)
+        . body (RequestBodyLBS . encode $ Public.EmailUpdate email Nothing)
     )

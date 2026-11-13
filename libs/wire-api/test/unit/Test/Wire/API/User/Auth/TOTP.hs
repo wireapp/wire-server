@@ -20,12 +20,25 @@
 module Test.Wire.API.User.Auth.TOTP (tests) where
 
 import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Proxy
 import Data.Text qualified as Text
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (testProperty)
+import Wire.API.Password (PasswordReqBody)
+import Wire.API.Team qualified as Team
+import Wire.API.Team.Invitation (AcceptTeamInvitation)
+import Wire.API.Team.LegalHold qualified as LegalHold
+import Wire.API.Team.Member qualified as Member
+import Wire.API.User qualified as User
+import Wire.API.User.Auth (Login)
+import Wire.API.User.Auth.ReAuth (ReAuthUser)
 import Wire.API.User.Auth.TOTP
+import Wire.API.User.Client qualified as Client
+import Wire.API.User.Password qualified as Password
+import Wire.API.User.Scim qualified as Scim
 -- for 'Arbitrary Text' (via Test.QuickCheck.Instances)
 import Wire.Arbitrary ()
 
@@ -38,8 +51,55 @@ tests =
       testGroup "RecoveryCode" recoveryCodeTests,
       testGroup "SecondFactorCode" secondFactorTests,
       testGroup "otpauthURI" uriTests,
-      testGroup "secrets do not leak through Show" redactionTests
+      testGroup "secrets do not leak through Show" redactionTests,
+      -- Every body that takes a second factor, so that the golden files and
+      -- the integration suite do not have to repeat this per endpoint.
+      testGroup "reauthentication request bodies" $
+        concat
+          [ requestBodyTests "login" (Proxy @Login) (object [("email", A.String "alice@example.com"), ("password", A.String "test-password")]),
+            requestBodyTests "password verification" (Proxy @PasswordReqBody) mempty,
+            requestBodyTests "password change" (Proxy @User.PasswordChange) (object [("new_password", A.String "new-test-password")]),
+            requestBodyTests "email change" (Proxy @User.EmailUpdate) (object [("email", A.String "alice@example.com")]),
+            requestBodyTests "account deletion" (Proxy @User.DeleteUser) mempty,
+            requestBodyTests "app creation" (Proxy @User.NewApp) (object [("name", A.String "test app"), ("category", A.String "other"), ("description", A.String "test"), ("password", A.String "test-password")]),
+            requestBodyTests "reauthentication" (Proxy @ReAuthUser) mempty,
+            requestBodyTests "client registration" (Proxy @Client.NewClient) (object [("prekeys", A.Array mempty), ("lastkey", A.Object (object [("id", A.Number 65535), ("key", A.String "test-prekey")])), ("type", A.String "permanent")]),
+            requestBodyTests "client deletion" (Proxy @Client.RmClient) mempty,
+            requestBodyTests "password reset" (Proxy @Password.CompletePasswordReset) (object [("email", A.String "alice@example.com"), ("code", A.String "reset-code"), ("password", A.String "new-test-password")]),
+            requestBodyTests "team invitation acceptance" (Proxy @AcceptTeamInvitation) (object [("code", A.String "abc123"), ("password", A.String "test-password")]),
+            requestBodyTests "team deletion" (Proxy @Team.TeamDeleteData) mempty,
+            requestBodyTests "member deletion" (Proxy @Member.TeamMemberDeleteData) mempty,
+            requestBodyTests "remove legal-hold settings" (Proxy @LegalHold.RemoveLegalHoldSettingsRequest) mempty,
+            requestBodyTests "disable legal hold" (Proxy @LegalHold.DisableLegalHoldForUserRequest) mempty,
+            requestBodyTests "approve legal hold" (Proxy @LegalHold.ApproveLegalHoldForUserRequest) mempty,
+            requestBodyTests "SCIM token creation" (Proxy @Scim.CreateScimToken) (object [("description", A.String "test")])
+          ]
     ]
+  where
+    object :: [(A.Key, A.Value)] -> A.Object
+    object = KeyMap.fromList
+
+-- The mocks must parse and retain the code even though they do not enforce it.
+requestBodyTests :: forall a. (A.FromJSON a, A.ToJSON a) => String -> Proxy a -> A.Object -> [TestTree]
+requestBodyTests label _ baseline =
+  [ testCase (label <> ": code is optional") $
+      case A.fromJSON @a (A.Object baseline) of
+        A.Success _ -> pure ()
+        A.Error err -> assertFailure err,
+    testCase (label <> ": code is retained") $
+      case A.fromJSON @a (body (A.String "totp:123456")) of
+        A.Success value -> case A.toJSON value of
+          A.Object obj -> KeyMap.lookup "totp_code" obj @?= Just (A.String "totp:123456")
+          _ -> assertFailure "Expected a request object"
+        A.Error err -> assertFailure err,
+    testCase (label <> ": malformed codes are rejected") $
+      for_ [A.String "123456", A.String "totp:abc", A.Number 123456, A.Bool True] $ \code ->
+        case A.fromJSON @a (body code) of
+          A.Error _ -> pure ()
+          A.Success _ -> assertFailure "Malformed code was accepted"
+  ]
+  where
+    body code = A.Object (KeyMap.insert "totp_code" code baseline)
 
 --------------------------------------------------------------------------------
 -- TOTPSecret

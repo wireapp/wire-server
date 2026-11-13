@@ -112,7 +112,6 @@ module Wire.API.User
 
     -- * Account Deletion
     DeleteUser (..),
-    mkDeleteUser,
     VerifyDeleteUser (..),
     DeletionCodeTimeout (..),
     DeleteUserResponse (..),
@@ -186,7 +185,7 @@ import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
-import Data.Json.Util (UTCTimeMillis, (#))
+import Data.Json.Util (UTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Misc
@@ -231,6 +230,7 @@ import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth
+import Wire.API.User.Auth.TOTP (NoTotpCode (..), SecondFactorCode, totpCodeFieldSchema)
 import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Password
 import Wire.API.User.Profile
@@ -1548,7 +1548,8 @@ instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) wher
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
   { oldPassword :: Maybe PlainTextPassword6,
-    newPassword :: PlainTextPassword8
+    newPassword :: PlainTextPassword8,
+    totpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
@@ -1568,6 +1569,8 @@ instance ToSchema PasswordChange where
           .= maybe_ (optField "old_password" schema)
         <*> newPassword
           .= field "new_password" schema
+        <*> (.totpCode)
+          .= totpCodeFieldSchema
 
 data ChangePasswordError
   = InvalidCurrentPassword
@@ -1603,24 +1606,42 @@ instance ToSchema LocaleUpdate where
         <$> luLocale
           .= field "locale" schema
 
-newtype EmailUpdate = EmailUpdate {euEmail :: EmailAddress}
+-- | Shared between @PUT \/access\/self\/email@ (which will check the second
+-- factor) and @PUT \/users\/{uid}\/email@, @PUT \/i\/self\/email@ and stern
+-- (which will not).  Sharing the type is fine: the routes that take no code
+-- use the 'NoTotpCode' wrapper, whose schema has no @totp_code@ field, so
+-- nothing in the swagger claims a second factor where there is none.
+-- 'euTotpCode' is then always 'Nothing'.
+--
+-- FUTUREWORK: add `newtype EmailUpdateWithoutTotp` that only has the
+-- email address and drop the schema magic.  (The refactoring would
+-- have blown the PR out of proportion when this code was last
+-- touched, and it was decided it's not important enough.)
+data EmailUpdate = EmailUpdate
+  { euEmail :: EmailAddress,
+    euTotpCode :: Maybe SecondFactorCode
+  }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-  deriving (S.ToSchema) via (Schema EmailUpdate)
+  deriving (Arbitrary) via (GenericUniform EmailUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema EmailUpdate)
+
+-- | Parameterised over the @totp_code@ field: 'totpCodeFieldSchema' for the
+-- route that takes a code, @pure Nothing@ for the ones that do not.
+emailUpdateObjectSchema ::
+  ObjectSchemaP SwaggerDoc EmailUpdate (Maybe SecondFactorCode) ->
+  ObjectSchema SwaggerDoc EmailUpdate
+emailUpdateObjectSchema totpCodeSchema =
+  EmailUpdate
+    <$> (euEmail .= field "email" schema)
+    <*> totpCodeSchema
 
 instance ToSchema EmailUpdate where
+  schema = object $ emailUpdateObjectSchema (euTotpCode .= totpCodeFieldSchema)
+
+instance ToSchema (NoTotpCode EmailUpdate) where
   schema =
-    object $
-      EmailUpdate
-        <$> euEmail
-          .= field "email" schema
-
-instance ToJSON EmailUpdate where
-  toJSON e = A.object ["email" A..= euEmail e]
-
-instance FromJSON EmailUpdate where
-  parseJSON = A.withObject "email-update" $ \o ->
-    EmailUpdate <$> o A..: "email"
+    namedObject "EmailUpdateWithoutTotpCode" $
+      NoTotpCode <$> unNoTotpCode .= emailUpdateObjectSchema (pure Nothing)
 
 data EmailActivation
   = -- | email needs to be activated, an activation email will be sent
@@ -1779,12 +1800,13 @@ instance
 -- Account Deletion
 
 -- | Payload for requesting account deletion.
-newtype DeleteUser = DeleteUser
-  { deleteUserPassword :: Maybe PlainTextPassword6
+data DeleteUser = DeleteUser
+  { deleteUserPassword :: Maybe PlainTextPassword6,
+    deleteUserTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-  deriving (S.ToSchema) via (Schema DeleteUser)
+  deriving (Arbitrary) via (GenericUniform DeleteUser)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema DeleteUser)
 
 instance ToSchema DeleteUser where
   schema =
@@ -1792,20 +1814,8 @@ instance ToSchema DeleteUser where
       DeleteUser
         <$> deleteUserPassword
           .= maybe_ (optField "password" schema)
-
-mkDeleteUser :: Maybe PlainTextPassword6 -> DeleteUser
-mkDeleteUser = DeleteUser
-
-instance ToJSON DeleteUser where
-  toJSON d =
-    A.object $
-      "password"
-        A..= deleteUserPassword d
-        # []
-
-instance FromJSON DeleteUser where
-  parseJSON = A.withObject "DeleteUser" $ \o ->
-    DeleteUser <$> o A..:? "password"
+        <*> deleteUserTotpCode
+          .= totpCodeFieldSchema
 
 -- | Payload for verifying account deletion via a code.
 data VerifyDeleteUser = VerifyDeleteUser
@@ -2197,7 +2207,8 @@ data NewApp = NewApp
     category :: Category,
     description :: Range 0 300 Text,
     -- | admin password for additional access control
-    password :: PlainTextPassword6
+    password :: PlainTextPassword6,
+    totpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewApp)
@@ -2242,6 +2253,7 @@ instance ToSchema NewApp where
         <*> (.category) .= field "category" schema
         <*> (.description) .= field "description" schema
         <*> (.password) .= field "password" schema
+        <*> (.totpCode) .= totpCodeFieldSchema
 
 instance ToSchema AppInfo where
   schema = object appInfoObjectSchema

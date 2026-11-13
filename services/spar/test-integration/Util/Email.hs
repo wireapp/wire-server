@@ -50,7 +50,7 @@ changeEmailBrigCreds brig cky tok newEmail = do
         . path "/access/self/email"
         . forceCookie cky
         . header "Authorization" ("Bearer " <> toByteString' tok)
-        . json (EmailUpdate newEmail)
+        . json (EmailUpdate newEmail Nothing)
     )
 
 -- (the proper way to do this is via 'Bilge.Request.cookie', but in our CI setup,

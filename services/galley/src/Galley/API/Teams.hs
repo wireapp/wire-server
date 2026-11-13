@@ -356,7 +356,7 @@ deleteTeam zusr zcon tid body = do
     checkPermissions team = do
       void $ TeamSubsystem.permissionCheck DeleteTeam =<< TeamSubsystem.internalGetTeamMember zusr tid
       when (tdTeam team ^. teamBinding == Binding) $ do
-        ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
+        ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdTotpCode) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
 internalDeleteBindingTeam ::
@@ -784,7 +784,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
   if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & note (InvalidPayload "missing request body")
-      ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) Nothing Nothing
+      ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) (body ^. tmdTotpCode) Nothing Nothing
       uType <-
         E.getUser remove <&> \case
           Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp

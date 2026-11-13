@@ -17,133 +17,151 @@
 
 module Test.Wire.API.Golden.Generated.EmailUpdate_user where
 
+import Imports (Maybe (Nothing))
 import Wire.API.User
 
 testObject_EmailUpdate_user_1 :: EmailUpdate
 testObject_EmailUpdate_user_1 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_2 :: EmailUpdate
-testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = unsafeEmailAddress "some" "example"}
+testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = unsafeEmailAddress "some" "example", euTotpCode = Nothing}
 
 testObject_EmailUpdate_user_3 :: EmailUpdate
 testObject_EmailUpdate_user_3 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_4 :: EmailUpdate
 testObject_EmailUpdate_user_4 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_5 :: EmailUpdate
 testObject_EmailUpdate_user_5 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_6 :: EmailUpdate
 testObject_EmailUpdate_user_6 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_7 :: EmailUpdate
 testObject_EmailUpdate_user_7 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_8 :: EmailUpdate
 testObject_EmailUpdate_user_8 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_9 :: EmailUpdate
-testObject_EmailUpdate_user_9 = EmailUpdate {euEmail = unsafeEmailAddress "some" "example"}
+testObject_EmailUpdate_user_9 = EmailUpdate {euEmail = unsafeEmailAddress "some" "example", euTotpCode = Nothing}
 
 testObject_EmailUpdate_user_10 :: EmailUpdate
 testObject_EmailUpdate_user_10 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_11 :: EmailUpdate
 testObject_EmailUpdate_user_11 =
-  EmailUpdate {euEmail = unsafeEmailAddress "some" "example"}
+  EmailUpdate {euEmail = unsafeEmailAddress "some" "example", euTotpCode = Nothing}
 
 testObject_EmailUpdate_user_12 :: EmailUpdate
 testObject_EmailUpdate_user_12 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_13 :: EmailUpdate
 testObject_EmailUpdate_user_13 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_14 :: EmailUpdate
 testObject_EmailUpdate_user_14 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_15 :: EmailUpdate
 testObject_EmailUpdate_user_15 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_16 :: EmailUpdate
 testObject_EmailUpdate_user_16 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_17 :: EmailUpdate
 testObject_EmailUpdate_user_17 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_18 :: EmailUpdate
 testObject_EmailUpdate_user_18 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_19 :: EmailUpdate
 testObject_EmailUpdate_user_19 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }
 
 testObject_EmailUpdate_user_20 :: EmailUpdate
 testObject_EmailUpdate_user_20 =
   EmailUpdate
     { euEmail =
-        unsafeEmailAddress "some" "example"
+        unsafeEmailAddress "some" "example",
+      euTotpCode = Nothing
     }

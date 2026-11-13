@@ -108,6 +108,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Client
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Orphans ()
@@ -373,7 +374,7 @@ type AccountAPI =
                :> ZUser
                :> "self"
                :> "email"
-               :> ReqBody '[Servant.JSON] EmailUpdate
+               :> ReqBody '[Servant.JSON] (NoTotpCode EmailUpdate)
                :> QueryParam' [Optional, Strict] "email_activation" EmailActivation
                :> QueryParam'
                     [ Optional,
@@ -627,7 +628,7 @@ type AccountAPI =
                :> "clients"
                :> Capture "uid" UserId
                :> QueryParam' [Optional, Strict] "skip_reauth" Bool
-               :> ReqBody '[Servant.JSON] NewClient
+               :> ReqBody '[Servant.JSON] (NoTotpCode NewClient)
                :> Header' [Optional, Strict] "Z-Connection" ConnId
                :> Verb 'POST 201 '[Servant.JSON] Client
            )

@@ -1,3 +1,17 @@
-Mock API for TOTP (RFC 6238) second factors: `POST /self/totp`, `POST
-/self/totp/{id}/activate`, `GET /self/totp`, `PUT /self/totp/{id}`, `DELETE
-/self/totp/{id}`.
+Add mock authenticator-app management endpoints for TOTP (RFC 6238), available
+from API V19:
+
+- `POST /self/totp`: begin enrolment; return a shared secret, an `otpauth://`
+  URI, credential metadata and server time. Clients render the QR code from
+  the URI. The response carries `Cache-Control: no-store`.
+- `POST /self/totp/{id}/activate`: submit an authenticator code and client time;
+  return recovery codes.
+- `GET /self/totp`: list credential metadata, without shared secrets.
+- `PUT /self/totp/{id}`: rename a credential.
+- `DELETE /self/totp/{id}`: remove a credential.
+
+**These endpoints are mocks for client integration, not working second-factor
+protection.** Request bodies are parsed but ignored, responses are generated,
+and nothing is stored. In particular, listing credentials does not reflect
+previous enrolments, and passwords and codes are not checked. The enrolment
+URI is consistent with the secret and parameters in its own response.

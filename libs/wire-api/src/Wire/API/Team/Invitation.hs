@@ -52,6 +52,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -219,7 +220,11 @@ instance ToSchema InvitationList where
 
 data AcceptTeamInvitation = AcceptTeamInvitation
   { code :: InvitationCode,
-    password :: PlainTextPassword6
+    password :: PlainTextPassword6,
+    -- `AcceptTeamInvitation` is about moving an existing account into
+    -- another team, so it's allowed to expect a registered second
+    -- factor here.
+    totpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema AcceptTeamInvitation)
@@ -230,6 +235,7 @@ instance ToSchema AcceptTeamInvitation where
       AcceptTeamInvitation
         <$> (.code) .= fieldWithDocModifier "code" (DS.description ?~ "Invitation code to accept.") schema
         <*> (.password) .= fieldWithDocModifier "password" (DS.description ?~ "The user account password.") schema
+        <*> (.totpCode) .= totpCodeFieldSchema
 
 data InvitationUserView = InvitationUserView
   { invitation :: Invitation,

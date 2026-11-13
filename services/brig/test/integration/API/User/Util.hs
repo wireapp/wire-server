@@ -171,7 +171,7 @@ initiateEmailUpdateCreds brig email (cky, tok) uid = do
       . Bilge.cookie cky
       . header "Authorization" ("Bearer " <> toByteString' tok)
       . zUser uid
-      . Bilge.json (EmailUpdate email)
+      . Bilge.json (EmailUpdate email Nothing)
 
 -- | Register an email address as 'unvalidated' and trigger validation email.
 initiateEmailUpdate :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Brig -> EmailAddress -> UserId -> m ResponseLBS
@@ -183,7 +183,7 @@ initiateEmailUpdateAutoActivate brig email uid = initiateEmailUpdate' "activate"
 
 initiateEmailUpdate' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => ByteString -> Brig -> EmailAddress -> UserId -> m ResponseLBS
 initiateEmailUpdate' param brig email uid =
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
+  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email Nothing
    in put (brig . path "/i/self/email" . contentJson . zUser uid . queryItem param "true" . body emailUpdate)
 
 removeBlacklist :: Brig -> EmailAddress -> (MonadIO m, MonadHttp m) => m ()

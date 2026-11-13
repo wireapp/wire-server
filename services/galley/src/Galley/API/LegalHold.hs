@@ -199,7 +199,7 @@ removeSettings ::
   TeamId ->
   Public.RemoveLegalHoldSettingsRequest ->
   Sem r ()
-removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
+removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword mTotpCode) = do
   assertNotWhitelisting
   assertLegalHoldEnabledForTeam tid
   zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
@@ -208,7 +208,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ TeamSubsystem.permissionCheck ChangeLegalHoldTeamSettings zusrMembership
-  ensureReAuthorised zusr mPassword Nothing Nothing
+  ensureReAuthorised zusr mPassword mTotpCode Nothing Nothing
   removeSettings' @p tid
   where
     assertNotWhitelisting :: Sem r ()
@@ -411,7 +411,7 @@ approveDevice ::
   UserId ->
   Public.ApproveLegalHoldForUserRequest ->
   Sem r ()
-approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassword) = do
+approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassword mTotpCode) = do
   let zusr = tUnqualified lzusr
   luid <- qualifyLocal uid
   assertLegalHoldEnabledForTeam tid
@@ -420,7 +420,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
       . Log.field "action" (Log.val "LegalHold.approveDevice")
   unless (zusr == tUnqualified luid) $ throwS @'AccessDenied
   TeamSubsystem.assertOnTeam (tUnqualified luid) tid
-  ensureReAuthorised zusr mPassword Nothing Nothing
+  ensureReAuthorised zusr mPassword mTotpCode Nothing Nothing
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
   assertUserLHPending userLHStatus
@@ -476,7 +476,7 @@ disableForUser ::
   UserId ->
   Public.DisableLegalHoldForUserRequest ->
   Sem r DisableLegalHoldForUserResponse
-disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = do
+disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword mTotpCode) = do
   luid <- qualifyLocal uid
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
@@ -501,7 +501,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
   where
     disableLH :: UserId -> Local UserId -> UserLegalHoldStatus -> Sem r ()
     disableLH zusr luid userLHStatus = do
-      ensureReAuthorised zusr mPassword Nothing Nothing
+      ensureReAuthorised zusr mPassword mTotpCode Nothing Nothing
       removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid luid
       -- TODO: send event at this point (see also: related TODO in this module in

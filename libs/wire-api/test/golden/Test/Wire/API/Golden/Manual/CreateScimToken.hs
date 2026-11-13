@@ -34,6 +34,7 @@ testObject_CreateScimToken_1 =
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "123456"))}))
     Nothing
     Nothing
+    Nothing
 
 testObject_CreateScimToken_2 :: CreateScimToken
 testObject_CreateScimToken_2 =
@@ -43,6 +44,7 @@ testObject_CreateScimToken_2 =
     Nothing
     Nothing
     (Just (SAML.IdPId (fromJust (UUID.fromString "c0d7af66-647d-41e6-8e7f-c1c387c91567"))))
+    Nothing
 
 testObject_CreateScimToken_3 :: CreateScimToken
 testObject_CreateScimToken_3 =
@@ -50,6 +52,7 @@ testObject_CreateScimToken_3 =
     "description3"
     Nothing
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "654321"))}))
+    Nothing
     Nothing
     Nothing
 
@@ -60,4 +63,5 @@ testObject_CreateScimToken_4 =
     Nothing
     Nothing
     (Just "scim connection name")
+    Nothing
     Nothing

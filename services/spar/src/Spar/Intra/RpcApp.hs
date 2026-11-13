@@ -66,6 +66,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm, TeamMember, hasPermission)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth (ReAuthUser (..))
+import Wire.API.User.Auth.TOTP (SecondFactorCode)
 import Wire.API.User.Scim (ValidScimId (..))
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
@@ -218,12 +219,13 @@ ensureReAuthorised ::
   ) =>
   Maybe UserId ->
   Maybe PlainTextPassword6 ->
+  Maybe SecondFactorCode ->
   Maybe Code.Value ->
   Maybe VerificationAction ->
   Sem r ()
-ensureReAuthorised Nothing _ _ _ = throw $ SAML.CustomError SparMissingZUsr
-ensureReAuthorised (Just uid) mpwd mcode maction = do
-  result <- BrigAPIAccess.reauthUser uid (ReAuthUser mpwd mcode maction)
+ensureReAuthorised Nothing _ _ _ _ = throw $ SAML.CustomError SparMissingZUsr
+ensureReAuthorised (Just uid) mpwd mtotp mcode maction = do
+  result <- BrigAPIAccess.reauthUser uid (ReAuthUser mpwd mcode maction mtotp)
   case result of
     Right () -> pure ()
     Left ReAuthFailed -> throw $ SAML.CustomError SparReAuthRequired

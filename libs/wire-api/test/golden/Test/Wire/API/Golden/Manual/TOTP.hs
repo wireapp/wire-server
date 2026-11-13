@@ -22,6 +22,7 @@ import Data.Json.Util
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.UUID qualified as UUID (fromString)
 import Imports
+import Wire.API.User qualified as User
 import Wire.API.User.Auth.TOTP
 
 totpCredentialId1, totpCredentialId2 :: TOTPCredentialId
@@ -151,3 +152,31 @@ testObject_ActivateTOTPCredential_1 =
 
 testObject_TOTPCredentialName_1 :: TOTPCredentialName
 testObject_TOTPCredentialName_1 = TOTPCredentialName "private phone"
+
+-- | 'EmailUpdate' stands in for all request bodies that carry a @totp_code@:
+-- they all embed the same 'totpCodeFieldSchema', and that each of them parses
+-- and retains it is asserted in 'Test.Wire.API.User.Auth.TOTP.requestBodyTests'.
+-- Here it is the 'NoTotpCode' counterpart below that needs a golden file.
+secondFactor1 :: Maybe SecondFactorCode
+secondFactor1 = Just (SFTotp totpCode1)
+
+testObject_EmailUpdate_totp_1 :: User.EmailUpdate
+testObject_EmailUpdate_totp_1 =
+  User.EmailUpdate (User.unsafeEmailAddress "alice" "example.com") secondFactor1
+
+testObject_EmailUpdate_withoutTotpCode_1 :: NoTotpCode User.EmailUpdate
+testObject_EmailUpdate_withoutTotpCode_1 =
+  NoTotpCode (User.EmailUpdate (User.unsafeEmailAddress "alice" "example.com") Nothing)
+
+testObject_EmailUpdate_withoutTotpCode_2 :: NoTotpCode User.EmailUpdate
+testObject_EmailUpdate_withoutTotpCode_2 =
+  NoTotpCode (User.EmailUpdate (User.unsafeEmailAddress "bob+updates" "example.org") Nothing)
+
+-- Encoding must omit the second factor even when the wrapped value has one.
+-- This is intentionally not a roundtrip: decoding always sets it to Nothing.
+testObject_EmailUpdate_withoutTotpCode_populated_1 :: NoTotpCode User.EmailUpdate
+testObject_EmailUpdate_withoutTotpCode_populated_1 = NoTotpCode testObject_EmailUpdate_totp_1
+
+testObject_NewTOTPCredential_2 :: NewTOTPCredential
+testObject_NewTOTPCredential_2 =
+  testObject_NewTOTPCredential_1 {reauth = testObject_ReauthBody_2}

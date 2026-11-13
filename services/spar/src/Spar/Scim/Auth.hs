@@ -60,6 +60,7 @@ import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
+import Wire.API.User.Auth.TOTP (SecondFactorCode)
 import Wire.API.User.Scim as Api
 import Wire.BrigAPIAccess
 import Wire.GalleyAPIAccess
@@ -140,7 +141,7 @@ createScimTokenV7 ::
   CreateScimToken ->
   Sem r CreateScimTokenResponseV7
 createScimTokenV7 zusr createTok = do
-  teamid <- guardScimTokenCreation zusr createTok.password createTok.verificationCode
+  teamid <- guardScimTokenCreation zusr createTok.password createTok.verificationCode createTok.totpCode
   idps <- IdPConfigStore.getConfigsByTeam teamid
   mIdpId <- case idps of
     [config] -> pure . Just $ config ^. SAML.idpId
@@ -179,7 +180,7 @@ createScimToken ::
   CreateScimToken ->
   Sem r CreateScimTokenResponse
 createScimToken zusr Api.CreateScimToken {..} = do
-  teamid <- guardScimTokenCreation zusr password verificationCode
+  teamid <- guardScimTokenCreation zusr password verificationCode totpCode
   let guardIdPExists = mapM_ IdPConfigStore.getConfig in guardIdPExists idp
   createScimTokenUnchecked teamid name description idp
 
@@ -195,10 +196,11 @@ guardScimTokenCreation ::
   Maybe UserId ->
   Maybe PlainTextPassword6 ->
   Maybe Code.Value ->
+  Maybe SecondFactorCode ->
   Sem r TeamId
-guardScimTokenCreation zusr password verificationCode = do
+guardScimTokenCreation zusr password verificationCode totpCode = do
   teamid <- Intra.authorizeScimTokenManagement zusr
-  Intra.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
+  Intra.ensureReAuthorised zusr password totpCode verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
