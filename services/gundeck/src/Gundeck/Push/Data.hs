@@ -55,7 +55,6 @@ import Wire.API.Push.V2 hiding (pushTokens, token)
 import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Wire.PushTokenStore qualified as Store
 import Wire.PushTokenStore.Cassandra (interpretPushTokenStoreToCassandra)
-import Wire.PushTokenStore.DualWrite (interpretPushTokenStoreToCassandraAndPostgres)
 import Wire.PushTokenStore.Postgres (interpretPushTokenStoreToPostgres)
 
 lookup :: (MonadReader Env m, MonadIO m) => UserId -> Consistency -> m [Address]
@@ -120,16 +119,6 @@ runPushTokenStore sem = do
                Embed IO
              ]
             a
-      dualRow =
-        raiseUnder cassRow ::
-          Sem
-            '[ Store.PushTokenStore,
-               Error UsageError,
-               Input ClientState,
-               Input HasqlPoolExt.Pool,
-               Embed IO
-             ]
-            a
       pgRow =
         raiseUnder
           ( raiseUnder sem ::
@@ -157,12 +146,15 @@ runPushTokenStore sem = do
             ( runInputConst (view cstate env) $
                 interpretPushTokenStoreToCassandra cassRow
             )
+      -- The dual-write machinery is gone; the legacy
+      -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
       MigrationToPostgresql ->
-        -- writes mirrored to Postgres, reads from Cassandra
-        runInputConst (view hasqlPool env) $
-          runInputConst (view cstate env) $
-            runError $
-              interpretPushTokenStoreToCassandraAndPostgres dualRow
+        Right
+          <$> runInputConst
+            (view hasqlPool env)
+            ( runInputConst (view cstate env) $
+                interpretPushTokenStoreToCassandra cassRow
+            )
       PostgresqlStorage ->
         -- reads and writes from Postgres only
         runInputConst (view hasqlPool env) $

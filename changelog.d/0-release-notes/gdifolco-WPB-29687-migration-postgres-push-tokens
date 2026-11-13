@@ -1,1 +1,1 @@
-New operator configuration keys for the gundeck push token store migration: `gundeck.postgresMigration.pushTokens` (`cassandra` | `migration-to-postgresql` | `postgresql`) and `background-worker.migratePushTokens`.
+New operator configuration key for the gundeck push token store backend choice: `gundeck.postgresMigration.pushTokens` (`cassandra` | `postgresql`).
