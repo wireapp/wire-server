@@ -135,6 +135,40 @@ getMLSMemberClients user conv = do
       ("/i/group/" <> BS.unpack (B64U.encodeUnpadded gidBytes) <> "/member-clients")
   submit "GET" req
 
+-- | DELETE /i/group/:gid/member-clients/:domain/:uid/:client — damage
+-- injector / manual repair tool. 'owner' selects the backend the request is
+-- sent to; 'victim' identifies whose client row is deleted.
+deleteMLSMemberClient ::
+  (HasCallStack, MakesValue owner, MakesValue victim, MakesValue client) =>
+  owner ->
+  ConvId ->
+  victim ->
+  client ->
+  App Response
+deleteMLSMemberClient owner conv victim client = do
+  gid <- case conv.groupId of
+    Just g -> pure g
+    Nothing -> assertFailure "conversation has no MLS group id"
+  gidBytes <- either (assertFailure . ("invalid MLS group id " <>) . (gid <>)) pure (B64.decode (cs gid))
+  vid <- objId victim
+  vdomain <- objDomain victim
+  cidStr <- asString client
+  req <-
+    baseRequest
+      owner
+      Galley
+      Unversioned
+      ( "/i/group/"
+          <> BS.unpack (B64U.encodeUnpadded gidBytes)
+          <> "/member-clients/"
+          <> vdomain
+          <> "/"
+          <> vid
+          <> "/"
+          <> cidStr
+      )
+  submit "DELETE" req
+
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_teams__tid__features_legalhold
 legalholdIsEnabled :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> App Response
 legalholdIsEnabled tid uid = do

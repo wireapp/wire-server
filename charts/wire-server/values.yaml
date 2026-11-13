@@ -154,6 +154,7 @@ galley:
         maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
 
       checkGroupInfo: false
+      mlsGroupInfoRepair: false
 
       meetings:
         validityPeriod: "48h"

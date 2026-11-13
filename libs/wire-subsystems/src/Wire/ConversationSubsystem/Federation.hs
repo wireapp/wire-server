@@ -88,6 +88,7 @@ import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Message
 import Wire.ConversationSubsystem.MLS.One2One
 import Wire.ConversationSubsystem.MLS.Removal
+import Wire.ConversationSubsystem.MLS.Repair (GroupInfoRepairEnabled)
 import Wire.ConversationSubsystem.MLS.SubConversation hiding (leaveSubConversation)
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.MLS.Welcome
@@ -706,6 +707,7 @@ sendMLSCommitBundle ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member LegalHoldStore r,

@@ -131,6 +131,10 @@ data ConversationStore m a where
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
   LookupHistoryClients :: GroupId -> ConversationStore m [(HistoryClientId, Int32, Bool)]
+  -- | Reconcile member-client rows of a group with the authoritative
+  -- ratchet-tree leaf map. Pending-removal rows are untouched. Returns
+  -- (inserted, updated, deleted).
+  ReconcileMLSClients :: GroupId -> IndexMap -> ConversationStore m (Int, Int, Int)
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
   -- SUB CONVERSATION OPERATIONS
   UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation

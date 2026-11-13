@@ -52,6 +52,7 @@ settings:
   exposeInvitationURLsTeamAllowlist: []
   maxConvSize: 16
   intraListing: false
+  mlsGroupInfoRepair: true
   conversationCodeURI: https://account.wire.com/conversation-join/
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
