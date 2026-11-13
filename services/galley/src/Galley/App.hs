@@ -456,6 +456,7 @@ evalGalley e =
         case (e ^. options . postgresMigration).teamNotifications of
           CassandraStorage -> interpretTeamNotificationStoreToCassandra
           PostgresqlStorage -> interpretTeamNotificationStoreToPostgres
+          MigrationToPostgresql -> interpretTeamNotificationStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
