@@ -452,6 +452,7 @@ runBrigToIO e (AppT ma) = do
 
       mlsKeyPackageStore = case e.postgresMigration.mlsKeyPackages of
         CassandraStorage -> interpretMlsKeyPackageStoreToCassandra e.casClient
+        MigrationToPostgresql -> interpretMlsKeyPackageStoreToPostgres
         PostgresqlStorage -> interpretMlsKeyPackageStoreToPostgres
 
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
