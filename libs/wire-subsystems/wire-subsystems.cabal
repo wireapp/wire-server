@@ -482,6 +482,7 @@ library
     Wire.ScimUserMetaStore
     Wire.ScimUserMetaStore.Cassandra
     Wire.ScimUserMetaStore.Mem
+    Wire.ScimUserMetaStore.Postgres
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra
     Wire.SessionStore

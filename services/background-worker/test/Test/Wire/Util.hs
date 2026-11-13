@@ -60,7 +60,9 @@ testEnv = do
             nonce = CassandraStorage,
             connections = CassandraStorage,
             scimTokens = CassandraStorage,
-            scimExternalIds = CassandraStorage
+            scimExternalIds = CassandraStorage,
+            samlUsers = CassandraStorage,
+            scimUserMeta = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
