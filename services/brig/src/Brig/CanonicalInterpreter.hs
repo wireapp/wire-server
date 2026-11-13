@@ -476,6 +476,11 @@ runBrigToIO e (AppT ma) = do
       oauthAuthCodeStoreInterpreter =
         case e.postgresMigration.oauthAuthCode of
           CassandraStorage -> oauthAuthCodeStoreToCassandra @Cas.Client
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretOAuthAuthCodeStoreToPostgres
+              . raiseUnder2
           PostgresqlStorage ->
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
