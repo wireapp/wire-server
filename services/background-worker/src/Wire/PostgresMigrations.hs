@@ -31,7 +31,6 @@ import Wire.CustomBackendStore.Migration
 import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.NonceStore.Migration
-import Wire.NotificationStore.Migration
 import Wire.PasswordResetCodeStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
@@ -203,24 +202,6 @@ customBackend migOpts = do
   Log.info logger $ Log.msg (Log.val "started custom backend migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
-    cancel migrationLoop
-
-notifications :: MigrationOptions -> AppT IO CleanupAction
-notifications migOpts = do
-  cassClient <- asks (.cassandra)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting notifications migration")
-  count <- register $ counter $ Prometheus.Info "wire_notifications_migrated_to_pg" "Number of notifications migrated to Postgresql"
-  finished <- register $ counter $ Prometheus.Info "wire_notifications_migration_finished" "Whether the notifications migration to Postgresql is finished successfully"
-  failed <- register $ counter $ Prometheus.Info "wire_notifications_migration_failed" "Whether the notifications migration to Postgresql has failed"
-  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_notifications_migration_duration_seconds" "Duration of notifications migration attempts") defaultBuckets
-
-  migrationLoop <- async . lift $ migrateNotificationsLoop migOpts cassClient pgPool logger count finished failed duration
-
-  Log.info logger $ Log.msg (Log.val "started notifications migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling notifications migration")
     cancel migrationLoop
 
 connections :: MigrationOptions -> AppT IO CleanupAction
