@@ -103,6 +103,7 @@ meetingFixture =
       endTime = UTCTime (fromGregorian 2026 10 12) (secondsToDiffTime (10 * 3600)),
       tzid = TimeZone Europe__Berlin,
       mtype = Scheduled,
+      externallyManagedBy = Nothing,
       recurrence = Nothing,
       conversationId = Qualified (Id (fromJust (UUID.fromString "323e4567-e89b-12d3-a456-426614174002"))) (Domain "example.com"),
       invitedEmails = [fromJust (emailAddressText "invitee@example.com")],
