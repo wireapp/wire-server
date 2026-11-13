@@ -348,13 +348,11 @@ type APIScimTokenPutName =
     :> Put '[JSON] ()
 
 type APIScimTokenCreateV7 =
-  Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
-    :> VersionedReqBody 'V7 '[JSON] CreateScimToken
+  VersionedReqBody 'V7 '[JSON] CreateScimToken
     :> Post '[JSON] CreateScimTokenResponseV7
 
 type APIScimTokenCreate =
-  Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
-    :> ReqBody '[JSON] CreateScimToken
+  ReqBody '[JSON] CreateScimToken
     :> Post '[JSON] CreateScimTokenResponse
 
 type APIScimTokenDelete =

@@ -329,10 +329,13 @@ totpCodeFieldSchema =
     ( optFieldWithDocModifier
         "totp_code"
         ( description
-            ?~ "A second factor, required if the user has an activated \
-               \authenticator app.  Omit it on the first attempt: if one is \
-               \needed the server answers `403 totp-required`, and the client \
-               \then re-sends the very same body with this field filled in."
+            ?~ "A second factor, intended to become mandatory for users with an \
+               \activated authenticator app.  **Not enforced yet**: the field is \
+               \parsed, but its value is ignored.  Once enforcement lands, \
+               \clients are supposed to omit it on the first attempt; if one is \
+               \needed the server will answer `403 totp-required`, and the \
+               \client then re-sends the very same body with this field filled \
+               \in."
         )
         schema
     )

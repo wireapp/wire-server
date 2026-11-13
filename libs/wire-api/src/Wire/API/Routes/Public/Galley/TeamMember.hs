@@ -125,7 +125,6 @@ type TeamMemberAPI =
     :<|> Named
            "delete-team-member"
            ( Summary "Remove an existing team member"
-               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound

@@ -971,7 +971,6 @@ type AuthAPI =
            ( "users"
                :> Capture "uid" UserId
                :> "reauthenticate"
-               :> Description "TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
                :> ReqBody '[JSON] ReAuthUser
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
            )

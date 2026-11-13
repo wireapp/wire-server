@@ -75,8 +75,7 @@ type LegalHoldAPI =
                :> Description
                     "This endpoint can lead to the following events being sent:\n\
                     \- ClientRemoved event to members with a legalhold client (via brig)\n\
-                    \- UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)\n\
-                    \TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
+                    \- UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)"
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -153,8 +152,7 @@ type LegalHoldAPI =
                :> Description
                     "This endpoint can lead to the following events being sent:\n\
                     \- ClientRemoved event to the user owning the client (via brig)\n\
-                    \- UserLegalHoldDisabled event to contacts of the user owning the client (via brig)\n\
-                    \TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
+                    \- UserLegalHoldDisabled event to contacts of the user owning the client (via brig)"
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -185,8 +183,7 @@ type LegalHoldAPI =
                     "This endpoint can lead to the following events being sent:\n\
                     \- ClientAdded event to the user owning the client (via brig)\n\
                     \- UserLegalHoldEnabled event to contacts of the user owning the client (via brig)\n\
-                    \- ClientRemoved event to the user, if removing old client due to max number (via brig)\n\
-                    \TOTP second-factor checking is not yet enforced; the `totp_code` field, if provided, is parsed but ignored."
+                    \- ClientRemoved event to the user, if removing old client due to max number (via brig)"
                :> ZLocalUser
                :> ZConn
                :> "teams"
