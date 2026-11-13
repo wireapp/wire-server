@@ -86,7 +86,7 @@ See the `Makefile`s and `Dockerfile`s, as well as [build/ubuntu/README.md](build
 
 #### 2. Use nix-provided build environment
 
-This is suitable only for local development and testing. See [build instructions](https://docs.wire.com/developer/developer/building.html) in the developer documentation.
+This is suitable only for local development and testing. See [build instructions](https://docs.wire.com/latest/developer/developer/building.html) in the developer documentation.
 
 ## How to install and run `wire-server`
 
