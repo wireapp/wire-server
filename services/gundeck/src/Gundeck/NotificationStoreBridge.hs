@@ -32,20 +32,13 @@ import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Polysemy
-import Polysemy.Async (Async, asyncToIOFinal)
-import Polysemy.Conc (interpretRace)
-import Polysemy.Conc.Effect.Race (Race)
 import Polysemy.Error (Error, runError)
 import Polysemy.Input (Input, runInputConst)
-import Polysemy.Resource (Resource, resourceToIOFinal)
-import Polysemy.TinyLog (TinyLog)
 import System.IO.Error (userError)
 import Wire.NotificationStore
 import Wire.NotificationStore.Cassandra (interpretNotificationStoreToCassandra)
-import Wire.NotificationStore.DualWrite (interpretNotificationStoreToCassandraAndPostgres)
 import Wire.NotificationStore.Postgres (interpretNotificationStoreToPostgres)
 import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
-import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 -- | Interprets the notification store effect according to
 -- @options.postgresMigration.notifications@. 'Hasql.UsageError' from the
@@ -72,35 +65,6 @@ runNotificationStore sem = do
                Embed IO
              ]
             a
-      -- The dual-write interpreter takes shared per-user migration locks
-      -- around dual deletes and the Postgres add leg, so its row
-      -- additionally carries the lock machinery (TinyLog/Async/Race/Resource).
-      -- 'insertAt' appends 'Final IO' (needed by the *ToFinal interpreters)
-      -- at the end of the row, then 'raiseUnder' inserts the lock effects
-      -- right behind the head, one at a time.
-      dualRow =
-        raiseUnder
-          ( raiseUnder
-              ( raiseUnder
-                  ( raiseUnder
-                      (raiseUnder (insertAt @5 @'[Final IO] cassRow))
-                  )
-              )
-          ) ::
-          Sem
-            '[ NotificationStore,
-               TinyLog,
-               Async,
-               Race,
-               Resource,
-               Error UsageError,
-               Input ClientState,
-               Input NotificationStoreConfig,
-               Input HasqlPoolExt.Pool,
-               Embed IO,
-               Final IO
-             ]
-            a
       pgRow =
         raiseUnder
           ( raiseUnder (raiseUnder sem) ::
@@ -121,31 +85,22 @@ runNotificationStore sem = do
              ]
             a
   liftIO $ do
+    let cassStore =
+          -- reads and writes from Cassandra only
+          Right
+            <$> runM
+              ( runInputConst
+                  (view hasqlPool env)
+                  ( runInputConst cfg $
+                      runInputConst (view cstate env) $
+                        interpretNotificationStoreToCassandra cassRow
+                  )
+              )
     result <- case notifications pm of
-      CassandraStorage ->
-        -- reads and writes from Cassandra only
-        Right
-          <$> runM
-            ( runInputConst
-                (view hasqlPool env)
-                ( runInputConst cfg $
-                    runInputConst (view cstate env) $
-                      interpretNotificationStoreToCassandra cassRow
-                )
-            )
-      MigrationToPostgresql ->
-        -- writes mirrored to Postgres, reads from Cassandra
-        runFinal
-          . embedToFinal
-          . runInputConst (view hasqlPool env)
-          . runInputConst cfg
-          . runInputConst (view cstate env)
-          . runError
-          . resourceToIOFinal
-          . interpretRace
-          . asyncToIOFinal
-          . loggerToTinyLog (view applog env)
-          $ interpretNotificationStoreToCassandraAndPostgres dualRow
+      CassandraStorage -> cassStore
+      -- The dual-write machinery is gone; the legacy
+      -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
+      MigrationToPostgresql -> cassStore
       PostgresqlStorage ->
         -- reads and writes from Postgres only
         runM

@@ -92,7 +92,7 @@ pgAddNotification nid tgts objs (notificationTTLSeconds -> ttlSeconds) = do
   let payload = LBS.toStrict (JSON.encode objs)
       occurred = fromMaybe now (notificationIdTime nid)
       -- like Cassandra's USING TTL, the row expires relative to the write
-      -- time (this also matches the copy loop's 'now + remaining' anchor)
+      -- time (matching Cassandra's 'now + remaining' anchor)
       expires = addUTCTime (fromIntegral ttlSeconds) now
       -- inline payload when there is exactly one target
       inline = null (NonEmpty.tail tgts)
@@ -142,9 +142,8 @@ insertNotificationRowsStatement =
       ON CONFLICT (user_id, id) DO NOTHING
     |]
 
--- | Insert a @notifications@ row. Shared by the runtime path and the
--- migration copy loop so they cannot drift. The payload bytes are copied
--- verbatim (no re-encode), faithful to the Cassandra copy.
+-- | Insert a @notifications@ row. The payload bytes are stored
+-- verbatim (no re-encode).
 insertNotificationRow ::
   (PGConstraints r) =>
   UserId ->

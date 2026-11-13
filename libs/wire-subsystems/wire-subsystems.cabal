@@ -434,8 +434,6 @@ library
     Wire.NonceStore.Postgres
     Wire.NotificationStore
     Wire.NotificationStore.Cassandra
-    Wire.NotificationStore.DualWrite
-    Wire.NotificationStore.Migration
     Wire.NotificationStore.Postgres
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
