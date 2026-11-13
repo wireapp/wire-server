@@ -2445,6 +2445,13 @@ The current settings and their background-worker flags are:
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
 
+The galley-side `user_client_index` table is new (no legacy shape), but it can
+accumulate stale rows for clients deleted during the copy window (the
+Cassandra source carries no per-entry tombstones). brig's `clients` table is
+the authoritative client inventory after the cutover, so a stale index can be
+rebuilt from it at any time:
+`DELETE FROM user_client_index; INSERT INTO user_client_index SELECT user_id, client_id FROM clients;`
+
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting

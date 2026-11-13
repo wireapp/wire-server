@@ -197,6 +197,7 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserClientIndexStore.Cassandra (interpretUserClientIndexStoreToCassandra)
+import Wire.UserClientIndexStore.Postgres (interpretUserClientIndexStoreToPostgres)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
@@ -440,6 +441,10 @@ evalGalley e =
           CassandraStorage -> interpretCodeStoreToCassandra
           MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCodeStoreToPostgres
+      userClientIndexStoreInterpreter =
+        case (e ^. options . postgresMigration).userClientIndex of
+          CassandraStorage -> interpretUserClientIndexStoreToCassandra (e ^. cstate)
+          PostgresqlStorage -> interpretUserClientIndexStoreToPostgres
       teamFeatureStoreInterpreter =
         case (e ^. options . postgresMigration).teamFeatures of
           CassandraStorage -> interpretTeamFeatureStoreToCassandra
@@ -572,7 +577,7 @@ evalGalley e =
         . interpretRateLimit e._passwordHashingRateLimitEnv
         . interpretProposalStoreToCassandra
         . convCodesStoreInterpreter
-        . interpretUserClientIndexStoreToCassandra (e ^. cstate)
+        . userClientIndexStoreInterpreter
         . interpretMeetingsStoreToPostgres
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
