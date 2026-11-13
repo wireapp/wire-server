@@ -88,6 +88,7 @@ import Wire.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Wire.ScimTokenStore.Postgres (interpretScimTokenStoreToPostgres)
 import Wire.ScimUserMetaStore (ScimUserMetaStore)
 import Wire.ScimUserMetaStore.Cassandra (scimUserMetaStoreToCassandra)
+import Wire.ScimUserMetaStore.Postgres (interpretScimUserMetaStoreToPostgres)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
@@ -160,6 +161,11 @@ runSparToIO ctx =
           CassandraStorage -> scimExternalIdStoreToCassandra
           MigrationToPostgresql -> interpretScimExternalIdStoreToPostgres
           PostgresqlStorage -> interpretScimExternalIdStoreToPostgres
+      scimUserMetaStoreInterpreter =
+        case (sparCtxOpts ctx).postgresMigration.scimUserMeta of
+          CassandraStorage -> scimUserMetaStoreToCassandra
+          MigrationToPostgresql -> interpretScimUserMetaStoreToPostgres
+          PostgresqlStorage -> interpretScimUserMetaStoreToPostgres
    in runFinal
         . resourceToIOFinal
         . asyncToIOFinal
@@ -185,7 +191,7 @@ runSparToIO ctx =
         . idPToCassandra
         . defaultSsoCodeToCassandra
         . scimTokenStoreInterpreter
-        . scimUserMetaStoreToCassandra
+        . scimUserMetaStoreInterpreter
         . scimExternalIdsStoreInterpreter
         . mapScimSubsystemErrors
         . mapIdPSubsystemErrors
