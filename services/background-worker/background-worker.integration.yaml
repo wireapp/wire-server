@@ -57,7 +57,6 @@ migrationOptions:
   timeout: 5s
 migrateConversationCodes: false
 migrateTeamFeatures: false
-migrateTeamMembers: false
 migrateDomainRegistration: false
 migrateUsers: false
 migrateBlockList: false
