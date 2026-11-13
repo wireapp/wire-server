@@ -54,7 +54,6 @@ import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Team.Collaborator
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
-import Wire.ActivationCodeStore.DualWrite (interpretActivationCodeStoreToCassandraAndPostgres)
 import Wire.ActivationCodeStore.Postgres (interpretActivationCodeStoreToPostgres)
 import Wire.ActivationCodeVerificationStore
   ( ActivationCodeVerificationStore,
@@ -436,15 +435,13 @@ runBrigToIO e (AppT ma) = do
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
       activationCodeStoreInterpreter = case e.postgresMigration.activationKeys of
         CassandraStorage -> interpretActivationCodeStoreToCassandra e.casClient
+        -- The copy loop is gone; the legacy migration setting degrades to
+        -- Cassandra-only reads/writes.
+        MigrationToPostgresql -> interpretActivationCodeStoreToCassandra e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError
             . interpretActivationCodeStoreToPostgres
-            . raiseUnder2
-        MigrationToPostgresql ->
-          runInputConst e.hasqlPool
-            . mapError postgresUsageErrorToHttpError
-            . interpretActivationCodeStoreToCassandraAndPostgres e.casClient
             . raiseUnder2
 
       blockListStore = case e.postgresMigration.blockList of

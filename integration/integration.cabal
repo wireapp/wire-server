@@ -178,7 +178,6 @@ library
     Test.Login
     Test.Meetings
     Test.MessageTimer
-    Test.Migration.ActivationKeys
     Test.Migration.BlockList
     Test.Migration.Budget
     Test.Migration.Connections
