@@ -19,6 +19,7 @@ module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
     validateUploadedKeyPackage,
     validateUploadedKeyPackages,
+    lookupWithCache,
     validateLifetime',
     mlsProtocolError,
   )
@@ -72,6 +73,15 @@ validateUploadedKeyPackages identity = go Map.empty
       (validated, keyCache') <- validateUploadedKeyPackageWithCache identity keyCache kp
       (validated :) <$> go keyCache' kps
 
+-- | Look up a value once per key, retaining missing values in the cache too.
+lookupWithCache :: (Monad m, Ord k) => (k -> m v) -> k -> Map.Map k v -> m (v, Map.Map k v)
+lookupWithCache lookupValue key cache =
+  case Map.lookup key cache of
+    Just value -> pure (value, cache)
+    Nothing -> do
+      value <- lookupValue key
+      pure (value, Map.insert key value cache)
+
 validateUploadedKeyPackageWithCache ::
   (Member ClientStore r) =>
   ClientIdentity ->
@@ -90,16 +100,17 @@ validateUploadedKeyPackageWithCache identity keyCache kp = do
   (mkey, keyCache') <-
     foldQualified
       loc
-      ( \_ -> case Map.lookup signatureScheme keyCache of
-          Just cachedKey -> pure (cachedKey, keyCache)
-          Nothing -> do
-            fetchedKey :: Maybe LByteString <-
-              lift . liftSem $
-                ClientStore.lookupMLSPublicKey
-                  (ciUser identity)
-                  (ciClient identity)
-                  signatureScheme
-            pure (fetchedKey, Map.insert signatureScheme fetchedKey keyCache)
+      ( \_ ->
+          lookupWithCache
+            ( \scheme ->
+                lift . liftSem $
+                  ClientStore.lookupMLSPublicKey
+                    (ciUser identity)
+                    (ciClient identity)
+                    scheme
+            )
+            signatureScheme
+            keyCache
       )
       (\_ -> pure (Nothing, keyCache))
       (cidQualifiedClient identity)

@@ -20,10 +20,13 @@ module Test.Brig.MLS where
 import Brig.API.MLS.KeyPackages.Validation
 import Data.Binary
 import Data.Either
+import Data.Map.Strict qualified as Map
 import Data.Time.Clock
 import Imports
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Lifetime
 
 -- | A lifetime with a length of at least 1 day.
@@ -75,5 +78,19 @@ tests =
             isRight $ validateLifetime' (midpoint lt) Nothing lt,
           testProperty "expiration too far" $ \(ValidLifetime lt) ->
             isLeft $ validateLifetime' (midpoint lt) (Just 10) lt
-        ]
+        ],
+      testCase "key package lookup is cached per signature scheme" $ do
+        calls <- newIORef []
+        let lookupKey scheme = do
+              modifyIORef' calls (<> [scheme])
+              pure (Just (show scheme))
+        (_, cache1) <- lookupWithCache lookupKey Ed25519 Map.empty
+        (_, cache2) <- lookupWithCache lookupKey Ed25519 cache1
+        (_, cache3) <- lookupWithCache lookupKey Ecdsa_secp256r1_sha256 cache2
+        (_, _) <- lookupWithCache lookupKey Ecdsa_secp256r1_sha256 cache3
+        readIORef calls >>= \actual ->
+          assertEqual
+            "each signature scheme is looked up once"
+            [Ed25519, Ecdsa_secp256r1_sha256]
+            actual
     ]
