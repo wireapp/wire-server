@@ -53,6 +53,18 @@ interpretFederationConfigSubsystem mFedStrategy fedCfgs =
       GetFederationRemoteTeams d -> getFederationRemoteTeamsImpl d
       BackendFederatesWith mtid -> backendFederatesWithImpl mtid fedCfgs mFedStrategy
 
+-- | Compile config file list into a map indexed by domains.  Use this to make sure the config
+-- file is consistent (ie., no two entries for the same domain).
+-- This is called during initialization of the interpreter and the service will fail if the config is not consistent.
+remotesMapFromCfgFile :: [FederationDomainConfig] -> Map Domain FederationDomainConfig
+remotesMapFromCfgFile cfg =
+  let dict = [(cnf.domain, cnf) | cnf <- cfg]
+      merge c c' =
+        if c == c'
+          then c
+          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
+   in Map.fromListWith merge dict
+
 getFederationConfigImpl :: (Member Store.FederationConfigStore r) => Map Domain FederationDomainConfig -> Domain -> Sem r (Maybe FederationDomainConfig)
 getFederationConfigImpl cfgs rDomain =
   case Map.lookup rDomain cfgs of

@@ -107,9 +107,9 @@ import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.FederationConfigStore.Cassandra (interpretFederationConfigStoreCassandra, remotesMapFromCfgFile)
+import Wire.FederationConfigStore.Cassandra (interpretFederationConfigStoreCassandra)
 import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
-import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem)
+import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem, remotesMapFromCfgFile)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
