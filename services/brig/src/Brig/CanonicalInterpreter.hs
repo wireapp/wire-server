@@ -136,7 +136,6 @@ import Wire.PasswordResetCodeStore.DualWrite (interpretPasswordResetCodeStoreToC
 import Wire.PasswordResetCodeStore.Postgres (interpretPasswordResetCodeStoreToPostgres)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
-import Wire.PasswordStore.DualWrite (interpretPasswordStoreToCassandraAndPostgres)
 import Wire.PasswordStore.Postgres (interpretPasswordStoreToPostgres)
 import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
@@ -440,16 +439,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretNonceStoreToPostgres
         MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
 
-      -- The provider password store has no DualWrite interpreter: during
-      -- migration-to-postgresql Cassandra remains the source of truth (reads and
-      -- writes), and the background worker copies rows to PostgreSQL.
       passwordStoreInterpreter = case e.postgresMigration.providerPassword of
         CassandraStorage -> interpretPasswordStore e.casClient
-        MigrationToPostgresql ->
-          runInputConst e.hasqlPool
-            . mapError postgresUsageErrorToHttpError
-            . interpretPasswordStoreToCassandraAndPostgres e.casClient
-            . raiseUnder2
+        -- The copy loop is gone; the legacy migration setting degrades to
+        -- Cassandra-only reads/writes.
+        MigrationToPostgresql -> interpretPasswordStore e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError

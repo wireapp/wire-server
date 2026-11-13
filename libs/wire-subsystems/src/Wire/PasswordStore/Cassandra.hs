@@ -19,7 +19,6 @@
 
 module Wire.PasswordStore.Cassandra
   ( interpretPasswordStore,
-    selectAllProviderPasswords,
   )
 where
 
@@ -53,8 +52,6 @@ deleteProviderPasswordImpl pid =
   retry x5 (write providerPasswordDelete (params LocalQuorum (Identity pid)))
 
 -- | Page over all provider passwords for the Cassandra -> PostgreSQL migration.
-selectAllProviderPasswords :: PrepQuery R () (ProviderId, Maybe Password)
-selectAllProviderPasswords = "SELECT id, password FROM provider"
 
 ------------------------------------------------------------------------
 -- Queries
