@@ -36,10 +36,6 @@ data:
       host: {{ .spar.host }}
       port: {{ .spar.port }}
 
-    {{- if $.Values.license }}
-    license: {{ $.Values.license | quote }}
-    {{- end }}
-
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
 
     cassandra:

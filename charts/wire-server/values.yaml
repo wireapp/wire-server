@@ -16,13 +16,6 @@ tags:
 apiVersions:
   disabledFederationAPIVersions: [development]
 
-# Optional licence payload (base64url-encoded LicenceSpec, produced by the
-# `wire-licensing` CLI). Applied deployment-wide: rendered into galley's
-# `settings.license` and background-worker's `license` config keys. Leave
-# empty for an unlicensed deployment (meeting join-by-link endpoints then
-# return 403 id-feature-error).
-license: ""
-
 galley:
   replicaCount: 3
   image:
@@ -276,13 +269,6 @@ galley:
               allowed_to_create_channels: team-members
               allowed_to_open_channels: team-members
             lockStatus: locked
-        mfa-totp:
-          defaults:
-            status: disabled
-            lockStatus: locked
-            config:
-              require_for_all_members: false
-              compulsory_for_owners_and_admins: false
         preventAdminlessGroups:
           defaults:
             status: disabled
@@ -395,7 +381,8 @@ galley:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config: {}
+    config:
+      {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
@@ -1047,6 +1034,9 @@ background-worker:
     # This will start the migration of team metadata.
     # It's important to set `settings.postgresMigration.team` to `migration-to-postgresql`
     # before starting the migration.
+    # This will start the migration of team members.
+    # It's important to set `settings.postgresMigration.teamMembers` to `migration-to-postgresql`
+    # before starting the migration.
     # This will start the migration of domain registration data.
     # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
     # before starting the migration.
@@ -1124,7 +1114,6 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
-  # Optional secret keys (see templates/background-worker/secret.yaml):
   secrets: {}
 
   podSecurityContext:
@@ -1374,7 +1363,8 @@ brig:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config: {}
+    config:
+      {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
