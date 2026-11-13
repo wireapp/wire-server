@@ -1,0 +1,3 @@
+Migration of team notifications from cassandra to postgres
+
+The hourly `expire-team-notifications` pg_cron job (deleting rows with `expires_at < now()`) is now scheduled by migration 20261110130000-team-notifications-ttl-cleanup.sql; pg_cron remains an external DBA prerequisite (without it the job is skipped and reads filter expired rows). The Postgres read path (`fetchTeamNotifications`) serves `(occurred_at, id)`-keyed pages: when a page is filled exactly, the next page starts one row later, so a row added at the boundary between requests is never skipped, but unlike the Cassandra path a full page with `has_more` computed by limit+1 can report `has_more: false` on an exact fill — a behavior change vs Cassandra pagination worth knowing for clients that rely on it.
