@@ -250,7 +250,7 @@ testObject_ApproveLegalHoldForUserRequest_totp_1 =
 
 testObject_CreateScimToken_totp_1 :: Scim.CreateScimToken
 testObject_CreateScimToken_totp_1 =
-  Scim.CreateScimToken "test token" (Just password1) Nothing (Just "test") Nothing secondFactor1 -- TODO: how does this even parse?  didn't we agree that mfa tokens need to have a type prefix, with the only one being planned for now being 'totp:'?
+  Scim.CreateScimToken "test token" (Just password1) Nothing (Just "test") Nothing secondFactor1
 
 testObject_NewTOTPCredential_2 :: NewTOTPCredential
 testObject_NewTOTPCredential_2 =
