@@ -157,7 +157,6 @@ import Wire.Options.Keys
 import Wire.ParseException
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra
-import Wire.ProposalStore.DualWrite
 import Wire.ProposalStore.Postgres
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
@@ -455,7 +454,9 @@ evalGalley e =
       proposalStoreInterpreter =
         case (e ^. options . postgresMigration).proposals of
           CassandraStorage -> interpretProposalStoreToCassandra
-          MigrationToPostgresql -> interpretProposalStoreToCassandraAndPostgres
+          -- The copy loop is gone; the legacy migration setting degrades to
+          -- Cassandra-only reads/writes.
+          MigrationToPostgresql -> interpretProposalStoreToCassandra
           PostgresqlStorage -> interpretProposalStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
