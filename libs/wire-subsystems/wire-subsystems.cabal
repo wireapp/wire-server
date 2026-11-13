@@ -425,6 +425,7 @@ library
     Wire.MigrationLock
     Wire.MlsKeyPackageStore
     Wire.MlsKeyPackageStore.Cassandra
+    Wire.MlsKeyPackageStore.Postgres
     Wire.MlsKeyPackageSubsystem
     Wire.MlsKeyPackageSubsystem.Interpreter
     Wire.NonceStore

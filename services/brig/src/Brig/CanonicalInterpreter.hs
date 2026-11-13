@@ -121,6 +121,7 @@ import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
+import Wire.MlsKeyPackageStore.Postgres (interpretMlsKeyPackageStoreToPostgres)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
 import Wire.NonceStore
@@ -449,6 +450,11 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
+      mlsKeyPackageStore = case e.postgresMigration.mlsKeyPackages of
+        CassandraStorage -> interpretMlsKeyPackageStoreToCassandra e.casClient
+        MigrationToPostgresql -> interpretMlsKeyPackageStoreToPostgres
+        PostgresqlStorage -> interpretMlsKeyPackageStoreToPostgres
+
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
       -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
       -- runInputConst e.hasqlPool / mapError postgresUsageErrorToHttpError providers.
@@ -575,7 +581,7 @@ runBrigToIO e (AppT ma) = do
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
-              . interpretMlsKeyPackageStoreToCassandra e.casClient
+              . mlsKeyPackageStore
               . interpretMlsKeyPackageSubsystem e.settings.keyPackageMaximumLifetime e.keyPackageLocalLock
               . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
