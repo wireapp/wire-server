@@ -2379,7 +2379,7 @@ used as `password` field.
 
 For new installations, configure `galley.config.postgresMigration` to use
 PostgreSQL for migrated Cassandra-backed data. In the Helm charts, this is the single source
-of truth and is consumed by `galley`, `brig`, and `background-worker`:
+of truth and is consumed by `galley`, `brig`, `background-worker`, and `gundeck`:
 
 ```yaml
 galley:
@@ -2396,6 +2396,7 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
+      notifications: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2444,6 +2445,11 @@ The current settings and their background-worker flags are:
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
 
+`notifications` (gundeck NotificationStore) has no background-worker flag yet; its
+tables and migration arrive with the NotificationStore migration. Gundeck itself now
+requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` block
+(including `notifications`) to boot (strict config parsing).
+
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting
@@ -2469,6 +2475,7 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
+         notifications: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2550,6 +2557,7 @@ The current settings and their background-worker flags are:
          budget: postgresql
          nonce: postgresql
          connections: postgresql
+         notifications: postgresql
    background-worker:
      config:
        migrateConversations: false
