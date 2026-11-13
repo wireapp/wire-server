@@ -257,9 +257,7 @@ library
     Wire.BudgetStore.Postgres
     Wire.ClientStore
     Wire.ClientStore.Cassandra
-    Wire.ClientStore.DualWrite
     Wire.ClientStore.DynamoDB
-    Wire.ClientStore.Migration
     Wire.ClientStore.Postgres
     Wire.ClientSubsystem
     Wire.ClientSubsystem.Error

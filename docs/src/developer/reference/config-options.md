@@ -2408,7 +2408,6 @@ background-worker:
     migrateCustomBackend: false
     migrateNonce: false
     migrateConnections: false
-    migrateClients: false
 ```
 
 #### Migration for existing installations
@@ -2445,21 +2444,6 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
-- `clients` -> `migrateClients`
-
-**Reconciling pre-existing client-store tables**
-
-The client-store migration (`clients` -> brig) creates the `clients`,
-`prekeys`, and `mls_public_keys` tables with `CREATE TABLE IF NOT EXISTS`. It
-therefore never alters a table that already exists in PostgreSQL. Operators
-whose PostgreSQL database still carries these tables from an older
-brig-on-PostgreSQL era must reconcile them before enabling the migration:
-if an existing table's columns do not match the schema the migration expects
-(see `libs/wire-subsystems/postgres-migrations/20261023090000-client-store.sql`,
-notably `client_id` as `text`), the migration leaves the divergent table in
-place and the store fails at runtime. In that case drop or rename the stale
-tables (after backing up any still-needed rows) so the migration can create
-them with the expected schema.
 
 **Migration pattern per migration setting**
 
@@ -2499,7 +2483,6 @@ them with the expected schema.
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-       migrateClients: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2519,7 +2502,6 @@ them with the expected schema.
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
-       migrateClients: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2550,7 +2532,6 @@ them with the expected schema.
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `nonce`: `wire_nonce_migration_finished`
    - `connections`: `wire_connections_migration_finished`
-   - `clients`: `wire_clients_migration_finished`
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2584,7 +2565,6 @@ them with the expected schema.
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-       migrateClients: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2678,7 +2658,6 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
-migrateClients: false
 
 # migration settings
 migrationOptions:
