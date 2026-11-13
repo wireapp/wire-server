@@ -27,7 +27,6 @@ import Control.Lens
 import Control.Monad.Catch (throwM)
 import Data.Domain
 import Data.Id
-import Data.Map qualified as Map
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Polysemy

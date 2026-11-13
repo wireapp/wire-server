@@ -1,6 +1,6 @@
 tags:
   nginz: true
-  federation: true 
+  federation: true
   backoffice: true
   legalhold: false
   sftd: false
@@ -318,6 +318,8 @@ galley:
       budget: {{ .Values.budgetStore }}
       nonce: {{ .Values.nonceStore }}
       connections: {{ .Values.connectionsStore }}
+      federationDomainConfig: {{ .Values.federationDomainConfigStore }}
+
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32

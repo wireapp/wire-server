@@ -17,13 +17,13 @@
 
 module Wire.MockInterpreters.FederationConfigStore where
 
+import Data.Domain
+import Data.Map qualified as Map
 import Imports
 import Polysemy
 import Polysemy.State
 import Wire.API.Routes.FederationDomainConfig
 import Wire.FederationConfigStore
-import Data.Domain
-import qualified Data.Map as Map
 
 inMemoryFederationConfigStoreInterpreter ::
   (Member (State (Map Domain FederationDomainConfig)) r) =>
