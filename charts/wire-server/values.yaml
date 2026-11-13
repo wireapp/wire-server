@@ -1059,7 +1059,6 @@ background-worker:
     # This will start the migration of user pending activation data.
     # It's important to set `settings.postgresMigration.userPendingActivation` to `migration-to-postgresql`
     # before starting the migration.
-    migrateUsersPendingActivation: false
     # This will start the migration of password reset data.
     # It's important to set `settings.postgresMigration.passwordReset` to `migration-to-postgresql`
     # before starting the migration.

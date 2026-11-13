@@ -19,7 +19,6 @@
 
 module Wire.UserPendingActivationStore.Cassandra
   ( userPendingActivationStoreToCassandra,
-    selectAllUsersPendingActivation,
   )
 where
 
@@ -53,10 +52,6 @@ usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
     insertExpiration = "INSERT INTO users_pending_activation (user, expires_at) VALUES (?, ?)"
 
 -- | Full-table select, used by the Postgres migration copy loop.
-selectAllUsersPendingActivation :: PrepQuery R () (UserId, UTCTime)
-selectAllUsersPendingActivation =
-  "SELECT user, expires_at FROM users_pending_activation"
-
 usersPendingActivationList :: (MonadClient m) => m (Page UserPendingActivation)
 usersPendingActivationList = do
   uncurry UserPendingActivation <$$> retry x1 (paginate selectExpired (params LocalQuorum ()))
