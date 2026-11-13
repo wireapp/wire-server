@@ -1,0 +1,2 @@
+V19 meetings can be externally managed: `POST /meetings` takes an optional `externally_managed_by` plus `externally_calendar_event_id`/`externally_calendar_id`, and externally-managed meetings can only be created/mutated by OAuth calendar callers presenting `Z-Client: Calendar` (wire clients get `403 externally-managed-by-calendar`; inconsistent pairing `400 invalid-op`; unlicensed create `403 id-feature-error`).
+Externally-managed meetings send no emails through Wire.

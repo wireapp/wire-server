@@ -222,6 +222,10 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
 
+-- | Whether the request presents the calendar integration's @Z-Client@ value.
+hasCalendarHeader :: ZClient -> Bool
+hasCalendarHeader = (== Just "Calendar")
+
 -- | Externally-managed meetings are created and mutated only by the
 -- calendar integration, i.e. by OAuth callers, whom nginz identifies by the
 -- absence of the @Z-Connection@ header. The inference is trustworthy only
@@ -233,14 +237,13 @@ ensureCalendarMutation ::
   (Member (Error MeetingError) r) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   -- | The meeting's lifecycle owner ('Nothing' = wire-managed).
   Maybe API.ExternalManager ->
   Sem r ()
 ensureCalendarMutation mConn mHeader mExt = case mExt of
   Nothing ->
-    when (mHeader == Just "Calendar") $
+    when (hasCalendarHeader mHeader) $
       throw InvalidCalendarFields
   Just _ -> ensureCalendarCaller mConn mHeader
 
@@ -250,12 +253,11 @@ ensureCalendarCaller ::
   (Member (Error MeetingError) r) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Sem r ()
 ensureCalendarCaller mConn mHeader = do
   when (isJust mConn) $ throw ManagedByCalendar
-  unless (mHeader == Just "Calendar") $ throw InvalidCalendarFields
+  unless (hasCalendarHeader mHeader) $ throw InvalidCalendarFields
 
 -- | Creation-time validation of the externally_managed_by / Z-Client /
 -- calendar-field pairing plus the calendar-integration licensing gate.
@@ -271,13 +273,12 @@ validateCalendarCreation ::
   ) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   API.NewMeeting ->
   Sem r ()
 validateCalendarCreation mConn mHeader nm = case nm.externallyManagedBy of
   Nothing ->
-    when (mHeader == Just "Calendar" || isJust nm.externallyCalendarEventId || isJust nm.externallyCalendarId) $
+    when (hasCalendarHeader mHeader || isJust nm.externallyCalendarEventId || isJust nm.externallyCalendarId) $
       throw InvalidCalendarFields
   Just _ -> do
     ensureCalendarCaller mConn mHeader
@@ -306,8 +307,7 @@ createMeetingImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   API.NewMeeting ->
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
@@ -420,8 +420,7 @@ updateMeetingImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
@@ -570,8 +569,7 @@ deleteMeetingImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Qualified MeetingId ->
   NominalDiffTime ->
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
@@ -650,8 +648,7 @@ refreshMeetingLinkImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Qualified MeetingId ->
   API.RefreshMeetingLinkRequest ->
   NominalDiffTime ->
@@ -1305,8 +1302,7 @@ addInvitedEmailsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Qualified MeetingId ->
   [EmailAddress] ->
   -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
@@ -1346,8 +1342,7 @@ removeInvitedEmailsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Qualified MeetingId ->
   [EmailAddress] ->
   NominalDiffTime ->
@@ -1383,8 +1378,7 @@ replaceInvitedEmailsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  -- | The caller's optional @Z-Client@ header.
-  Maybe Text ->
+  ZClient ->
   Qualified MeetingId ->
   [EmailAddress] ->
   -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
