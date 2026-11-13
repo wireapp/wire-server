@@ -62,9 +62,6 @@ data Opts = Opts
     migrateCustomBackend :: !Bool,
     migrateNonce :: !Bool,
     migrateConnections :: !Bool,
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig,

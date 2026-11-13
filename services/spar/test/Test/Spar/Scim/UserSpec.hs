@@ -26,8 +26,8 @@ import Imports
 import Polysemy
 import Polysemy.TinyLog
 import Spar.Scim.User (deleteScimUser, scimPaginationOffset)
-import Spar.Sem.SAMLUserStore
-import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
+import Wire.SAMLUserStore
+import Wire.SAMLUserStore.Mem (samlUserStoreToMem)
 import System.Logger (Msg)
 import Test.Hspec
 import Test.QuickCheck

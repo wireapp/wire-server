@@ -2399,6 +2399,7 @@ galley:
       connections: postgresql
       scimTokens: postgresql
       scimExternalIds: postgresql
+      samlUsers: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2436,6 +2437,7 @@ spar:
       connections: postgresql
       scimTokens: postgresql
       scimExternalIds: postgresql
+      samlUsers: postgresql
 ```
 
 #### Migration for existing installations
@@ -2588,11 +2590,13 @@ The current settings and their background-worker flags are:
          connections: postgresql
          scimTokens: postgresql
          scimExternalIds: postgresql
+         samlUsers: postgresql
    spar:
      config:
        postgresMigration:
          scimTokens: postgresql
          scimExternalIds: postgresql
+         samlUsers: postgresql
    background-worker:
      config:
        migrateConversations: false
