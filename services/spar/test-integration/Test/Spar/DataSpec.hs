@@ -33,7 +33,7 @@ import Spar.Intra.RpcApp (veidFromUserSSOId)
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import qualified Wire.SAMLUserStore as SAMLUserStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core

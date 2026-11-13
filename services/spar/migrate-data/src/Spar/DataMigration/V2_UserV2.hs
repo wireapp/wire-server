@@ -33,7 +33,7 @@ import Data.Time (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (Issuer (..))
-import Spar.Data (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
+import Wire.API.User.Saml (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
 import Spar.DataMigration.Types (logger)
 import Spar.DataMigration.Types hiding (logger)
 import qualified System.Logger as Log
