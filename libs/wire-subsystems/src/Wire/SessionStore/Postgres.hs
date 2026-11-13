@@ -18,7 +18,6 @@
 module Wire.SessionStore.Postgres
   ( interpretSessionStoreToPostgres,
     insertCookie,
-    insertCookieWithDeadline,
   )
 where
 
@@ -90,26 +89,6 @@ insertCookie u ck ttl =
                                succ_id = EXCLUDED.succ_id,
                                expires_at = EXCLUDED.expires_at,
                                invalid_after = EXCLUDED.invalid_after|]
-
--- | Migration-backfill insert: @invalid_after@ is an absolute deadline that was
--- computed from the row's remaining Cassandra TTL at scan time (never a fresh
--- @now() + TTL@, which would restart the TTL and extend the cookie's
--- validity).  The conflict clause is @DO NOTHING@: a replayed scan page must
--- not clobber newer dual-written state nor resurrect a cookie revoked in
--- Cassandra (brig's renew semantics still need the @DO UPDATE@ of
--- 'insertCookie').
-insertCookieWithDeadline :: (PGConstraints r) => UserId -> Cookie () -> UTCTime -> Sem r ()
-insertCookieWithDeadline u ck deadline =
-  runSessionWithRetry $ do
-    HasqlSession.statement u.toUUID purgeExpiredStatement
-    HasqlSession.statement (u.toUUID, i, t, c, l, s, x, deadline) insertWithDeadlineStatement
-  where
-    (i, t, c, l, s, x) = cookieColumns ck
-    insertWithDeadlineStatement :: Hasql.Statement (UUID, Int64, Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime, UTCTime) ()
-    insertWithDeadlineStatement =
-      [resultlessStatement|INSERT INTO user_cookies (user_id, id, typ, created, label, succ_id, expires_at, invalid_after)
-                           VALUES ($1 :: uuid, $2 :: int8, $3 :: int4, $4 :: timestamptz, $5 :: text?, $6 :: int8?, $7 :: timestamptz, $8 :: timestamptz)
-                           ON CONFLICT (user_id, id) DO NOTHING|]
 
 -- | Delete exactly the rows that no read path can see: 'listImpl' requires
 -- both @expires_at@ and @invalid_after@ in the future, 'lookupImpl' requires
