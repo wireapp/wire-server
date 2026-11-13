@@ -1068,11 +1068,6 @@ background-worker:
     # It's important to set `settings.postgresMigration.connections` to `migration-to-postgresql`
     # before starting the migration.
     migrateConnections: false
-    # This will start the migration of brig's provider-platform service tables
-    # (service, service_tag, service_prefix, service_whitelist{,_rev}).
-    # It's important to set brig's `settings.postgresMigration.providerService`
-    # to `migration-to-postgresql` before starting the migration.
-    migrateProviderService: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.

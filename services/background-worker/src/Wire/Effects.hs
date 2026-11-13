@@ -107,7 +107,6 @@ import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
 import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.ProviderServiceStore.Cassandra (interpretProviderServiceStoreToCassandra)
-import Wire.ProviderServiceStore.DualWrite (interpretProviderServiceStoreToCassandraAndPostgres)
 import Wire.ProviderServiceStore.Postgres (interpretProviderServiceStoreToPostgres)
 import Wire.RateLimit (RateLimit, RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
@@ -384,7 +383,9 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       PostgresqlStorage -> interpretCodeStoreToPostgres
     providerServiceStoreInterpreter = case env.postgresMigration.providerService of
       CassandraStorage -> interpretProviderServiceStoreToCassandra env.cassandraBrig
-      MigrationToPostgresql -> interpretProviderServiceStoreToCassandraAndPostgres env.cassandraBrig
+      -- The dual-write machinery is gone; the legacy
+      -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
+      MigrationToPostgresql -> interpretProviderServiceStoreToCassandra env.cassandraBrig
       PostgresqlStorage -> interpretProviderServiceStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
