@@ -1074,8 +1074,8 @@ testExternalCommitDuplicateClient = do
 testGhostMemberRowRepair :: (HasCallStack) => App ()
 testGhostMemberRowRepair = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ (void . uploadNewKeyPackage def) [bob1]
+  [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice2, bob1]
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
@@ -1092,8 +1092,11 @@ testGhostMemberRowRepair = do
         (\m -> nPayload m %. "type" `isEqual` "conversation.mls-message-add")
         wsBob
 
-  -- Any commit bundle triggers the repair from the stored ratchet tree.
-  void $ createExternalCommit convId alice1 Nothing >>= sendAndConsumeCommitBundle
+  -- Any commit bundle triggers the repair from the stored ratchet tree; the
+  -- external commit must come from a non-member (galley rejects external commits
+  -- from existing members without a self-remove proposal), so a fresh client of
+  -- alice joins here.
+  void $ createExternalCommit convId alice2 Nothing >>= sendAndConsumeCommitBundle
 
   -- bob1's row is back with its TRUE leaf index.
   gs <- getClientGroupState bob1
