@@ -32,7 +32,6 @@ import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.NonceStore.Migration
 import Wire.PasswordResetCodeStore.Migration
-import Wire.ProviderServiceStore.Migration
 import Wire.TeamFeatureStore.Migration
 import Wire.UserStore.Migration qualified as UserStore
 
@@ -204,54 +203,6 @@ customBackend migOpts = do
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling custom backend migration")
     cancel migrationLoop
-
--- | The brig provider-platform service tables (@service@, @service_tag@,
--- @service_prefix@, @service_whitelist{,_rev}@) live in the brig keyspace.
--- The row table gets an upsert-if-newer loop keyed on the maximum per-column
--- writetime; the PK-only index/whitelist tables get copy-only scans (see
--- Wire.ProviderServiceStore.DualWrite for the accepted trade-offs). Each scan
--- runs its own loop with its own metric set so a finished counter always
--- means exactly one completed scan.
-providerService :: MigrationOptions -> AppT IO CleanupAction
-providerService migOpts = do
-  cassClient <- asks (.cassandraBrig)
-  pgPool <- asks (.hasqlPool)
-  logger <- asks (.logger)
-  Log.info logger $ Log.msg (Log.val "starting provider service migration")
-  let mkMetrics name =
-        (,)
-          <$> register (counter $ Prometheus.Info (name <> "_migrated_to_pg") ("Number of " <> name <> " rows migrated to Postgresql"))
-          <*> ( (,,)
-                  <$> register (counter $ Prometheus.Info (name <> "_migration_finished") ("Whether the " <> name <> " migration to Postgresql is finished successfully"))
-                  <*> register (counter $ Prometheus.Info (name <> "_migration_failed") ("Whether the " <> name <> " migration to Postgresql has failed"))
-                  <*> register (vector "outcome" $ histogram (Prometheus.Info (name <> "_migration_duration_seconds") ("Duration of " <> name <> " migration attempts")) defaultBuckets)
-              )
-      rowMetrics = "wire_provider_service_migration"
-      tagMetrics = "wire_provider_service_tag_migration"
-      prefixMetrics = "wire_provider_service_prefix_migration"
-      whitelistMetrics = "wire_provider_service_whitelist_migration"
-      whitelistRevMetrics = "wire_provider_service_whitelist_rev_migration"
-
-  (rowCounter, (rowFinished, rowFailed, rowDuration)) <- mkMetrics rowMetrics
-  (tagCounter, (tagFinished, tagFailed, tagDuration)) <- mkMetrics tagMetrics
-  (prefixCounter, (prefixFinished, prefixFailed, prefixDuration)) <- mkMetrics prefixMetrics
-  (wlCounter, (wlFinished, wlFailed, wlDuration)) <- mkMetrics whitelistMetrics
-  (wlRevCounter, (wlRevFinished, wlRevFailed, wlRevDuration)) <- mkMetrics whitelistRevMetrics
-
-  rowsLoop <- async . lift $ migrateProviderServicesLoop migOpts cassClient pgPool logger rowCounter rowFinished rowFailed rowDuration
-  tagsLoop <- async . lift $ migrateProviderServiceTagsLoop migOpts cassClient pgPool logger tagCounter tagFinished tagFailed tagDuration
-  prefixesLoop <- async . lift $ migrateProviderServicePrefixesLoop migOpts cassClient pgPool logger prefixCounter prefixFinished prefixFailed prefixDuration
-  wlLoop <- async . lift $ migrateProviderServiceWhitelistLoop migOpts cassClient pgPool logger wlCounter wlFinished wlFailed wlDuration
-  wlRevLoop <- async . lift $ migrateProviderServiceWhitelistRevLoop migOpts cassClient pgPool logger wlRevCounter wlRevFinished wlRevFailed wlRevDuration
-
-  Log.info logger $ Log.msg (Log.val "started provider service migration")
-  pure $ do
-    Log.info logger $ Log.msg (Log.val "cancelling provider service migration")
-    cancel rowsLoop
-    cancel tagsLoop
-    cancel prefixesLoop
-    cancel wlLoop
-    cancel wlRevLoop
 
 connections :: MigrationOptions -> AppT IO CleanupAction
 connections migOpts = do
