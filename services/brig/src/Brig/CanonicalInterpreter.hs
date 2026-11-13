@@ -188,6 +188,7 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
 import Wire.VerificationCodeStore
 import Wire.VerificationCodeStore.Cassandra
+import Wire.VerificationCodeStore.Postgres (interpretVerificationCodeStoreToPostgres)
 import Wire.VerificationCodeSubsystem
 import Wire.VerificationCodeSubsystem.Interpreter
 
@@ -455,6 +456,22 @@ runBrigToIO e (AppT ma) = do
       -- The Postgres-backed branches therefore supply Input Pool and Error UsageError
       -- locally (raiseUnder2 + runInputConst + mapError) so they stay self-contained;
       -- UsageError is mapped to HttpError (handled by rethrowHttpErrorIO further up).
+      -- Same reasoning as passwordResetCodeStore above: VerificationCodeStore
+      -- must be peeled at this slot, before the global Pool/UsageError
+      -- providers, so the Postgres-backed branches supply them locally
+      -- (raiseUnder2 + runInputConst + mapError).
+      verificationCodeStoreInterpreter =
+        case e.postgresMigration.verificationCodes of
+          CassandraStorage -> interpretVerificationCodeStoreCassandra e.casClient
+          -- The copy loop is gone; the legacy migration setting degrades to
+          -- Cassandra-only reads/writes.
+          MigrationToPostgresql -> interpretVerificationCodeStoreCassandra e.casClient
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretVerificationCodeStoreToPostgres
+              . raiseUnder2
+
       passwordResetCodeStoreInterpreter =
         case e.postgresMigration.passwordReset of
           CassandraStorage -> passwordResetCodeStoreToCassandra @Cas.Client
@@ -545,7 +562,7 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
-              . interpretVerificationCodeStoreCassandra e.casClient
+              . verificationCodeStoreInterpreter
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
               . interpretIndexedUserStoreES indexedUserStoreConfig
