@@ -434,6 +434,9 @@ library
     Wire.NonceStore.Postgres
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.OAuthAuthCodeStore
+    Wire.OAuthAuthCodeStore.Cassandra
+    Wire.OAuthAuthCodeStore.Postgres
     Wire.Options.Galley
     Wire.Options.Keys
     Wire.PaginationState

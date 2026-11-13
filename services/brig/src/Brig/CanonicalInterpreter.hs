@@ -123,6 +123,9 @@ import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
+import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
+import Wire.OAuthAuthCodeStore.Cassandra (oauthAuthCodeStoreToCassandra)
+import Wire.OAuthAuthCodeStore.Postgres (interpretOAuthAuthCodeStoreToPostgres)
 import Wire.NonceStore
 import Wire.NonceStore.Cassandra
 import Wire.NonceStore.DualWrite
@@ -282,7 +285,8 @@ type BrigLowerLevelEffects =
      Now,
      Delay,
      Random,
-     PasswordResetCodeStore,
+    PasswordResetCodeStore,
+    OAuthAuthCodeStore,
      GalleyAPIAccess,
      SparAPIAccess,
      EmailSending,
@@ -449,6 +453,24 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
+      -- OAuthAuthCodeStore is peeled at the same slot as PasswordResetCodeStore:
+      -- it precedes the global runInputConst e.hasqlPool / mapError
+      -- postgresUsageErrorToHttpError providers, so the Postgres-backed branches
+      -- supply Input Pool and Error UsageError locally.
+      oauthAuthCodeStoreInterpreter =
+        case e.postgresMigration.oauthAuthCode of
+          CassandraStorage -> oauthAuthCodeStoreToCassandra @Cas.Client
+          MigrationToPostgresql ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretOAuthAuthCodeStoreToPostgres
+              . raiseUnder2
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretOAuthAuthCodeStoreToPostgres
+              . raiseUnder2
+
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
       -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
       -- runInputConst e.hasqlPool / mapError postgresUsageErrorToHttpError providers.
@@ -521,6 +543,7 @@ runBrigToIO e (AppT ma) = do
               . emailSendingInterpreter e
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
+              . oauthAuthCodeStoreInterpreter
               . passwordResetCodeStoreInterpreter
               . randomToIO
               . runDelay
