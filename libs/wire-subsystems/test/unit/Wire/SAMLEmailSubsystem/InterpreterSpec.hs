@@ -52,6 +52,7 @@ import Wire.API.Team.Permission (fullPermissions)
 import Wire.API.Team.Role (Role (..))
 import Wire.API.User.EmailAddress (fromEmail)
 import Wire.API.User.IdentityProvider
+import Wire.InvitationStore (StoredInvitation)
 import Wire.EmailSending
 import Wire.EmailSubsystem qualified as Email
 import Wire.EmailSubsystem.Interpreter
@@ -363,7 +364,9 @@ runInterpreters users teamMap emailTemplates action = do
       . miniGalleyAPIAccess teamMap def
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
+      . evalState @(Map (TeamId, InvitationId) StoredInvitation) mempty
       . inMemoryUserStoreInterpreter
+      . raiseUnder @(State (Map (TeamId, InvitationId) StoredInvitation))
       . emailSubsystemInterpreter emailTemplates branding
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter

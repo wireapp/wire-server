@@ -131,61 +131,10 @@ import Wire.VerificationCodeSubsystem
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
-  describe "resendTeamMemberVerificationEmail" do
-    it "rejects a missing account" $ do
-      domain <- generate arbitrary
-      uid <- generate arbitrary
-      tid <- generate arbitrary
-      let result =
-            runNoFederationStackUserSubsystemErrorEither def mempty def $
-              void $
-                resendTeamMemberVerificationEmail tid (toLocalUnsafe domain uid)
-      result `shouldBe` Left UserSubsystemProfileNotFound
-
-    it "rejects a target in another team even when verification is pending" $ do
-      NotPendingStoredUser stored <- generate arbitrary
-      domain <- generate arbitrary
-      tid <- generate arbitrary
-      email <- generate arbitrary
-      let user = stored {teamId = Nothing, status = Just Active, emailUnvalidated = Just email} :: StoredUser
-          backend = def {users = [user]}
-          result =
-            runNoFederationStackUserSubsystemErrorEither backend mempty def $
-              void $
-                resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
-      result `shouldBe` Left UserSubsystemProfileNotFound
-
-    it "returns nothing pending for a team member without an unvalidated email" $ do
-      NotPendingStoredUser stored <- generate arbitrary
-      domain <- generate arbitrary
-      tid <- generate arbitrary
-      let user = stored {teamId = Just tid, status = Just Active, emailUnvalidated = Nothing} :: StoredUser
-          backend = def {users = [user]}
-          result =
-            runNoFederationStack backend mempty def $
-              resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
-      case result of
-        NoVerificationEmailPending -> pure ()
-        VerificationEmailSent -> expectationFailure "sent verification without a pending email"
-
-    it "allows resending a SCIM member's pending email without an existing activation code" $ do
-      NotPendingStoredUser stored <- generate arbitrary
-      domain <- generate arbitrary
-      tid <- generate arbitrary
-      email <- generate arbitrary
-      oldEmail <- generate $ arbitrary `suchThat` (/= email)
-      let user = stored {teamId = Just tid, status = Just Active, managedBy = Just ManagedByScim, activated = True, email = Just oldEmail, emailUnvalidated = Just email} :: StoredUser
-          backend = def {users = [user]}
-          (result, activation) =
-            runNoFederationStack backend mempty def do
-              resendResult <- resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
-              storedActivation <- ActivationCodeStore.lookupActivationCode (mkEmailKey email)
-              pure (resendResult, storedActivation)
-      case result of
-        VerificationEmailSent -> pure ()
-        NoVerificationEmailPending -> expectationFailure "did not resend the pending SCIM email"
-      fmap fst activation `shouldBe` Just (Just user.id)
-
+  -- These properties exercise the mock's emulation of the Postgres
+  -- scim-user visibility SQL (scimUserVisibilityEmulationInterpreter): a
+  -- pending SCIM user is listed only while a live team invitation exists
+  -- for its email.
   describe "internalGetScimUsersPaginated" do
     prop "excludes expired pending accounts before counting and pagination" $
       \(accepted :: [NotPendingStoredUser]) (pendingAccounts :: [PendingNotEmptyIdentityStoredUser]) email teamId ->
@@ -249,6 +198,61 @@ spec = describe "UserSubsystem.Interpreter" do
               internalGetScimUsersPaginated teamId (toRange (Proxy @5)) Nothing
       page.totalResults `shouldBe` 1
       map (qUnqualified . userQualifiedId) page.results `shouldBe` [pendingUser.id]
+
+  describe "resendTeamMemberVerificationEmail" do
+    it "rejects a missing account" $ do
+      domain <- generate arbitrary
+      uid <- generate arbitrary
+      tid <- generate arbitrary
+      let result =
+            runNoFederationStackUserSubsystemErrorEither def mempty def $
+              void $
+                resendTeamMemberVerificationEmail tid (toLocalUnsafe domain uid)
+      result `shouldBe` Left UserSubsystemProfileNotFound
+
+    it "rejects a target in another team even when verification is pending" $ do
+      NotPendingStoredUser stored <- generate arbitrary
+      domain <- generate arbitrary
+      tid <- generate arbitrary
+      email <- generate arbitrary
+      let user = stored {teamId = Nothing, status = Just Active, emailUnvalidated = Just email} :: StoredUser
+          backend = def {users = [user]}
+          result =
+            runNoFederationStackUserSubsystemErrorEither backend mempty def $
+              void $
+                resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
+      result `shouldBe` Left UserSubsystemProfileNotFound
+
+    it "returns nothing pending for a team member without an unvalidated email" $ do
+      NotPendingStoredUser stored <- generate arbitrary
+      domain <- generate arbitrary
+      tid <- generate arbitrary
+      let user = stored {teamId = Just tid, status = Just Active, emailUnvalidated = Nothing} :: StoredUser
+          backend = def {users = [user]}
+          result =
+            runNoFederationStack backend mempty def $
+              resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
+      case result of
+        NoVerificationEmailPending -> pure ()
+        VerificationEmailSent -> expectationFailure "sent verification without a pending email"
+
+    it "allows resending a SCIM member's pending email without an existing activation code" $ do
+      NotPendingStoredUser stored <- generate arbitrary
+      domain <- generate arbitrary
+      tid <- generate arbitrary
+      email <- generate arbitrary
+      oldEmail <- generate $ arbitrary `suchThat` (/= email)
+      let user = stored {teamId = Just tid, status = Just Active, managedBy = Just ManagedByScim, activated = True, email = Just oldEmail, emailUnvalidated = Just email} :: StoredUser
+          backend = def {users = [user]}
+          (result, activation) =
+            runNoFederationStack backend mempty def do
+              resendResult <- resendTeamMemberVerificationEmail tid (toLocalUnsafe domain user.id)
+              storedActivation <- ActivationCodeStore.lookupActivationCode (mkEmailKey email)
+              pure (resendResult, storedActivation)
+      case result of
+        VerificationEmailSent -> pure ()
+        NoVerificationEmailPending -> expectationFailure "did not resend the pending SCIM email"
+      fmap fst activation `shouldBe` Just (Just user.id)
 
   describe "getUserProfiles" do
     describe "[with federation]" do

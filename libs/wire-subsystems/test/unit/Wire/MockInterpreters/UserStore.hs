@@ -34,6 +34,7 @@ import Wire.API.Password
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
 import Wire.API.User.Search (SetSearchable (SetSearchable))
+import Wire.InvitationStore (StoredInvitation (..))
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
@@ -42,14 +43,34 @@ runInMemoryUserStoreInterpreter :: [StoredUser] -> Map UserId Password -> Interp
 runInMemoryUserStoreInterpreter users passwords =
   evalState users
     . evalState passwords
+    . evalState (Map.empty :: InMemoryInvitationState)
     . inMemoryUserStoreInterpreter
     . raiseUnder
     . raiseUnder
+    . raiseUnder
+
+-- | Pending-scim visibility for the mock (emulates the Postgres SCIM
+-- visibility SQL): pending SCIM users are listed only while a live
+-- invitation exists for their email.  Mock invitations live forever, so
+-- "live" simply means present in the map.
+type InMemoryInvitationState = Map (TeamId, InvitationId) StoredInvitation
+
+isPendingScimUser :: StoredUser -> Bool
+isPendingScimUser u =
+  u.managedBy == Just ManagedByScim
+    && u.status == Just PendingInvitation
+    && u.activated
+    && isJust u.email
+
+hasLiveInvitation :: InMemoryInvitationState -> TeamId -> StoredUser -> Bool
+hasLiveInvitation invitations tid u =
+  any (\inv -> inv.teamId == tid && Just inv.email == u.email) (Map.elems invitations)
 
 inMemoryUserStoreInterpreter ::
   forall r.
   ( Member (State [StoredUser]) r,
-    Member (State (Map UserId Password)) r
+    Member (State (Map UserId Password)) r,
+    Member (State InMemoryInvitationState) r
   ) =>
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = inMemoryUserStoreInterpreterWithDeleteHook (const $ pure ())
@@ -57,7 +78,8 @@ inMemoryUserStoreInterpreter = inMemoryUserStoreInterpreterWithDeleteHook (const
 inMemoryUserStoreInterpreterWithDeleteHook ::
   forall r.
   ( Member (State [StoredUser]) r,
-    Member (State (Map UserId Password)) r
+    Member (State (Map UserId Password)) r,
+    Member (State InMemoryInvitationState) r
   ) =>
   (UserId -> Sem r ()) ->
   InterpreterFor UserStore r
@@ -117,23 +139,30 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
     pure $ storedUserToIndexUser <$> mUser
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
-  GetPendingScimUsers tid -> do
+  GetScimUsersPaginated tid pageSize mOffset -> do
     users <- get @[StoredUser]
-    pure $ Just $ do
-      user <- users
-      guard $ user.teamId == Just tid && user.managedBy == Just ManagedByScim
-      guard $ user.status == Just PendingInvitation && user.activated
-      email <- maybeToList user.email
-      pure (user.id, email)
-  GetScimUsersPaginated tid excludedIds pageSize mOffset -> do
-    users <- get @[StoredUser]
-    let eligible = sortOn (.id) $ filter (\user -> user.teamId == Just tid && user.managedBy == Just ManagedByScim && user.id `notElem` excludedIds) users
+    invitations <- get @InMemoryInvitationState
+    let eligible =
+          sortOn (.id) $
+            filter
+              ( \user ->
+                  user.teamId == Just tid
+                    && user.managedBy == Just ManagedByScim
+                    && (not (isPendingScimUser user) || hasLiveInvitation invitations tid user)
+              )
+              users
     pure $
       Just
         OffsetPage
           { results = take (fromIntegral pageSize) $ drop (fromIntegral $ max 0 $ fromMaybe 0 mOffset) eligible,
             totalResults = fromIntegral $ length eligible
           }
+  -- Emulates the Postgres visibility SQL: pending SCIM users without a live
+  -- invitation.
+  GetExpiredPendingScimUsers tid -> do
+    users <- get @[StoredUser]
+    invitations <- get @InMemoryInvitationState
+    pure [u.id | u <- users, u.teamId == Just tid, isPendingScimUser u, not (hasLiveInvitation invitations tid u)]
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
