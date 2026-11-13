@@ -2408,7 +2408,6 @@ background-worker:
     migrateCustomBackend: false
     migrateNonce: false
     migrateConnections: false
-    migrateProviderPasswords: false
 ```
 
 #### Migration for existing installations
@@ -2441,7 +2440,6 @@ The current settings and their background-worker flags are:
 - `domainRegistration` -> `migrateDomainRegistration`
 - `user` -> `migrateUsers`
 - `blockList` -> `migrateBlockList`
-- `providerPassword` -> `migrateProviderPasswords`
 - `passwordReset` -> `migratePasswordReset`
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
@@ -2466,7 +2464,6 @@ The current settings and their background-worker flags are:
          teamFeatures: migration-to-postgresql
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
-         providerPassword: cassandra
          blockList: cassandra
          passwordReset: cassandra
          customBackend: cassandra
@@ -2485,7 +2482,6 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-       migrateProviderPasswords: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2505,7 +2501,6 @@ The current settings and their background-worker flags are:
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
-       migrateProviderPasswords: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2531,18 +2526,11 @@ The current settings and their background-worker flags are:
    > to be saved, the operator must insert some value as `name` and/or
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
-   - `providerPassword`: `wire_provider_passwords_migration_finished`
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
    - `nonce`: `wire_nonce_migration_finished`
    - `connections`: `wire_connections_migration_finished`
-
-   > ℹ️ While `providerPassword: migration-to-postgresql` is set, Cassandra
-   > remains the source of truth for reads, and writes are mirrored to
-   > PostgreSQL (dual-write). The background worker can be re-run at any time;
-   > it re-scans Cassandra and upserts rows idempotently, healing any provider
-   > passwords written after a completed pass before the cutover.
 
 3. Cut over reads and writes to PostgreSQL for the selected migration
    setting(s). This configuration must be used from now on for every new
@@ -2576,7 +2564,6 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-       migrateProviderPasswords: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2670,7 +2657,6 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
-migrateProviderPasswords: false
 
 # migration settings
 migrationOptions:

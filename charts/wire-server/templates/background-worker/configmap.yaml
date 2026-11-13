@@ -90,7 +90,6 @@ data:
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
     migrateUsers: {{ .migrateUsers }}
     migrateBlockList: {{ .migrateBlockList }}
-    migrateProviderPasswords: {{ .migrateProviderPasswords }}
     migratePasswordReset: {{ .migratePasswordReset }}
     migrateCustomBackend: {{ .migrateCustomBackend }}
     migrateNonce: {{ .migrateNonce }}
