@@ -76,7 +76,6 @@ import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
 import Wire.BudgetStore.Postgres (interpretBudgetStoreToPostgres)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
-import Wire.ClientStore.DualWrite (interpretClientStoreToCassandraAndPostgres)
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
 import Wire.ClientStore.Postgres (interpretClientStoreToPostgres)
 import Wire.ClientSubsystem
@@ -439,10 +438,12 @@ runBrigToIO e (AppT ma) = do
         CassandraStorage -> interpretNonceStoreToCassandra e.casClient
         PostgresqlStorage -> interpretNonceStoreToPostgres
         MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
+      -- The dual-write machinery was removed: 'MigrationToPostgresql' is
+      -- treated as 'PostgresqlStorage'.
       clientStore = case e.postgresMigration.clients of
         CassandraStorage -> interpretClientStoreCassandra clientStoreCassandraEnv
-        MigrationToPostgresql -> interpretClientStoreToCassandraAndPostgres clientStoreCassandraEnv
         PostgresqlStorage -> interpretClientStoreToPostgres
+        MigrationToPostgresql -> interpretClientStoreToPostgres
 
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
