@@ -373,6 +373,7 @@ library
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FederationConfigStore.Postgres
     Wire.FederationConfigSubsystem
     Wire.FederationConfigSubsystem.Interpreter
     Wire.FederationSubsystem
