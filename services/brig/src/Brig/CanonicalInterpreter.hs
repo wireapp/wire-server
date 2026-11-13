@@ -143,7 +143,6 @@ import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
 import Wire.ProviderServiceStore
 import Wire.ProviderServiceStore.Cassandra
-import Wire.ProviderServiceStore.DualWrite
 import Wire.ProviderServiceStore.Postgres
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
@@ -440,7 +439,9 @@ runBrigToIO e (AppT ma) = do
 
       providerServiceStore = case e.postgresMigration.providerService of
         CassandraStorage -> interpretProviderServiceStoreToCassandra e.casClient
-        MigrationToPostgresql -> interpretProviderServiceStoreToCassandraAndPostgres e.casClient
+        -- The dual-write machinery is gone; the legacy
+        -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
+        MigrationToPostgresql -> interpretProviderServiceStoreToCassandra e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError
