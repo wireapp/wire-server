@@ -75,6 +75,7 @@ module Brig.App
     rateLimitEnvLens,
     amqpJobsPublisherChannelLens,
     postgresMigrationLens,
+    searchBackendLens,
     initZAuth,
     initLogger,
     initPostgresPool,
@@ -219,6 +220,7 @@ data Env = Env
     digestSHA256 :: Digest,
     digestMD5 :: Digest,
     indexEnv :: IndexEnv,
+    searchBackend :: Opt.SearchBackend,
     randomPrekeyLocalLock :: Maybe (MVar ()),
     keyPackageLocalLock :: MVar (),
     rabbitmqChannel :: MVar Q.Channel,
@@ -263,6 +265,14 @@ loadEmailTemplates opts = do
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
+  -- Fail fast at startup: the Postgres search backend requires the brig
+  -- user store in Postgres.  Previously this surfaced as a lazy `error` in
+  -- the CanonicalInterpreter chain, i.e. only on the first search request.
+  when
+    ( fromMaybe Opt.SearchBackendElasticSearch opts.searchBackend == Opt.SearchBackendPostgres
+        && opts.postgresMigration.user == CassandraStorage
+    )
+    $ error "UserSearchStore requires the brig user store in Postgres: set postgresMigration.user to PostgresqlStorage or MigrationToPostgresql"
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
@@ -350,6 +360,7 @@ newEnv opts = do
         digestMD5 = md5,
         digestSHA256 = sha256,
         indexEnv = idxEnv,
+        searchBackend = fromMaybe Opt.SearchBackendElasticSearch opts.searchBackend,
         randomPrekeyLocalLock = prekeyLocalLock,
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,

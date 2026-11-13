@@ -21,7 +21,7 @@ import Brig.AWS (amazonkaEnv, prekeyTable)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.IO.Intra (runEvents)
-import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
+import Brig.Options (SearchBackend (..), Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
@@ -114,6 +114,7 @@ import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
 import Wire.IndexedUserStore
+import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
@@ -180,6 +181,9 @@ import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Wire.UserSearchStore
+import Wire.UserSearchStore.ElasticSearch (interpretUserSearchStoreElasticSearch)
+import Wire.UserSearchStore.Postgres (interpretUserSearchStorePostgres)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
@@ -231,6 +235,7 @@ type BrigLowerLevelEffects =
      MlsKeyPackageStore,
      UserStore,
      UserGroupStore,
+     UserSearchStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
      NonceStore,
@@ -548,7 +553,10 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
-              . interpretIndexedUserStoreES indexedUserStoreConfig
+              . ( case e.searchBackend of
+                    SearchBackendElasticSearch -> interpretIndexedUserStoreES indexedUserStoreConfig
+                    SearchBackendPostgres -> interpretIndexedUserStoreNoop
+                )
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
@@ -573,6 +581,13 @@ runBrigToIO e (AppT ma) = do
               . nonceStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
+              . ( case e.searchBackend of
+                    SearchBackendElasticSearch -> interpretUserSearchStoreElasticSearch
+                    -- Misconfigurations (postgres search with the user
+                    -- store still on Cassandra) are rejected at startup in
+                    -- 'Brig.App.newEnv'.
+                    SearchBackendPostgres -> interpretUserSearchStorePostgres
+                )
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
               . interpretMlsKeyPackageStoreToCassandra e.casClient
@@ -639,3 +654,16 @@ emailSendingInterpreter e = do
   case e.smtpEnv of
     Just smtp -> emailViaSMTPInterpreter e.appLogger smtp
     Nothing -> emailViaSESInterpreter (e.awsEnv ^. amazonkaEnv)
+
+-- | Disables the ElasticSearch index when brig serves user search from
+-- Postgres ('SearchBackendPostgres'): no writes go to the index any more, so
+-- ElasticSearch can be decommissioned.
+interpretIndexedUserStoreNoop :: InterpreterFor IndexedUserStore r
+interpretIndexedUserStoreNoop = interpret \case
+  IndexedUserStore.Upsert {} -> pure ()
+  IndexedUserStore.BulkUpsert {} -> pure ()
+  IndexedUserStore.UpdateTeamSearchVisibilityInbound {} -> pure ()
+  IndexedUserStore.DoesIndexExist -> pure False
+  IndexedUserStore.SearchUsers {} -> error "IndexedUserStore: disabled when searchBackend=postgres"
+  IndexedUserStore.PaginateTeamMembers {} -> error "IndexedUserStore: disabled when searchBackend=postgres"
+  IndexedUserStore.GetTeamSize {} -> error "IndexedUserStore: disabled when searchBackend=postgres"
