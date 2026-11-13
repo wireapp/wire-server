@@ -180,7 +180,6 @@ import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import Wire.UserPendingActivationStore.DualWrite (interpretUserPendingActivationStoreToCassandraAndPostgres)
 import Wire.UserPendingActivationStore.Postgres (interpretUserPendingActivationStoreToPostgres)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
@@ -453,11 +452,9 @@ runBrigToIO e (AppT ma) = do
 
       userPendingActivationStoreInterpreter = case e.postgresMigration.userPendingActivation of
         CassandraStorage -> userPendingActivationStoreToCassandra
-        MigrationToPostgresql ->
-          runInputConst e.hasqlPool
-            . mapError postgresUsageErrorToHttpError
-            . interpretUserPendingActivationStoreToCassandraAndPostgres
-            . raiseUnder2
+        -- The copy loop is gone; the legacy migration setting degrades to
+        -- Cassandra-only reads/writes.
+        MigrationToPostgresql -> userPendingActivationStoreToCassandra
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError
