@@ -48,6 +48,7 @@ data Opts = Opts
     backendNotificationPusher :: BackendNotificationsConfig,
     cassandra :: CassandraOpts,
     cassandraBrig :: CassandraOpts,
+    cassandraSpar :: CassandraOpts,
     postgresqlPool :: !PoolConfig,
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: !Bool,
