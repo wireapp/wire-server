@@ -178,7 +178,6 @@ import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
-import Wire.UserKeyStore.DualWrite (interpretUserKeyStoreToCassandraAndPostgres)
 import Wire.UserKeyStore.Postgres (interpretUserKeyStoreToPostgres)
 import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
@@ -505,9 +504,10 @@ runBrigToIO e (AppT ma) = do
       userKeyStoreInterpreter =
         case e.postgresMigration.userKey of
           CassandraStorage -> interpretUserKeyStoreCassandra e.casClient
+          -- The copy loop is gone; the legacy migration setting degrades to
+          -- Cassandra-only reads/writes.
+          MigrationToPostgresql -> interpretUserKeyStoreCassandra e.casClient
           PostgresqlStorage -> interpretUserKeyStoreToPostgres
-          MigrationToPostgresql ->
-            interpretUserKeyStoreToCassandraAndPostgres e.casClient
 
   ( either throwM pure
       <=< ( runFinal

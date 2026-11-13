@@ -17,7 +17,6 @@
 
 module Wire.UserKeyStore.Postgres
   ( interpretUserKeyStoreToPostgres,
-    insertUserKeyIfAbsent,
     upsertUserKey,
   )
 where
@@ -94,17 +93,6 @@ upsertUserKey key uid =
 -- reclaim after the row was copied.  The dual-write mirror ('upsertUserKey')
 -- deliberately does overwrite, because it mirrors the unconditional Cassandra
 -- overwrite of 'insertKeyImpl'.
-insertUserKeyIfAbsent :: (PGConstraints r) => Text -> UserId -> Sem r ()
-insertUserKeyIfAbsent key uid =
-  runStatement (key, uid) insertIfAbsentStatement
-  where
-    insertIfAbsentStatement :: Hasql.Statement (Text, UserId) ()
-    insertIfAbsentStatement =
-      lmapPG
-        [resultlessStatement|INSERT INTO user_keys (key, user_id)
-                             VALUES ($1 :: text, $2 :: uuid)
-                             ON CONFLICT (key) DO NOTHING|]
-
 deleteKeyImpl :: (PGConstraints r) => EmailKey -> Sem r ()
 deleteKeyImpl k =
   runStatement (emailKeyUniq k) deleteStatement
