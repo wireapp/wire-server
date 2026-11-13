@@ -31,8 +31,8 @@ data:
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if .postgresqlPassword }}
-    postgresqlPassword: {{ .postgresqlPassword | quote }}
+    {{- if hasKey $.Values.spar.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/spar/secrets/pgPassword
     {{- end }}
     postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
 

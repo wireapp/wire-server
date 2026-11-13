@@ -283,3 +283,5 @@ postgresMigration:
   customBackend: postgresql
   budget: postgresql
   connections: postgresql
+  scimTokens: cassandra
+  scimExternalIds: cassandra

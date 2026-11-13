@@ -467,9 +467,14 @@ library
     Wire.ScimExternalIdStore
     Wire.ScimExternalIdStore.Cassandra
     Wire.ScimExternalIdStore.Mem
+    Wire.ScimExternalIdStore.Postgres
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
+    Wire.ScimTokenStore
+    Wire.ScimTokenStore.Cassandra
+    Wire.ScimTokenStore.Mem
+    Wire.ScimTokenStore.Postgres
     Wire.ScimUserMetaStore
     Wire.ScimUserMetaStore.Cassandra
     Wire.ScimUserMetaStore.Mem
