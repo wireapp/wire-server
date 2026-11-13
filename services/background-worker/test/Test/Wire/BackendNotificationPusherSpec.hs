@@ -503,7 +503,8 @@ spec = do
                 customBackend = CassandraStorage,
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
-                connections = CassandraStorage
+                connections = CassandraStorage,
+                clients = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -575,7 +576,8 @@ spec = do
                 customBackend = CassandraStorage,
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
-                connections = CassandraStorage
+                connections = CassandraStorage,
+                clients = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

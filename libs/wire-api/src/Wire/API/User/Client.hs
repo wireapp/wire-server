@@ -91,6 +91,7 @@ import Data.Qualified
 import Data.SOP hiding (fn)
 import Data.Schema
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock
@@ -103,6 +104,7 @@ import Deriving.Swagger
   )
 import Imports
 import Wire.API.MLS.CipherSuite
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
@@ -183,6 +185,17 @@ instance C.Cql ClientCapability where
     2 -> pure ClientSupportsConsumableNotifications
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
+
+instance PostgresMarshall Int32 ClientCapability where
+  postgresMarshall = \case
+    ClientSupportsLegalholdImplicitConsent -> 1
+    ClientSupportsConsumableNotifications -> 2
+
+instance PostgresUnmarshall Int32 ClientCapability where
+  postgresUnmarshall = \case
+    1 -> Right ClientSupportsLegalholdImplicitConsent
+    2 -> Right ClientSupportsConsumableNotifications
+    n -> Left $ "Unexpected ClientCapability value: " <> Text.show n
 
 -- FUTUREWORK: add golden tests for this?
 newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
@@ -703,6 +716,19 @@ instance C.Cql ClientType where
   fromCql (C.CqlInt 2) = pure LegalHoldClientType
   fromCql _ = Left "ClientType: Int [0, 2] expected"
 
+instance PostgresMarshall Int32 ClientType where
+  postgresMarshall = \case
+    TemporaryClientType -> 0
+    PermanentClientType -> 1
+    LegalHoldClientType -> 2
+
+instance PostgresUnmarshall Int32 ClientType where
+  postgresUnmarshall = \case
+    0 -> Right TemporaryClientType
+    1 -> Right PermanentClientType
+    2 -> Right LegalHoldClientType
+    n -> Left $ "Unexpected ClientType value: " <> Text.show n
+
 data ClientClass
   = PhoneClient
   | TabletClient
@@ -732,6 +758,21 @@ instance C.Cql ClientClass where
   fromCql (C.CqlInt 2) = pure DesktopClient
   fromCql (C.CqlInt 3) = pure LegalHoldClient
   fromCql _ = Left "ClientClass: Int [0, 3] expected"
+
+instance PostgresMarshall Int32 ClientClass where
+  postgresMarshall = \case
+    PhoneClient -> 0
+    TabletClient -> 1
+    DesktopClient -> 2
+    LegalHoldClient -> 3
+
+instance PostgresUnmarshall Int32 ClientClass where
+  postgresUnmarshall = \case
+    0 -> Right PhoneClient
+    1 -> Right TabletClient
+    2 -> Right DesktopClient
+    3 -> Right LegalHoldClient
+    n -> Left $ "Unexpected ClientClass value: " <> Text.show n
 
 --------------------------------------------------------------------------------
 -- NewClient
