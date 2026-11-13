@@ -1,0 +1,1 @@
+Avoid repeated client MLS public-key lookups when validating key-package uploads. The key is now loaded at most once per signature scheme per request.

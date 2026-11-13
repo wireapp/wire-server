@@ -68,7 +68,7 @@ uploadKeyPackages :: (Member ClientStore r, Member MlsKeyPackageSubsystem r) => 
 uploadKeyPackages lusr cid kps = do
   assertMLSEnabled
   let identity = mkClientIdentity (tUntagged lusr) cid
-  kps' <- traverse (validateUploadedKeyPackage identity) kps.keyPackages
+  kps' <- validateUploadedKeyPackages identity kps.keyPackages
   lift $ liftSem $ Mls.insertMlsKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
