@@ -2416,29 +2416,6 @@ background-worker:
 `spar` additionally exposes its own `spar.config.postgresMigration` block, using the
 same shared storage-location type. Spar-owned stores (e.g. SAML users, SCIM tokens,
 external ids) are added to it by their respective migration tasks; until then the
-block mirrors the shared defaults and stays on Cassandra. For installations that
-use the SCIM token / external-id stores (i.e. any deployment with SCIM
-provisioning), configure them explicitly:
-
-```yaml
-spar:
-  config:
-    postgresMigration:
-      conversation: postgresql
-      conversationCodes: postgresql
-      teamFeatures: postgresql
-      domainRegistration: postgresql
-      user: postgresql
-      blockList: postgresql
-      passwordReset: postgresql
-      customBackend: postgresql
-      budget: postgresql
-      nonce: postgresql
-      connections: postgresql
-      scimTokens: postgresql
-      scimExternalIds: postgresql
-      samlUsers: postgresql
-```
 
 #### Migration for existing installations
 
@@ -2500,13 +2477,6 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
-   # `spar` reads its own block; its SCIM stores must dual-write during the
-   # backfill, or writes made between backfill and cutover are lost.
-   spar:
-     config:
-       postgresMigration:
-         scimTokens: migration-to-postgresql
-         scimExternalIds: migration-to-postgresql
    background-worker:
      config:
        migrateConversations: false
@@ -2520,6 +2490,8 @@ The current settings and their background-worker flags are:
        migrateNonce: false
        migrateConnections: false
    ```
+       migrateSamlUsers: false
+    ```
 
     This change should restart the affected pods, and new writes will follow the
    migration interpreter.
@@ -2588,15 +2560,9 @@ The current settings and their background-worker flags are:
          budget: postgresql
          nonce: postgresql
          connections: postgresql
-         scimTokens: postgresql
-         scimExternalIds: postgresql
-         samlUsers: postgresql
-   spar:
-     config:
-       postgresMigration:
-         scimTokens: postgresql
-         scimExternalIds: postgresql
-         samlUsers: postgresql
+         scimTokens: cassandra
+         scimExternalIds: cassandra
+         samlUsers: cassandra
    background-worker:
      config:
        migrateConversations: false

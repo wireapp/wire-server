@@ -29,13 +29,11 @@ library
     Gundeck.Monad
     Gundeck.Notification
     Gundeck.Notification.Data
-    Gundeck.Notification.Metrics
     Gundeck.Options
     Gundeck.Presence
     Gundeck.Presence.Data
     Gundeck.Push
     Gundeck.Push.Data
-    Gundeck.Push.Metrics
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
@@ -476,11 +474,7 @@ test-suite gundeck-tests
   other-modules:
     Aws.Arn
     DelayQueue
-    Gundeck.Notification.MetricsSpec
-    Gundeck.Push.MetricsSpec
-    Gundeck.Push.WebsocketSpec
     Json
-    MetricsHelper
     MockGundeck
     Native
     ParseExistsError
@@ -555,7 +549,6 @@ test-suite gundeck-tests
     , mtl
     , multiset
     , network-uri
-    , prometheus-client
     , QuickCheck
     , quickcheck-instances
     , quickcheck-state-machine

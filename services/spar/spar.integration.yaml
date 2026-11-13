@@ -52,9 +52,7 @@ postgresMigration:
   blockList: cassandra
   passwordReset: cassandra
   customBackend: cassandra
-  budget: cassandra
-  nonce: cassandra
-  connections: cassandra
+  customBackend: postgresql
   scimTokens: postgresql
   scimExternalIds: postgresql
   samlUsers: postgresql
