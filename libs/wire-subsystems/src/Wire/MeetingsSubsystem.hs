@@ -31,26 +31,32 @@ import Wire.API.Locale (Locale)
 import Wire.API.Meeting
 import Wire.API.User.EmailAddress (EmailAddress)
 
+type ZClient = Maybe Text
+
 data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    ZClient ->
     NewMeeting ->
     MeetingsSubsystem m MeetingWithConversation
   UpdateMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    ZClient ->
     Qualified MeetingId ->
     UpdateMeeting ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
   DeleteMeeting ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    ZClient ->
     Qualified MeetingId ->
     MeetingsSubsystem m Bool
   RefreshMeetingLink ::
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
+    ZClient ->
     Qualified MeetingId ->
     RefreshMeetingLinkRequest ->
     MeetingsSubsystem m (Maybe MeetingWithConversation)
@@ -138,6 +144,8 @@ data MeetingsSubsystem m a where
     MeetingsSubsystem m [MeetingV18]
   AddInvitedEmails ::
     Local UserId ->
+    Maybe ConnId ->
+    ZClient ->
     Qualified MeetingId ->
     [EmailAddress] ->
     -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
@@ -145,11 +153,15 @@ data MeetingsSubsystem m a where
     MeetingsSubsystem m Bool
   RemoveInvitedEmails ::
     Local UserId ->
+    Maybe ConnId ->
+    ZClient ->
     Qualified MeetingId ->
     [EmailAddress] ->
     MeetingsSubsystem m Bool
   ReplaceInvitedEmails ::
     Local UserId ->
+    Maybe ConnId ->
+    ZClient ->
     Qualified MeetingId ->
     [EmailAddress] ->
     -- | Optional caller locale; 'Nothing' falls back to the creator's locale.

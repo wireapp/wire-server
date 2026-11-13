@@ -30,7 +30,8 @@ import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Wire.API.Meeting
-  ( MeetingType,
+  ( ExternalManager (..),
+    MeetingType,
     Recurrence (..),
     TimeZone,
     parseMeetingType,
@@ -58,6 +59,12 @@ data StoredMeeting = StoredMeeting
     tzid :: TimeZone,
     -- | immediate or scheduled; pre-V19 rows are 'scheduled'
     meetingType :: MeetingType,
+    -- | lifecycle owner; @Just@ = externally managed (e.g. google_calendar,
+    -- outlook), only mutable via the calendar integration (OAuth callers)
+    externallyManagedBy :: Maybe ExternalManager,
+    -- | external calendar references; set iff 'externallyManagedBy' is set
+    externallyCalendarEventId :: Maybe Text,
+    externallyCalendarId :: Maybe Text,
     -- | optional recurrence pattern
     recurrence :: Maybe Recurrence,
     -- | conversation where the meeting belongs
@@ -102,7 +109,10 @@ type StoredMeetingTuple =
     Data.Vector.Vector Text, -- invited_emails
     Bool, -- trial
     UTCTime, -- created_at
-    UTCTime -- updated_at
+    UTCTime, -- updated_at
+    Maybe Text, -- externally_managed_by
+    Maybe Text, -- externally_calendar_event_id
+    Maybe Text -- externally_calendar_id
   )
 
 instance PostgresMarshall StoredMeetingTuple StoredMeeting where
@@ -122,7 +132,10 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
           V.fromList (map fromEmail storedMeeting.invitedEmails),
           storedMeeting.trial,
           storedMeeting.createdAt,
-          storedMeeting.updatedAt
+          storedMeeting.updatedAt,
+          fmap (\(ExternalManager t) -> t) storedMeeting.externallyManagedBy,
+          storedMeeting.externallyCalendarEventId,
+          storedMeeting.externallyCalendarId
         )
 
 instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
@@ -141,7 +154,10 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       invitedEmails',
       trial',
       createdAt',
-      updateAt'
+      updateAt',
+      mb',
+      ceid',
+      cid'
       ) = do
       rTitle <- first T.pack $ checkedEither title'
       recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
@@ -156,6 +172,9 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
             endTime = endTime',
             tzid = tzid'',
             meetingType = meetingType',
+            externallyManagedBy = fmap ExternalManager mb',
+            externallyCalendarEventId = ceid',
+            externallyCalendarId = cid',
             recurrence = recurrence',
             conversationId = Id conversationId',
             invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
@@ -179,6 +198,13 @@ data MeetingsStore m a where
     ConvId ->
     [EmailAddress] ->
     Bool ->
+    -- | Lifecycle owner; @Just@ = externally managed (e.g. google_calendar,
+    -- outlook), only mutable via the calendar integration (OAuth callers).
+    Maybe ExternalManager ->
+    -- | External calendar references (@externally_calendar_event_id@,
+    -- @externally_calendar_id@); set iff the owner is external.
+    Maybe Text ->
+    Maybe Text ->
     MeetingsStore m StoredMeeting
   UpdateMeeting ::
     MeetingId ->
