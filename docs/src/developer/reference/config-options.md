@@ -2408,7 +2408,6 @@ background-worker:
     migrateCustomBackend: false
     migrateNonce: false
     migrateConnections: false
-    migrateProperties: false
 ```
 
 #### Migration for existing installations
@@ -2445,7 +2444,6 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
-- `properties` -> `migrateProperties`
 
 **Migration pattern per migration setting**
 
@@ -2472,7 +2470,6 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
-         properties: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2485,7 +2482,6 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-       migrateProperties: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2502,7 +2498,6 @@ The current settings and their background-worker flags are:
        migrateDomainRegistration: true
        migrateUsers: true
        migrateBlockList: true
-       migrateProperties: true
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
@@ -2531,7 +2526,6 @@ The current settings and their background-worker flags are:
    > to be saved, the operator must insert some value as `name` and/or
    > `activated` and then re-trigger the migration **after** the background
    > worker finishes migrating the valid users.
-   - `properties`: `wire_properties_migration_finished`
    - `blockList`: `wire_block_list_migration_finished`
    - `passwordReset`: `wire_password_reset_migration_finished`
    - `customBackend`: `wire_custom_backend_migration_finished`
@@ -2570,7 +2564,6 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-       migrateProperties: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2664,7 +2657,6 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
-migrateProperties: false
 
 # migration settings
 migrationOptions:
