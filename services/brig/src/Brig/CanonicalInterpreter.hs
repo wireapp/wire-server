@@ -125,7 +125,6 @@ import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
 import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
 import Wire.OAuthAuthCodeStore.Cassandra (oauthAuthCodeStoreToCassandra)
-import Wire.OAuthAuthCodeStore.DualWrite (interpretOAuthAuthCodeStoreToCassandraAndPostgres)
 import Wire.OAuthAuthCodeStore.Postgres (interpretOAuthAuthCodeStoreToPostgres)
 import Wire.NonceStore
 import Wire.NonceStore.Cassandra
@@ -465,11 +464,6 @@ runBrigToIO e (AppT ma) = do
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretOAuthAuthCodeStoreToPostgres
-              . raiseUnder2
-          MigrationToPostgresql ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretOAuthAuthCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between

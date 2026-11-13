@@ -114,13 +114,6 @@ run opts galleyOpts = do
           withNamedLogger "migrate-custom-backend" $
             Migrations.customBackend opts.migrationOptions
       else pure $ pure ()
-  cleanupOAuthAuthCodeMigration <-
-    if opts.migrateOAuthAuthCode
-      then
-        runAppT env $
-          withNamedLogger "migrate-oauth-auth-code" $
-            Migrations.oauthAuthCode opts.migrationOptions
-      else pure $ pure ()
   cleanupConnectionsMigration <-
     if opts.migrateConnections
       then
@@ -152,7 +145,6 @@ run opts galleyOpts = do
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
-              <*> Concurrently cleanupOAuthAuthCodeMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
