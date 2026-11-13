@@ -48,8 +48,6 @@ import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
-import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import Spar.Sem.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
 import Spar.Sem.Utils
 import qualified System.Logger as TinyLog
 import Wire.API.Routes.Version (expandVersionExp)
@@ -75,6 +73,9 @@ import Wire.Reporter (Reporter)
 import Wire.Reporter.Wai (reporterToTinyLogWai)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.RpcException
+import Wire.SAMLUserStore (SAMLUserStore)
+import Wire.SAMLUserStore.Cassandra (samlUserStoreToCassandra)
+import Wire.SAMLUserStore.Postgres (interpretSAMLUserStoreToPostgres)
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
@@ -147,10 +148,13 @@ runSparToIO ctx =
   let scimTokenStoreInterpreter =
         case (sparCtxOpts ctx).postgresMigration.scimTokens of
           CassandraStorage -> scimTokenStoreToCassandra
-          -- Migration copy machinery is removed; a stale
-          -- "migration-to-postgresql" value keeps serving Postgres.
           MigrationToPostgresql -> interpretScimTokenStoreToPostgres
           PostgresqlStorage -> interpretScimTokenStoreToPostgres
+      samlUserStoreInterpreter =
+        case (sparCtxOpts ctx).postgresMigration.samlUsers of
+          CassandraStorage -> samlUserStoreToCassandra
+          MigrationToPostgresql -> interpretSAMLUserStoreToPostgres
+          PostgresqlStorage -> interpretSAMLUserStoreToPostgres
       scimExternalIdsStoreInterpreter =
         case (sparCtxOpts ctx).postgresMigration.scimExternalIds of
           CassandraStorage -> scimExternalIdStoreToCassandra
@@ -176,7 +180,7 @@ runSparToIO ctx =
         . Polysemy.Error.mapError (httpErrorToSparError . postgresUsageErrorToHttpError)
         . Polysemy.Error.mapError (httpErrorToSparError . migrationLockErrorToHttpError)
         . interpretClientToIO (sparCtxCas ctx)
-        . samlUserStoreToCassandra
+        . samlUserStoreInterpreter
         . idpRawMetadataStoreToCassandra
         . idPToCassandra
         . defaultSsoCodeToCassandra
