@@ -18,7 +18,6 @@
 module Wire.UserKeyStore.Cassandra
   ( claimKeyImpl,
     interpretUserKeyStoreCassandra,
-    selectAllUserKeys,
   )
 where
 
@@ -108,8 +107,6 @@ keyInsert :: PrepQuery W (Text, UserId) ()
 keyInsert = "INSERT INTO user_keys (key, user) VALUES (?, ?)"
 
 -- | Unpaged full scan feeding the Cassandra-to-Postgres copy loop.
-selectAllUserKeys :: PrepQuery R () (Text, UserId)
-selectAllUserKeys = "SELECT key, user FROM user_keys"
 
 keySelect :: PrepQuery R (Identity Text) (Identity UserId)
 keySelect = "SELECT user FROM user_keys WHERE key = ?"

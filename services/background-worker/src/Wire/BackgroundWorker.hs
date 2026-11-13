@@ -100,13 +100,6 @@ run opts galleyOpts = do
           withNamedLogger "migrate-nonce" $
             Migrations.nonce opts.migrationOptions
       else pure $ pure ()
-  cleanupUserKeysMigration <-
-    if opts.migrateUserKeys
-      then
-        runAppT env $
-          withNamedLogger "migrate-user-keys" $
-            Migrations.userKeys opts.migrationOptions
-      else pure $ pure ()
   cleanupPasswordResetMigration <-
     if opts.migratePasswordReset
       then
@@ -139,7 +132,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,,,,,,,,)
+            (,,,,,,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -150,7 +143,6 @@ run opts galleyOpts = do
               <*> Concurrently cleanupBlockListMigration
               <*> Concurrently cleanupNonceMigration
 
-              <*> Concurrently cleanupUserKeysMigration
               <*> Concurrently cleanupPasswordResetMigration
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
