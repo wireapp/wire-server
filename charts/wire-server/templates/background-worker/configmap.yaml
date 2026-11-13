@@ -94,7 +94,6 @@ data:
     migrateCustomBackend: {{ .migrateCustomBackend }}
     migrateNonce: {{ .migrateNonce }}
     migrateConnections: {{ .migrateConnections }}
-    migrateMlsKeyPackages: {{ .migrateMlsKeyPackages }}
     migrationOptions:
 {{ toYaml .migrationOptions | indent 6 }}
 
