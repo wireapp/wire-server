@@ -26,8 +26,6 @@
 module Wire.VerificationCodeStore.Postgres
   ( interpretVerificationCodeStoreToPostgres,
     insertCodeRow,
-    insertCodeRowIfNotDeleted,
-    insertCodeDeletionMarker,
     insertThrottleRow,
   )
 where
@@ -86,38 +84,6 @@ insertCodeRowStatement =
                              email = ($5 :: text),
                              account = ($6 :: uuid?),
                              expires_at = now() + make_interval(secs => $7 :: int4)
-       |]
-
--- | Used by the copy loop: like @insertCodeRow@, but skips the insert when the
--- row was deleted after a previous pass (recorded in @vcodes_deletions@ by the
--- dual-write delete), so re-running the migration cannot resurrect a deleted
--- code.
-insertCodeRowIfNotDeleted ::
-  (PGConstraints r) =>
-  (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ->
-  Sem r ()
-insertCodeRowIfNotDeleted row = runStatement row insertCodeIfNotDeletedStatement
-
--- | Record a verification code as deleted in the @vcodes_deletions@ marker
--- table; called by the dual-write delete so the copy loop can filter it out.
-insertCodeDeletionMarker :: (PGConstraints r) => Key -> Scope -> Sem r ()
-insertCodeDeletionMarker key scope = runStatement (key, scope) insertCodeDeletionMarkerStatement
-
-insertCodeIfNotDeletedStatement ::
-  Hasql.Statement (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
-insertCodeIfNotDeletedStatement =
-  lmapPG
-    [resultlessStatement|INSERT INTO vcodes (key, scope, value, retries, email, account, expires_at)
-                         SELECT ($1 :: text), ($2 :: int4), ($3 :: text), ($4 :: int4), ($5 :: text), ($6 :: uuid?), now() + make_interval(secs => $7 :: int4)
-                         WHERE NOT EXISTS (SELECT 1 FROM vcodes_deletions WHERE key = ($1 :: text) AND scope = ($2 :: int4))
-                         ON CONFLICT (key, scope) DO NOTHING
-       |]
-
-insertCodeDeletionMarkerStatement :: Hasql.Statement (Key, Scope) ()
-insertCodeDeletionMarkerStatement =
-  lmapPG
-    [resultlessStatement|INSERT INTO vcodes_deletions (key, scope) VALUES (($1 :: text), ($2 :: int4))
-                         ON CONFLICT (key, scope) DO NOTHING
        |]
 
 lookupCode ::
