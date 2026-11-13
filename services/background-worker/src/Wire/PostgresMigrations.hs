@@ -221,3 +221,4 @@ connections migOpts = do
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling connections migration")
     cancel migrationLoop
+

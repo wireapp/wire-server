@@ -72,7 +72,6 @@ import Wire.BlockListStore.DualWrite
 import Wire.BlockListStore.Postgres
 import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
-import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
 import Wire.BudgetStore.Postgres (interpretBudgetStoreToPostgres)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
@@ -139,6 +138,7 @@ import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
+import Wire.PropertyStore.Postgres (interpretPropertyStoreToPostgres)
 import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
 import Wire.RateLimit
@@ -438,6 +438,20 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretNonceStoreToPostgres
         MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
 
+      -- Like PasswordResetCodeStore below, the Postgres-backed property store
+      -- branches supply Input Pool and Error UsageError locally (raiseUnder2 +
+      -- runInputConst + mapError) so they are self-contained at this stack slot.
+      propertyStoreInterpreter = case e.postgresMigration.properties of
+        CassandraStorage -> interpretPropertyStoreCassandra e.casClient
+        -- The copy loop is gone; the legacy migration setting degrades to
+        -- Cassandra-only reads/writes.
+        MigrationToPostgresql -> interpretPropertyStoreCassandra e.casClient
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretPropertyStoreToPostgres
+            . raiseUnder2
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -472,15 +486,13 @@ runBrigToIO e (AppT ma) = do
       budgetStoreInterpreter =
         case e.postgresMigration.budget of
           CassandraStorage -> budgetStoreToCassandra @Cas.Client
+          -- The copy loop is gone; the legacy migration setting degrades to
+          -- Cassandra-only reads/writes.
+          MigrationToPostgresql -> budgetStoreToCassandra @Cas.Client
           PostgresqlStorage ->
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretBudgetStoreToPostgres
-              . raiseUnder2
-          MigrationToPostgresql ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretBudgetStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
       -- Same slot consideration as passwordResetCodeStore above: the
@@ -542,7 +554,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst e.casClient
               . connectionsStoreInterpreter
               . interpretSFT e.httpManager
-              . interpretPropertyStoreCassandra e.casClient
+              . propertyStoreInterpreter
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
