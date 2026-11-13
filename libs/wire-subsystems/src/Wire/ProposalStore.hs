@@ -38,15 +38,15 @@ data ProposalStore m a where
     Epoch ->
     StoredProposal ->
     ProposalStore m ()
-  GetProposal ::
+  -- | Store several proposals in bulk. The refs in the list must be distinct:
+  -- the Postgres implementation upserts with @ON CONFLICT DO UPDATE@, which
+  -- raises an error if the same ref appears twice in one batch. Callers
+  -- satisfy this by construction (one proposal per signed message).
+  StoreProposals ::
     GroupId ->
     Epoch ->
-    ProposalRef ->
-    ProposalStore m (Maybe (RawMLS Proposal))
-  GetAllPendingProposalRefs ::
-    GroupId ->
-    Epoch ->
-    ProposalStore m [ProposalRef]
+    [StoredProposal] ->
+    ProposalStore m ()
   GetAllPendingProposals ::
     GroupId ->
     Epoch ->
