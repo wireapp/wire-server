@@ -373,6 +373,9 @@ library
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FederationConfigStore.Postgres
+    Wire.FederationConfigSubsystem
+    Wire.FederationConfigSubsystem.Interpreter
     Wire.FederationSubsystem
     Wire.FederationSubsystem.Internals
     Wire.FederationSubsystem.Interpreter
@@ -673,6 +676,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FederationAPIAccess.GalleySpec
+    Wire.FederationConfigSubsystem.InterpreterSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec
