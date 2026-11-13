@@ -160,6 +160,12 @@ data:
           forgot: {{ .forgot }}
           support: {{ .support }}
           {{- end }}
+        {{- $legacyReplyTo := dig "config" "settings" "meetings" "email" "replyTo" "" $.Values.galley }}
+        {{- $meetingReplyTo := dig "emailSMS" "general" "meeting" "replyTo" "" . | default $legacyReplyTo }}
+        {{- with $meetingReplyTo }}
+        meeting:
+          replyTo: {{ . | quote }}
+        {{- end }}
 
       user:
       {{- if .emailSMS.user }}

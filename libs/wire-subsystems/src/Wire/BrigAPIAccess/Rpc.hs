@@ -51,7 +51,7 @@ import Wire.API.Error.Galley
 import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
 import Wire.API.Pagination
-import Wire.API.Routes.Internal.Brig (CreateGroupInternalRequest (..), GetBy, IdpChangedNotification (..), UpdateGroupInternalRequest (..))
+import Wire.API.Routes.Internal.Brig (CreateGroupInternalRequest (..), GetBy, IdpChangedNotification (..), SendMeetingEmails (..), UpdateGroupInternalRequest (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -198,6 +198,8 @@ interpretBrigAccess brigEndpoint =
         getScimUsersPaginated tid maxResults mOffset
       ResendMemberVerificationEmail tid uid ->
         resendMemberVerificationEmail tid uid
+      Wire.BrigAPIAccess.SendMeetingEmails payload ->
+        sendMeetingEmails payload
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -877,6 +879,21 @@ updateEmail buid email activation = do
     fromBool :: Bool -> ByteString
     fromBool True = "true"
     fromBool False = "false"
+
+-- | Delegate meeting email rendering and sending to brig.
+-- Calls @POST /i/meetings/emails@; only 202 is accepted. No retries: a
+-- retried batch send could duplicate emails to invited addresses, and
+-- failures are warn-logged fire-and-forget on the galley side anyway.
+sendMeetingEmails ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error RpcException) r) =>
+  SendMeetingEmails ->
+  Sem r ()
+sendMeetingEmails payload = do
+  ep <- input
+  resp <- rpc "brig" ep $ method POST . paths ["i", "meetings", "emails"] . json payload
+  case statusCode resp of
+    202 -> pure ()
+    _ -> rethrow "brig" resp
 
 resendMemberVerificationEmail ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error RpcException) r) =>

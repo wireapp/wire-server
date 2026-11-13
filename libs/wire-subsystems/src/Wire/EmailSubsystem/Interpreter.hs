@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -39,9 +41,13 @@ import Data.X509.Extended
 import Imports
 import Network.Mail.Mime
 import Polysemy
+import Polysemy.Error (errorToIOFinal, fromExceptionSem)
+import Polysemy.Error qualified
 import Polysemy.Output (Output)
 import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO
+import System.Logger (field, msg, val)
 import URI.ByteString (URI, serializeURIRef')
 import Wire.API.Locale
 import Wire.API.Meeting (Meeting (..), timeZoneTZ)
@@ -58,11 +64,13 @@ import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
 emailSubsystemInterpreter ::
-  (Member EmailSending r, Member TinyLog r) =>
+  (Member EmailSending r, Member TinyLog r, Member (Final IO) r) =>
   EmailTemplates ->
   Branding ->
+  -- | Reply-To for meeting emails.
+  Maybe EmailAddress ->
   InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter EmailTemplates {userTemplates = userTpls, teamTemplates = teamTpls, meetingTemplates = meetingTpls} branding = interpret \case
+emailSubsystemInterpreter EmailTemplates {userTemplates = userTpls, teamTemplates = teamTpls, meetingTemplates = meetingTpls} branding meetingReplyTo = interpret \case
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
@@ -80,11 +88,11 @@ emailSubsystemInterpreter EmailTemplates {userTemplates = userTpls, teamTemplate
   SendSAMLIdPChanged email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale ->
     sendSAMLIdPChangedImpl teamTpls branding email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale
   SendMeetingInvitationEmail email hostName hostEmail meeting mLocale ->
-    sendMeetingInvitationMailImpl meetingTpls branding email hostName hostEmail meeting mLocale
+    sendMeetingInvitationMailImpl meetingTpls branding meetingReplyTo email hostName hostEmail meeting mLocale
   SendMeetingUpdateEmail email hostName hostEmail meeting changeSummary mLocale ->
-    sendMeetingUpdateMailImpl meetingTpls branding email hostName hostEmail meeting changeSummary mLocale
+    sendMeetingUpdateMailImpl meetingTpls branding meetingReplyTo email hostName hostEmail meeting changeSummary mLocale
   SendMeetingCancelEmail email hostName hostEmail meeting mLocale ->
-    sendMeetingCancelMailImpl meetingTpls branding email hostName hostEmail meeting mLocale
+    sendMeetingCancelMailImpl meetingTpls branding meetingReplyTo email hostName hostEmail meeting mLocale
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -710,25 +718,53 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
 -------------------------------------------------------------------------------
 -- Meeting Emails
 
+-- | Meeting email delivery is best-effort: a transport failure for one
+-- recipient must neither fail the remaining recipients of the batch nor
+-- escape the @POST /i/meetings/emails@ handler as an unhandled IO
+-- exception. Warn-log and swallow.
+sendMeetingMailBestEffort ::
+  ( Member TinyLog r,
+    Member (Final IO) r
+  ) =>
+  -- | Email kind for the log line (same label as 'logEmailRenderErrors').
+  Text ->
+  EmailAddress ->
+  Sem (Polysemy.Error.Error SomeException : r) () ->
+  Sem r ()
+sendMeetingMailBestEffort kind recipient action =
+  errorToIOFinal @SomeException (fromExceptionSem @SomeException action) >>= \case
+    Left e ->
+      Log.warn $
+        msg (val "Meeting email delivery failed")
+          . field "email_kind" (val (T.encodeUtf8 kind))
+          . field "recipient" (val (T.encodeUtf8 (fromEmail recipient)))
+          . field "error" (val (T.encodeUtf8 (T.pack (displayException e))))
+    Right () -> pure ()
+
 sendMeetingInvitationMailImpl ::
-  (Member EmailSending r, Member TinyLog r) =>
+  (Member EmailSending r, Member TinyLog r, Member (Final IO) r) =>
   Localised MeetingTemplates ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   EmailAddress ->
   Text ->
   EmailAddress ->
   Meeting ->
   Maybe Locale ->
   Sem r ()
-sendMeetingInvitationMailImpl meetingTemplates branding email hostName hostEmail meeting mLocale = do
-  let tpl = meetingInvitationEmail . snd $ forLocale mLocale meetingTemplates
-  mail <- logEmailRenderErrors "meeting invitation email" $ renderMeetingInvitationEmail email hostName hostEmail meeting tpl branding
-  sendMail mail
+sendMeetingInvitationMailImpl meetingTemplates branding replyTo email hostName hostEmail meeting mLocale = do
+  let kind = "meeting invitation email"
+      tpl = meetingInvitationEmail . snd $ forLocale mLocale meetingTemplates
+  mail <- logEmailRenderErrors kind $ renderMeetingInvitationEmail email hostName hostEmail meeting tpl branding replyTo
+  sendMeetingMailBestEffort kind email (sendMail mail)
 
 sendMeetingUpdateMailImpl ::
-  (Member EmailSending r, Member TinyLog r) =>
+  (Member EmailSending r, Member TinyLog r, Member (Final IO) r) =>
   Localised MeetingTemplates ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   EmailAddress ->
   Text ->
   EmailAddress ->
@@ -736,40 +772,47 @@ sendMeetingUpdateMailImpl ::
   Text ->
   Maybe Locale ->
   Sem r ()
-sendMeetingUpdateMailImpl meetingTemplates branding email hostName hostEmail meeting changeSummary mLocale = do
-  let tpl = meetingUpdateEmail . snd $ forLocale mLocale meetingTemplates
-  mail <- logEmailRenderErrors "meeting update email" $ renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary tpl branding
-  sendMail mail
+sendMeetingUpdateMailImpl meetingTemplates branding replyTo email hostName hostEmail meeting changeSummary mLocale = do
+  let kind = "meeting update email"
+      tpl = meetingUpdateEmail . snd $ forLocale mLocale meetingTemplates
+  mail <- logEmailRenderErrors kind $ renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary tpl branding replyTo
+  sendMeetingMailBestEffort kind email (sendMail mail)
 
 sendMeetingCancelMailImpl ::
-  (Member EmailSending r, Member TinyLog r) =>
+  (Member EmailSending r, Member TinyLog r, Member (Final IO) r) =>
   Localised MeetingTemplates ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   EmailAddress ->
   Text ->
   EmailAddress ->
   Meeting ->
   Maybe Locale ->
   Sem r ()
-sendMeetingCancelMailImpl meetingTemplates branding email hostName hostEmail meeting mLocale = do
-  let tpl = meetingCancelEmail . snd $ forLocale mLocale meetingTemplates
-  mail <- logEmailRenderErrors "meeting cancellation email" $ renderMeetingCancelEmail email hostName hostEmail meeting tpl branding
-  sendMail mail
+sendMeetingCancelMailImpl meetingTemplates branding replyTo email hostName hostEmail meeting mLocale = do
+  let kind = "meeting cancellation email"
+      tpl = meetingCancelEmail . snd $ forLocale mLocale meetingTemplates
+  mail <- logEmailRenderErrors kind $ renderMeetingCancelEmail email hostName hostEmail meeting tpl branding replyTo
+  sendMeetingMailBestEffort kind email (sendMail mail)
 
 -- | Replacement map shared by all meeting emails. Branding keys
 -- (brand_*/support/legal/misuse/copyright) come from the branding map itself;
--- @join_url@ is a quiet empty string when unavailable. @ics_url@ is a @cid:@
+-- @join_url@ is rendered from the mandatory @link@ field. @ics_url@ is a @cid:@
 -- reference to the @text/calendar@ part attached to the same mail.
 meetingEmailReplace :: Meeting -> Text -> Text -> Text -> Map Text Text
 meetingEmailReplace meeting hostName hostEmail changeSummary =
   brandingPlaceholders
-    & Map.insert "meeting_title" (fromRange meeting.title)
-    & Map.insert "host_name" hostName
+    -- meeting_title (user-controlled) and host_name flow into the Subject
+    -- header: strip CR/LF so they cannot inject headers.
+    & Map.insert "meeting_title" (noCrLf (fromRange meeting.title))
+    & Map.insert "host_name" (noCrLf hostName)
     & Map.insert "host_email" hostEmail
-    & Map.insert "change_summary" changeSummary
+    & Map.insert "change_summary" (noCrLf changeSummary)
     & Map.insert "join_url" (httpsUrlToText meeting.link)
     & Map.insert "ics_url" icsCidUrl
   where
+    noCrLf = T.filter (\c -> c /= '\r' && c /= '\n')
     zone t = timeZoneForUTCTime (timeZoneTZ meeting.tzid) t
     zonedStart = utcToZonedTime (zone meeting.startTime) meeting.startTime
     zonedEnd = utcToZonedTime (zone meeting.endTime) meeting.endTime
@@ -800,8 +843,10 @@ renderMeetingEmail ::
   IcsMethod ->
   MeetingEmailTemplate ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   Sem r Mail
-renderMeetingEmail email hostName hostEmail meeting changeSummary purpose icsMethod MeetingEmailTemplate {..} branding = do
+renderMeetingEmail email hostName hostEmail meeting changeSummary purpose icsMethod MeetingEmailTemplate {..} branding replyTo = do
   let replace = meetingEmailReplace meeting hostName (fromEmail hostEmail) changeSummary `Map.union` branding
   txt <- renderTextWithBrandingSem meetingEmailBodyText replace
   html <- renderHtmlWithBrandingSem meetingEmailBodyHtml replace
@@ -810,9 +855,10 @@ renderMeetingEmail email hostName hostEmail meeting changeSummary purpose icsMet
     (emptyMail from)
       { mailTo = [to],
         mailHeaders =
-          [ ("Subject", toStrict subj),
-            ("X-Zeta-Purpose", purpose)
-          ],
+          maybe [] (\rt -> [("Reply-To", fromEmail rt)]) replyTo
+            ++ [ ("Subject", toStrict subj),
+                 ("X-Zeta-Purpose", purpose)
+               ],
         mailParts = [[plainPart txt, htmlPart html], [icsAttachment icsMethod meeting hostName hostEmail email]]
       }
   where
@@ -830,9 +876,11 @@ renderMeetingInvitationEmail ::
   Meeting ->
   MeetingEmailTemplate ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   Sem r Mail
-renderMeetingInvitationEmail email hostName hostEmail meeting tpl branding =
-  renderMeetingEmail email hostName hostEmail meeting "" "MeetingInvitation" IcsRequest tpl branding
+renderMeetingInvitationEmail email hostName hostEmail meeting tpl branding replyTo =
+  renderMeetingEmail email hostName hostEmail meeting "" "MeetingInvitation" IcsRequest tpl branding replyTo
 
 renderMeetingUpdateEmail ::
   (Member (Output Text) r) =>
@@ -847,9 +895,11 @@ renderMeetingUpdateEmail ::
   Text ->
   MeetingEmailTemplate ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   Sem r Mail
-renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary tpl branding =
-  renderMeetingEmail email hostName hostEmail meeting changeSummary "MeetingUpdate" IcsRequest tpl branding
+renderMeetingUpdateEmail email hostName hostEmail meeting changeSummary tpl branding replyTo =
+  renderMeetingEmail email hostName hostEmail meeting changeSummary "MeetingUpdate" IcsRequest tpl branding replyTo
 
 renderMeetingCancelEmail ::
   (Member (Output Text) r) =>
@@ -862,9 +912,11 @@ renderMeetingCancelEmail ::
   Meeting ->
   MeetingEmailTemplate ->
   Branding ->
+  -- | Optional Reply-To address.
+  Maybe EmailAddress ->
   Sem r Mail
-renderMeetingCancelEmail email hostName hostEmail meeting tpl branding =
-  renderMeetingEmail email hostName hostEmail meeting "" "MeetingCancellation" IcsCancel tpl branding
+renderMeetingCancelEmail email hostName hostEmail meeting tpl branding replyTo =
+  renderMeetingEmail email hostName hostEmail meeting "" "MeetingCancellation" IcsCancel tpl branding replyTo
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

@@ -27,6 +27,7 @@ import Data.Qualified
 import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
+import Wire.API.Locale (Locale)
 import Wire.API.Meeting
 import Wire.API.User.EmailAddress (EmailAddress)
 
@@ -139,6 +140,8 @@ data MeetingsSubsystem m a where
     Local UserId ->
     Qualified MeetingId ->
     [EmailAddress] ->
+    -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
+    Maybe Locale ->
     MeetingsSubsystem m Bool
   RemoveInvitedEmails ::
     Local UserId ->
@@ -149,6 +152,8 @@ data MeetingsSubsystem m a where
     Local UserId ->
     Qualified MeetingId ->
     [EmailAddress] ->
+    -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
+    Maybe Locale ->
     MeetingsSubsystem m Bool
   CleanupOldMeetings ::
     UTCTime ->

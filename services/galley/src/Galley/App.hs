@@ -317,7 +317,8 @@ meetingSystemConfig o =
   Meeting.MeetingSystemConfig
     { legacyTimeZone = fromMaybe defaultLegacyTimeZone (m >>= view legacyTimeZone >>= parseTimeZone),
       validityPeriod = realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
-      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod)
+      pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod),
+      emailsEnabled = fromMaybe False (m >>= (^. O.emailsEnabled))
     }
   where
     m = o ^. settings . meetings

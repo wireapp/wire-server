@@ -65,8 +65,7 @@ module Wire.Options.Galley
     validityPeriod,
     legacyTimeZone,
     pastEditPeriod,
-    email,
-    MeetingsEmailConfig (..),
+    emailsEnabled,
     postgresMigration,
     PostgresMigrationOpts (..),
     StorageLocation (..),
@@ -94,8 +93,6 @@ import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Routes.Version
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
-import Wire.API.User.Identity (EmailAddress)
-import Wire.EmailSending.Options (EmailOpts)
 import Wire.Options.Keys (MLSPrivateKeyPaths)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)
@@ -193,9 +190,11 @@ data MeetingsConfig = MeetingsConfig
     -- | How far in the past a meeting's start/end time may be moved by an
     -- update. Must not exceed 'validityPeriod'.
     _pastEditPeriod :: !(Maybe Duration),
-    -- | Email sending configuration for meeting invitations. When unset, no
-    -- meeting invitation emails are sent.
-    _email :: !(Maybe MeetingsEmailConfig),
+    -- | When true, galley asks brig to send meeting invitation/update/cancel
+    -- emails. Sending still requires the deployment license to cover meeting
+    -- emails. Rendering and transport are brig's (@emailSMS@); this flag only
+    -- triggers them.
+    _emailsEnabled :: !(Maybe Bool),
     -- | Default IANA time zone id (e.g. @"Europe/Berlin"@) injected when legacy
     -- clients (< V17) create meetings that carry no @tzid@ (V17 adds it).
     -- Resolved in 'Galley.App' via 'parseTimeZone'; defaults
@@ -204,17 +203,6 @@ data MeetingsConfig = MeetingsConfig
   }
   deriving (Show, Generic)
 
-data MeetingsEmailConfig = MeetingsEmailConfig
-  { -- | 'From' sender for meeting emails. Required when the block is present.
-    _from :: !EmailAddress,
-    -- | Optional 'Reply-To' address.
-    _replyTo :: !(Maybe EmailAddress),
-    -- | Outbound transport: AWS SES or SMTP ('Wire.EmailSending.Options.EmailOpts').
-    _transport :: !EmailOpts
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''MeetingsEmailConfig
 deriveFromJSON toOptionFieldName ''MeetingsConfig
 deriveFromJSON toOptionFieldName ''Settings
 

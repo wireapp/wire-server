@@ -193,9 +193,9 @@ addMeetingInvitation ::
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-addMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+addMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails mLocale) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.addInvitedEmails zUser qMeetingId emails
+  success <- Meetings.addInvitedEmails zUser qMeetingId emails mLocale
   unless success $ throwS @'MeetingNotFound
 
 removeMeetingInvitation ::
@@ -207,7 +207,7 @@ removeMeetingInvitation ::
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails _) = do
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.removeInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
@@ -221,9 +221,9 @@ replaceMeetingInvitation ::
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails mLocale) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
+  success <- Meetings.replaceInvitedEmails zUser qMeetingId emails mLocale
   unless success $ throwS @'MeetingNotFound
 
 refreshMeetingLink ::

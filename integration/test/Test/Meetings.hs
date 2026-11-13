@@ -1457,8 +1457,8 @@ testMeetingLinkJoinNotFound = withLicensedBackend $ \dom -> do
 -- links (the default, unlicensed static backend), both join-by-link verbs
 -- return 403 id-feature-error before any link resolution. Meeting creation
 -- is NOT gated, and unknown keys do not leak a 404.
-testMeetingJoinByLinkPaywalled :: (HasCallStack) => App ()
-testMeetingJoinByLinkPaywalled = do
+testMeetingJoinByLinkUnlicensed :: (HasCallStack) => App ()
+testMeetingJoinByLinkUnlicensed = do
   (owner, _tid, [bob]) <- createTeam OwnDomain 2
   now <- liftIO getCurrentTime
   meeting <-
@@ -1469,7 +1469,8 @@ testMeetingJoinByLinkPaywalled = do
   let unkKey = replicate 20 'A'
       unkCode = replicate 12 'A'
       (key, code) = maybe (unkKey, unkCode) linkKeyAndCode mLink
-  -- The meeting was created fine (201 above), but both link verbs paywall:
+  -- The meeting was created fine (201 above), but both link verbs are
+  -- license-gated:
   getMeetingCodeCheck bob domain key code Nothing >>= assertLabel 403 "id-feature-error"
   postMeetingJoin bob domain key code Nothing >>= assertLabel 403 "id-feature-error"
   -- A format-valid but unknown key hits the gate before resolution too.

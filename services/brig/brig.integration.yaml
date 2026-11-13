@@ -113,6 +113,8 @@ emailSMS:
     templateDir: ../../libs/wire-subsystems/templates
     emailSender: backend-integration@wire.com
     smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
+    meeting:
+      replyTo: meetings-reply@integration.example.com
     templateBranding:
       brand: Wire
       brandUrl: https://wire.com

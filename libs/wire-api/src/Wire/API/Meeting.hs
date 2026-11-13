@@ -85,6 +85,7 @@ import Test.QuickCheck (elements)
 import URI.ByteString (uriPath)
 import URI.ByteString qualified as URI
 import Wire.API.Conversation (Conversation, GroupConvType)
+import Wire.API.Locale (Locale)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
@@ -594,8 +595,10 @@ fromLegacyNewMeetingV18 nm =
     }
 
 -- | Request to add/remove invited email
-newtype MeetingEmailsInvitation = MeetingEmailsInvitation
-  { emails :: [EmailAddress]
+data MeetingEmailsInvitation = MeetingEmailsInvitation
+  { emails :: [EmailAddress],
+    -- | Optional template locale; 'Nothing' falls back to the creator's locale.
+    locale :: Maybe Locale
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingEmailsInvitation)
@@ -606,6 +609,7 @@ instance ToSchema MeetingEmailsInvitation where
     objectWithDocModifier (description ?~ "Emails invitation") $
       MeetingEmailsInvitation
         <$> (.emails) .= field "emails" (array schema)
+        <*> (.locale) .= maybe_ (optField "locale" schema)
 
 newtype RefreshMeetingLinkRequest = RefreshMeetingLinkRequest
   { password :: Maybe PlainTextPassword8

@@ -168,6 +168,10 @@ data BrigAPIAccess m a where
   SendSAMLIdPChangedEmail :: IdpChangedNotification -> BrigAPIAccess m ()
   GetScimUsersPaginated :: TeamId -> Range 0 500 Int32 -> Maybe Int32 -> BrigAPIAccess m (Maybe (OffsetPage User))
   ResendMemberVerificationEmail :: TeamId -> UserId -> BrigAPIAccess m (Maybe ResendVerificationEmailResult)
+  -- | Hand meeting emails to brig, which owns rendering (templates, branding,
+  -- replyTo) and the SMTP/SES transport — the same delegation pattern as team
+  -- emails.  Fire-and-forget from the meeting-operation perspective.
+  SendMeetingEmails :: SendMeetingEmails -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 
