@@ -456,6 +456,7 @@ library
     Wire.ProposalStore.Cassandra
     Wire.ProviderServiceStore
     Wire.ProviderServiceStore.Cassandra
+    Wire.ProviderServiceStore.Postgres
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Reporter
