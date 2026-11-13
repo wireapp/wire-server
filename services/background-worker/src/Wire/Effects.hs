@@ -139,7 +139,6 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter (TeamSubsystemConfig (..), interpretTeamSubsystem)
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserClientIndexStore.Cassandra
-import Wire.UserClientIndexStore.DualWrite (interpretUserClientIndexStoreToCassandraAndPostgres)
 import Wire.UserClientIndexStore.Postgres (interpretUserClientIndexStoreToPostgres)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
@@ -386,7 +385,6 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     -- this the worker would stay on Cassandra after cutover.
     userClientIndexStoreInterpreter = case env.postgresMigration.userClientIndex of
       CassandraStorage -> interpretUserClientIndexStoreToCassandra env.cassandraGalley
-      MigrationToPostgresql -> interpretUserClientIndexStoreToCassandraAndPostgres env.cassandraGalley
       PostgresqlStorage -> interpretUserClientIndexStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
