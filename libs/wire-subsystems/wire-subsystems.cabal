@@ -514,8 +514,6 @@ library
     Wire.TeamSubsystem.Util
     Wire.UserClientIndexStore
     Wire.UserClientIndexStore.Cassandra
-    Wire.UserClientIndexStore.DualWrite
-    Wire.UserClientIndexStore.Migration
     Wire.UserClientIndexStore.Postgres
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres

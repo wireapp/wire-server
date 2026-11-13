@@ -128,13 +128,6 @@ run opts galleyOpts = do
           withNamedLogger "migrate-clients" $
             Migrations.clients opts.migrationOptions
       else pure $ pure ()
-  cleanupUserClientIndexMigration <-
-    if opts.migrateUserClientIndex
-      then
-        runAppT env $
-          withNamedLogger "migrate-user-client-index" $
-            Migrations.userClientIndex opts.migrationOptions
-      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -160,7 +153,6 @@ run opts galleyOpts = do
               <*> Concurrently cleanupCustomBackendMigration
               <*> Concurrently cleanupConnectionsMigration
               <*> Concurrently cleanupClientsMigration
-              <*> Concurrently cleanupUserClientIndexMigration
               <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
 
