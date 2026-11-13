@@ -2438,11 +2438,6 @@ The current settings and their background-worker flags are:
 - `conversation` -> `migrateConversations`
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
-<<<<<<< HEAD
-=======
-- `teamStore` -> `migrateTeamMembers`
-- `listItems` -> read-only over `user_team`: no dedicated worker flag; data is copied by `migrateTeamMembers`. Flip `listItems` to `postgresql` only after `wire_team_members_migration_finished` reaches `1.0`, and before flipping `teamStore`: once `teamStore` is on `postgresql`, Cassandra `user_team` stops receiving writes and `listItems: cassandra` reads would silently miss newer memberships
->>>>>>> 74986c18ca (WPB-29585: migrate ListItems team instance reads to PostGreSQL)
 - `domainRegistration` -> `migrateDomainRegistration`
 - `blockList` -> `migrateBlockList`
 - `passwordReset` -> `migratePasswordReset`
@@ -2522,11 +2517,6 @@ The current settings and their background-worker flags are:
      `wire_user_remote_convs_migration_finished`
    - `conversationCodes`: `wire_conv_codes_migration_finished`
    - `teamFeatures`: `wire_team_features_migration_finished`
-<<<<<<< HEAD
-=======
-   - `teamStore`: `wire_team_members_migration_finished`
-   - `listItems`: no metric (read-path only; covered by `wire_team_members_migration_finished`)
->>>>>>> 74986c18ca (WPB-29585: migrate ListItems team instance reads to PostGreSQL)
    - `domainRegistration`: `wire_domain_registration_migration_finished`
    - `user`: `wire_user_migration_finished`
 

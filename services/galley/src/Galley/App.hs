@@ -454,17 +454,14 @@ evalGalley e =
         case (e ^. options . postgresMigration).teamStore of
           CassandraStorage -> interpretTeamStoreToCassandra
           PostgresqlStorage -> interpretTeamStoreToPostgres
-<<<<<<< HEAD
           MigrationToPostgresql -> interpretTeamStoreToPostgres
-=======
-      -- ListItems is a read-only effect over user_team; there is no DualWrite
-      -- interpreter. Reads stay on Cassandra until the teamStore migration has
-      -- copied the rows, then flip to Postgres via listItems: postgresql.
+      -- ListItems is a read-only effect over user_team; the storage-location
+      -- flag picks the interpreter ('MigrationToPostgresql' is treated as
+      -- 'CassandraStorage' because there is no dual-write interpreter).
       teamListInterpreter =
         case (e ^. options . postgresMigration).listItems of
           PostgresqlStorage -> interpretTeamListToPostgres
           _ -> interpretTeamListToCassandra
->>>>>>> 74986c18ca (WPB-29585: migrate ListItems team instance reads to PostGreSQL)
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
