@@ -25,6 +25,7 @@ import Data.ByteString.Conversion
 import Data.Handle
 import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
+import Wire.API.Bot.Service qualified as Bot
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -105,6 +106,8 @@ interpretBrigAccess brigEndpoint =
         getContactList uid
       GetUserExportData uid -> do
         getUserExportData uid
+      GetServiceConn pid sid -> do
+        getServiceConn pid sid
       GetSize tid -> do
         getSize tid
       LookupClients uids -> do
@@ -388,6 +391,24 @@ getUserExportData uid = do
       check [status200, status404]
         . method GET
         . paths ["i/users", toByteString' uid, "export-data"]
+  if statusCode resp == 404
+    then pure Nothing
+    else decodeBodyOrThrow "brig" resp
+
+-- | Calls the @get-service-conn@ internal endpoint. Brig encodes an unknown
+-- (provider, service) pair as 200 with a @null@ body; the 404 arm is kept for
+-- robustness. Either way the caller sees 'Nothing' for a missing connection.
+getServiceConn ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  ProviderId ->
+  ServiceId ->
+  Sem r (Maybe Bot.Service)
+getServiceConn pid sid = do
+  resp <-
+    brigRequest $
+      check [status200, status404]
+        . method GET
+        . paths ["i", "provider", toByteString' pid, "services", toByteString' sid, "connection"]
   if statusCode resp == 404
     then pure Nothing
     else decodeBodyOrThrow "brig" resp

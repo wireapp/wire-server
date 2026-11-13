@@ -99,6 +99,7 @@ import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ConnectionStore (ConnectionStore)
@@ -194,7 +195,8 @@ servantSitemap ::
     Member ClientStore r,
     Member ClientSubsystem r,
     Member MlsKeyPackageSubsystem r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member ProviderServiceStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =

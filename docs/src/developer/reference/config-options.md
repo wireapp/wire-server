@@ -2482,7 +2482,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-   ```
+      ```
 
    This change should restart the affected pods, and new writes will follow the
    migration interpreter.
@@ -2571,7 +2571,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
-   ```
+      ```
 
 **How to run migrations independently or in batches**
 

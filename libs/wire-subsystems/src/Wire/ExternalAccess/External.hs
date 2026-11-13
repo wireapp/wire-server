@@ -50,7 +50,6 @@ import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
 import Wire.BrigAPIAccess
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FireAndForget
-import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.Util
 
@@ -87,7 +86,6 @@ interpretExternalAccess ::
   ( Member TinyLog r,
     Member BrigAPIAccess r,
     Member FireAndForget r,
-    Member ServiceStore r,
     Member (Final IO) r,
     Member Async.Async r
   ) =>
@@ -110,8 +108,8 @@ interpretExternalAccess env = interpret $ \case
 -- FUTUREWORK: Check if this can be removed.
 deliverAsync ::
   ( Member FireAndForget r,
+    Member BrigAPIAccess r,
     Member TinyLog r,
-    Member ServiceStore r,
     Member (Final IO) r,
     Member Async.Async r
   ) =>
@@ -125,7 +123,6 @@ deliverAndDeleteAsync ::
   ( Member BrigAPIAccess r,
     Member FireAndForget r,
     Member TinyLog r,
-    Member ServiceStore r,
     Member (Final IO) r,
     Member Async.Async r
   ) =>
@@ -139,7 +136,7 @@ deliverAndDeleteAsync env cnv pushes = fireAndForget $ do
 
 deliver ::
   forall r.
-  ( Member ServiceStore r,
+  ( Member BrigAPIAccess r,
     Member TinyLog r,
     Member Async.Async r,
     Member (Final IO) r
@@ -151,10 +148,11 @@ deliver env pp = mapM (Async.async . exec) pp >>= foldM evaluate [] . zip (map f
   where
     exec :: (BotMember, Event) -> Sem r (Either SomeException Bool)
     exec (b, e) =
-      getService (botMemService b) >>= \case
-        Nothing -> pure $ Right False
-        Just s ->
-          embedFinal $ try $ (deliver1 env s b e $> True)
+      let s = botMemService b
+       in send (GetServiceConn (s ^. serviceRefProvider) (s ^. serviceRefId)) >>= \case
+            Nothing -> pure $ Right False
+            Just conn ->
+              embedFinal $ try $ (deliver1 env conn b e $> True)
     evaluate :: [BotMember] -> (BotMember, Async (Maybe (Either SomeException Bool))) -> Sem r [BotMember]
     evaluate gone (b, a) = do
       let s = botMemService b

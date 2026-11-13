@@ -79,6 +79,7 @@ import Servant.Client.Core qualified as Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi.Internal.Orphans ()
 import Util.Options
+import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -1050,7 +1051,17 @@ type ProviderAPI =
                :> "provider"
                :> "password-reset-code"
                :> QueryParam' '[Required, Strict] "email" EmailAddress
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+           :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+    )
+    :<|> Named
+           "get-service-conn"
+           ( Summary "Get provider service connection (for bot webhook delivery)"
+               :> "provider"
+               :> Capture "pid" ProviderId
+               :> "services"
+               :> Capture "sid" ServiceId
+               :> "connection"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Service connection" (Maybe Bot.Service))
            )
 
 type FederationRemotesAPIDescription =

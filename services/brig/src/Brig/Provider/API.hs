@@ -39,7 +39,7 @@ import Brig.Provider.RPC qualified as RPC
 import Cassandra.Exec (paginateWithStateC)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens ((^.))
+import Control.Lens (set, (^.))
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
@@ -53,6 +53,7 @@ import Data.Id
 import Data.LegalHold
 import Data.List qualified as List
 import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Misc
   ( Fingerprint (Fingerprint),
@@ -94,6 +95,7 @@ import Wire.API.Password
 import Wire.API.Provider
 import Wire.API.Provider qualified as Public
 import Wire.API.Provider.Bot qualified as Ext
+import Wire.API.Bot.Service qualified as Galley
 import Wire.API.Provider.Bot qualified as Public (BotUserView)
 import Wire.API.Provider.External
 import Wire.API.Provider.External qualified as Ext
@@ -235,12 +237,34 @@ providerAPI =
 
 internalProviderAPI ::
   ( Member GalleyAPIAccess r,
+    Member ProviderServiceStore r,
     Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.ProviderAPI (Handler r)
 internalProviderAPI =
   Named @"get-provider-activation-code" getActivationCode
     :<|> Named @"get-provider-password-reset-code" getPasswordResetCode
+    :<|> Named @"get-service-conn" getServiceConnH
+
+-- | Handler for the @get-service-conn@ internal endpoint: builds the same
+-- 'Galley.Service' value that brig used to push to galley on connection
+-- updates, so galley can resolve it at bot-webhook delivery time instead.
+getServiceConnH ::
+  (Member ProviderServiceStore r) =>
+  ProviderId ->
+  ServiceId ->
+  (Handler r) (Maybe Galley.Service)
+getServiceConnH pid sid = lift . liftSem $ do
+  lookupProviderServiceConn pid sid >>= \case
+    Nothing -> pure Nothing
+    Just scon ->
+      pure . Just $
+        Galley.newService
+          (newServiceRef sid pid)
+          (sconBaseUrl scon)
+          (NE.head (sconAuthTokens scon))
+          (toList (sconFingerprints scon))
+          & set Galley.serviceEnabled (sconEnabled scon)
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -544,26 +568,17 @@ updateServiceConn pid sid upd = do
   let newKeyPems = fromRange <$> updateServiceConnKeys upd
   keys <- forM newKeyPems (mapM (validateServiceKey >=> maybeInvalidServiceKey))
   let newKeys = keys >>= nonEmpty
-  let newFps = fmap snd <$> newKeys
+  let enabled' = fromMaybe (sconEnabled scon) newEnabled
   lift . liftSem $ updateProviderServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
-  let scon' =
-        scon
-          { sconBaseUrl = fromMaybe (sconBaseUrl scon) newBaseUrl,
-            sconAuthTokens = fromMaybe (sconAuthTokens scon) newTokens,
-            sconFingerprints = fromMaybe (sconFingerprints scon) newFps,
-            sconEnabled = fromMaybe (sconEnabled scon) newEnabled
-          }
-  when (sconEnabled scon || sconEnabled scon') $ do
-    lift $ RPC.setServiceConn scon'
-    -- If the service got enabled or disabled, update the tag index.
-    unless (sconEnabled scon && sconEnabled scon') $ do
-      let name = serviceProfileName svc
-      let tags = unsafeRange (serviceProfileTags svc)
-      -- Update index, make it visible over search
-      lift . liftSem $
-        if sconEnabled scon
-          then deleteProviderServiceIndexes pid sid name tags
-          else insertProviderServiceIndexes pid sid name tags
+  -- If the service got enabled or disabled, update the tag index. The index
+  -- only contains enabled services, so branch on the previous value.
+  unless (sconEnabled scon == enabled') $ do
+    let name = serviceProfileName svc
+    let tags = unsafeRange (serviceProfileTags svc)
+    lift . liftSem $
+      if sconEnabled scon
+        then deleteProviderServiceIndexes pid sid name tags
+        else insertProviderServiceIndexes pid sid name tags
 
 -- TODO: Send informational email to provider.
 
@@ -612,7 +627,6 @@ finishDeleteService pid sid = do
     runConduit $
       paginateWithStateC (UserStore.lookupServiceUsers pid sid)
         .| C.mapM_ (unsafePooledMapConcurrentlyN_ 16 kick)
-    embed $ RPC.removeServiceConn pid sid
     deleteProviderService pid sid name tags
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
@@ -636,7 +650,6 @@ deleteAccount pid del = do
     let sid = svc.serviceId
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    lift $ wrapHttpClient $ RPC.removeServiceConn pid sid
     lift . liftSem $ deleteProviderService pid sid name tags
   wrapClientE $ DB.deleteKey (mkEmailKey (providerEmail prov))
   wrapClientE $ DB.deleteAccount pid

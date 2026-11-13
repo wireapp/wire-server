@@ -1,0 +1,1 @@
+Retires brig's provider-platform `service` projection table (galley's service tables are the source of truth) and adds the brig internal `get-service-conn` endpoint for delivery-time service-connection lookup; `RPC.setServiceConn`/`removeServiceConn` writes are removed accordingly.

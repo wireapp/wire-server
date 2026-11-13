@@ -105,6 +105,9 @@ import Wire.ParseException
 import Wire.PostgresMigrationOpts
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
+import Wire.ProviderServiceStore (ProviderServiceStore)
+import Wire.ProviderServiceStore.Cassandra (interpretProviderServiceStoreToCassandra)
+import Wire.ProviderServiceStore.Postgres (interpretProviderServiceStoreToPostgres)
 import Wire.RateLimit (RateLimit, RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
@@ -118,8 +121,6 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
-import Wire.ServiceStore (ServiceStore)
-import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc (interpretSparAPIAccessToRpc)
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
@@ -226,7 +227,7 @@ type BackgroundWorkerEffects =
      UserClientIndexStore,
      TeamFeatureStore,
      UserGroupStore,
-     ServiceStore,
+     ProviderServiceStore,
      ProposalStore,
      MLSCommitLockStore,
      Input FanoutLimit,
@@ -327,7 +328,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
     . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
     . interpretProposalStoreToCassandra
-    . interpretServiceStoreToCassandra env.cassandraBrig
+    . providerServiceStoreInterpreter
     . interpretUserGroupStoreToPostgres
     . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
@@ -345,9 +346,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . convCodesStoreInterpreter
     . runRpcWithHttp env.httpManager requestId
     . runGundeckAPIAccess env.gundeckEndpoint
-    -- FUTUREWORK: Currently the brig access effect is needed for the interpreter of ExternalAccess.
-    -- At the time of implementation the only function used from ExternalAccess is deliverAsync, which will not call brig access.
-    -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
+    -- Brig access is a deliberate dependency of ExternalAccess: bot webhook
+    -- delivery resolves the service connection (auth tokens, fingerprints,
+    -- enabled flag) from brig at delivery time via the get-service-conn
+    -- internal endpoint.
     . interpretBrigAccess env.brigEndpoint
     . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
     . runInputConst env.conversationSubsystemConfig
@@ -379,6 +381,12 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretCodeStoreToCassandra
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
+    providerServiceStoreInterpreter = case env.postgresMigration.providerService of
+      CassandraStorage -> interpretProviderServiceStoreToCassandra env.cassandraBrig
+      -- The dual-write machinery is gone; the legacy
+      -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
+      MigrationToPostgresql -> interpretProviderServiceStoreToCassandra env.cassandraBrig
+      PostgresqlStorage -> interpretProviderServiceStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb

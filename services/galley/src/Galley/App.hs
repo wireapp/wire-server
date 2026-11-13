@@ -169,8 +169,6 @@ import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO
-import Wire.ServiceStore (ServiceStore)
-import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
@@ -235,7 +233,6 @@ type GalleyEffects =
      LegalHoldStore,
      Input LegalHoldEnv,
      UserGroupStore,
-     ServiceStore,
      TeamNotificationStore,
      ConversationStore,
      MLSCommitLockStore,
@@ -560,7 +557,6 @@ evalGalley e =
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra
-        . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
         . interpretLegalHoldStoreToCassandra lh
