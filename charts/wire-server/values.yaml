@@ -1104,8 +1104,6 @@ background-worker:
     # This will start the migration of spar scim token and scim external id data.
     # It's important to set `spar.config.postgresMigration.scimTokens` / `scimExternalIds`
     # to `migration-to-postgresql` before starting the migration.
-    migrateScimTokens: false
-    migrateScimExternalIds: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.

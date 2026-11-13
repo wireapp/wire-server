@@ -534,8 +534,7 @@ instance Arbitrary ScimUserCreationStatus where
 ----------------------------------------------------------------------------
 -- Postgres marshall
 -- (The 'Cql' instances for the token types live in "Wire.ScimTokenStore.Cassandra";
--- these mirror the exact same encodings so the migration worker can copy rows
--- verbatim.)
+-- these use the exact same encodings.)
 
 instance PostgresMarshall Text ScimToken where
   postgresMarshall = fromScimToken

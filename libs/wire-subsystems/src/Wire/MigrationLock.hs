@@ -187,28 +187,6 @@ instance MigrationLockable (TeamId, Text) where
   lockScope = "team_feature"
   toText (tid, feat) = idToText tid <> ":" <> feat
 
--- | Lock key for one SCIM token row (team + token id). Contends with the
--- scim-token copy loop (exclusive) and the dual-write token mutations
--- (shared).
-newtype ScimTokenLockKey = ScimTokenLockKey (TeamId, ScimTokenId)
-
-instance MigrationLockable ScimTokenLockKey where
-  lockKey (ScimTokenLockKey (team, tid)) =
-    hashUUID team `xor` rotateL (hashUUID tid) 1
-  lockScope = "scim_token"
-  toText (ScimTokenLockKey (team, tid)) = idToText team <> ":" <> idToText tid
-
--- | Lock key for one SCIM external-id mapping (team + external id). Contends
--- with the scim-external-id copy loop (exclusive) and the dual-write mapping
--- mutations (shared).
-newtype ScimExternalIdLockKey = ScimExternalIdLockKey (TeamId, Text)
-
-instance MigrationLockable ScimExternalIdLockKey where
-  lockKey (ScimExternalIdLockKey (team, eid)) =
-    hashUUID team `xor` rotateL (fromIntegral (hash eid)) 1
-  lockScope = "scim_external_id"
-  toText (ScimExternalIdLockKey (team, eid)) = idToText team <> ":" <> eid
-
 instance MigrationLockable ConvId where
   lockKey = hashUUID
   lockScope = "conv"

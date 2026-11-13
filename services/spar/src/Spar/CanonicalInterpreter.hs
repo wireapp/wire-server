@@ -79,13 +79,11 @@ import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import Wire.SamlProtocolSettings.Servant (sparRouteToServant)
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
-import Wire.ScimExternalIdStore.DualWrite (interpretScimExternalIdStoreToCassandraAndPostgres)
 import Wire.ScimExternalIdStore.Postgres (interpretScimExternalIdStoreToPostgres)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
 import Wire.ScimTokenStore (ScimTokenStore)
 import Wire.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
-import Wire.ScimTokenStore.DualWrite (interpretScimTokenStoreToCassandraAndPostgres)
 import Wire.ScimTokenStore.Postgres (interpretScimTokenStoreToPostgres)
 import Wire.ScimUserMetaStore (ScimUserMetaStore)
 import Wire.ScimUserMetaStore.Cassandra (scimUserMetaStoreToCassandra)
@@ -149,12 +147,14 @@ runSparToIO ctx =
   let scimTokenStoreInterpreter =
         case (sparCtxOpts ctx).postgresMigration.scimTokens of
           CassandraStorage -> scimTokenStoreToCassandra
-          MigrationToPostgresql -> interpretScimTokenStoreToCassandraAndPostgres
+          -- Migration copy machinery is removed; a stale
+          -- "migration-to-postgresql" value keeps serving Postgres.
+          MigrationToPostgresql -> interpretScimTokenStoreToPostgres
           PostgresqlStorage -> interpretScimTokenStoreToPostgres
       scimExternalIdsStoreInterpreter =
         case (sparCtxOpts ctx).postgresMigration.scimExternalIds of
           CassandraStorage -> scimExternalIdStoreToCassandra
-          MigrationToPostgresql -> interpretScimExternalIdStoreToCassandraAndPostgres
+          MigrationToPostgresql -> interpretScimExternalIdStoreToPostgres
           PostgresqlStorage -> interpretScimExternalIdStoreToPostgres
    in runFinal
         . resourceToIOFinal

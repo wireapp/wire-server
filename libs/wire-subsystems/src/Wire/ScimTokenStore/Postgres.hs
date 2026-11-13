@@ -166,8 +166,7 @@ selectScimTokenByKeys =
 -- an earlier lookup), so if the token was deleted between the lookup and this
 -- conversion, there is nothing to insert and no credential is resurrected;
 -- @DO NOTHING@ never clobbers a fresher hashed row written by a concurrent
--- insert or conversion. Used both by the Postgres read path and mirrored from
--- the DualWrite interpreter.
+-- insert or conversion. Used by the Postgres read path.
 pgConvertPlaintextToken :: (PGConstraints r) => ScimToken -> Sem r ()
 pgConvertPlaintextToken token = do
   runStatement (hashedKey, plainKey) convertPlaintextStatement
