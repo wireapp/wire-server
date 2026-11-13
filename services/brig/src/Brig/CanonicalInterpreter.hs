@@ -121,7 +121,6 @@ import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
-import Wire.MlsKeyPackageStore.Migrating (interpretMlsKeyPackageStoreToCassandraAndPostgres)
 import Wire.MlsKeyPackageStore.Postgres (interpretMlsKeyPackageStoreToPostgres)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
@@ -451,16 +450,9 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
-      -- In migration mode, every store effect takes the per-user shared
-      -- migration lock and routes by the mls_key_packages_migrated_users
-      -- marker: migrated users are served by Postgres, the rest by
-      -- Cassandra (single backend per user, no cross-store writes). The
-      -- background-worker copy loop fills Postgres under the matching
-      -- exclusive lock.
       mlsKeyPackageStore = case e.postgresMigration.mlsKeyPackages of
         CassandraStorage -> interpretMlsKeyPackageStoreToCassandra e.casClient
         PostgresqlStorage -> interpretMlsKeyPackageStoreToPostgres
-        MigrationToPostgresql -> interpretMlsKeyPackageStoreToCassandraAndPostgres e.casClient
 
       -- PasswordResetCodeStore must be peeled at this slot in the stack (between
       -- interpretGalleyAPIAccessToRpc and randomToIO), which precedes the global
