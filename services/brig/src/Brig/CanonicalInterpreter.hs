@@ -161,7 +161,6 @@ import Wire.Sem.Random
 import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
-import Wire.SessionStore.DualWrite (interpretSessionStoreToCassandraAndPostgres)
 import Wire.SessionStore.Postgres (interpretSessionStoreToPostgres)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc
@@ -451,21 +450,14 @@ runBrigToIO e (AppT ma) = do
       -- providers, and Async / Race / Resource come from the ambient stack.
       sessionStoreInterpreter = case e.postgresMigration.sessions of
         CassandraStorage -> interpretSessionStoreCassandra e.casClient
+        -- The copy loop is gone; the legacy migration setting degrades to
+        -- Cassandra-only reads/writes.
+        MigrationToPostgresql -> interpretSessionStoreCassandra e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError
             . interpretSessionStoreToPostgres
             . raiseUnder2
-        MigrationToPostgresql ->
-          runInputConst e.hasqlPool
-            . mapError postgresUsageErrorToHttpError
-            . mapError migrationLockErrorToHttpError
-            . loggerToTinyLogReqId e.requestId e.appLogger
-            . interpretSessionStoreToCassandraAndPostgres e.casClient
-            . raiseUnder @TinyLog
-            . raiseUnder @(Error MigrationLockError)
-            . raiseUnder @(Error UsageError)
-            . raiseUnder @(Input HasqlPoolExt.Pool)
 
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
