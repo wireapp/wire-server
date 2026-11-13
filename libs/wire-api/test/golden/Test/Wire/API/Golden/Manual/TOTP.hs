@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -21,24 +19,11 @@ module Test.Wire.API.Golden.Manual.TOTP where
 
 import Data.Id
 import Data.Json.Util
-import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe, plainTextPassword8Unsafe)
-import Data.Text.Ascii (validate)
+import Data.Misc (plainTextPassword6Unsafe)
 import Data.UUID qualified as UUID (fromString)
 import Imports
-import Test.Wire.API.Golden.Generated.InvitationCode_user (testObject_InvitationCode_user_1)
-import Test.Wire.API.Golden.Manual.App (testObject_NewApp_1)
-import Wire.API.Password (PasswordReqBody (..))
-import Wire.API.Team qualified as Team
-import Wire.API.Team.Invitation (AcceptTeamInvitation (..))
-import Wire.API.Team.LegalHold qualified as LegalHold
-import Wire.API.Team.Member qualified as Member
 import Wire.API.User qualified as User
-import Wire.API.User.Auth.ReAuth (ReAuthUser (..))
 import Wire.API.User.Auth.TOTP
-import Wire.API.User.Client qualified as Client
-import Wire.API.User.Client.Prekey (lastPrekey)
-import Wire.API.User.Password qualified as Password
-import Wire.API.User.Scim qualified as Scim
 
 totpCredentialId1, totpCredentialId2 :: TOTPCredentialId
 totpCredentialId1 = Id (fromJust (UUID.fromString "0f2e1b9c-6c6c-4a0e-9a3f-17a2cf15a001"))
@@ -168,17 +153,12 @@ testObject_ActivateTOTPCredential_1 =
 testObject_TOTPCredentialName_1 :: TOTPCredentialName
 testObject_TOTPCredentialName_1 = TOTPCredentialName "private phone"
 
--- A populated second factor for every request body that accepts totp_code.
--- Keep the original fixtures too: they cover clients that omit the field.
+-- | 'EmailUpdate' stands in for all request bodies that carry a @totp_code@:
+-- they all embed the same 'totpCodeFieldSchema', and that each of them parses
+-- and retains it is asserted in 'Test.Wire.API.User.Auth.TOTP.requestBodyTests'.
+-- Here it is the 'NoTotpCode' counterpart below that needs a golden file.
 secondFactor1 :: Maybe SecondFactorCode
 secondFactor1 = Just (SFTotp totpCode1)
-
-testObject_PasswordReqBody_totp_1 :: PasswordReqBody
-testObject_PasswordReqBody_totp_1 = PasswordReqBody (Just password1) secondFactor1
-
-testObject_PasswordChange_totp_1 :: User.PasswordChange
-testObject_PasswordChange_totp_1 =
-  User.PasswordChange (Just password1) (plainTextPassword8Unsafe "new-password") secondFactor1
 
 testObject_EmailUpdate_totp_1 :: User.EmailUpdate
 testObject_EmailUpdate_totp_1 =
@@ -197,64 +177,6 @@ testObject_EmailUpdate_withoutTotpCode_2 =
 testObject_EmailUpdate_withoutTotpCode_populated_1 :: NoTotpCode User.EmailUpdate
 testObject_EmailUpdate_withoutTotpCode_populated_1 = NoTotpCode testObject_EmailUpdate_totp_1
 
-testObject_DeleteUser_totp_1 :: User.DeleteUser
-testObject_DeleteUser_totp_1 = User.DeleteUser (Just password1) secondFactor1
-
-testObject_NewApp_totp_1 :: User.NewApp
-testObject_NewApp_totp_1 = testObject_NewApp_1 {User.totpCode = secondFactor1}
-
-testObject_ReAuthUser_totp_1 :: ReAuthUser
-testObject_ReAuthUser_totp_1 =
-  ReAuthUser (Just password1) Nothing (Just User.DeleteTeam) secondFactor1
-
-testObject_NewClient_totp_1 :: Client.NewClient
-testObject_NewClient_totp_1 =
-  (Client.newClient Client.PermanentClientType (lastPrekey "test-prekey"))
-    { Client.newClientPassword = Just password1,
-      Client.newClientTotpCode = secondFactor1
-    }
-
-testObject_RmClient_totp_1 :: Client.RmClient
-testObject_RmClient_totp_1 = Client.RmClient (Just password1) secondFactor1
-
-testObject_CompletePasswordReset_totp_1 :: Password.CompletePasswordReset
-testObject_CompletePasswordReset_totp_1 =
-  Password.CompletePasswordReset
-    (Password.PasswordResetEmailIdentity (User.unsafeEmailAddress "alice" "example.com"))
-    (Password.PasswordResetCode (either error id (validate "reset-code")))
-    (plainTextPassword8Unsafe "new-password")
-    secondFactor1
-
-testObject_AcceptTeamInvitation_totp_1 :: AcceptTeamInvitation
-testObject_AcceptTeamInvitation_totp_1 =
-  AcceptTeamInvitation testObject_InvitationCode_user_1 password1 secondFactor1
-
-testObject_TeamDeleteData_totp_1 :: Team.TeamDeleteData
-testObject_TeamDeleteData_totp_1 = Team.TeamDeleteData (Just password1) Nothing secondFactor1
-
-testObject_TeamMemberDeleteData_totp_1 :: Member.TeamMemberDeleteData
-testObject_TeamMemberDeleteData_totp_1 =
-  Member.TeamMemberDeleteData (Just password1) secondFactor1
-
-testObject_RemoveLegalHoldSettingsRequest_totp_1 :: LegalHold.RemoveLegalHoldSettingsRequest
-testObject_RemoveLegalHoldSettingsRequest_totp_1 =
-  LegalHold.RemoveLegalHoldSettingsRequest (Just password1) secondFactor1
-
-testObject_DisableLegalHoldForUserRequest_totp_1 :: LegalHold.DisableLegalHoldForUserRequest
-testObject_DisableLegalHoldForUserRequest_totp_1 =
-  LegalHold.DisableLegalHoldForUserRequest (Just password1) secondFactor1
-
-testObject_ApproveLegalHoldForUserRequest_totp_1 :: LegalHold.ApproveLegalHoldForUserRequest
-testObject_ApproveLegalHoldForUserRequest_totp_1 =
-  LegalHold.ApproveLegalHoldForUserRequest (Just password1) secondFactor1
-
-testObject_CreateScimToken_totp_1 :: Scim.CreateScimToken
-testObject_CreateScimToken_totp_1 =
-  Scim.CreateScimToken "test token" (Just password1) Nothing (Just "test") Nothing secondFactor1
-
 testObject_NewTOTPCredential_2 :: NewTOTPCredential
 testObject_NewTOTPCredential_2 =
   testObject_NewTOTPCredential_1 {reauth = testObject_ReauthBody_2}
-
-password1 :: PlainTextPassword6
-password1 = plainTextPassword6Unsafe "test-password"

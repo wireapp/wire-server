@@ -76,25 +76,12 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "Request bodies with TOTP" $
-        concat
-          [ testObjects [(testObject_PasswordReqBody_totp_1, "testObject_PasswordReqBody_totp.json")],
-            testObjects [(testObject_PasswordChange_totp_1, "testObject_PasswordChange_totp.json")],
-            testObjects [(testObject_EmailUpdate_totp_1, "testObject_EmailUpdate_totp.json")],
-            testObjects [(testObject_DeleteUser_totp_1, "testObject_DeleteUser_totp.json")],
-            testObjects [(testObject_NewApp_totp_1, "testObject_NewApp_totp.json")],
-            testObjects [(testObject_ReAuthUser_totp_1, "testObject_ReAuthUser_totp.json")],
-            testObjects [(testObject_NewClient_totp_1, "testObject_NewClient_totp.json")],
-            testObjects [(testObject_RmClient_totp_1, "testObject_RmClient_totp.json")],
-            testObjects [(testObject_CompletePasswordReset_totp_1, "testObject_CompletePasswordReset_totp.json")],
-            testObjects [(testObject_AcceptTeamInvitation_totp_1, "testObject_AcceptTeamInvitation_totp.json")],
-            testObjects [(testObject_TeamDeleteData_totp_1, "testObject_TeamDeleteData_totp.json")],
-            testObjects [(testObject_TeamMemberDeleteData_totp_1, "testObject_TeamMemberDeleteData_totp.json")],
-            testObjects [(testObject_RemoveLegalHoldSettingsRequest_totp_1, "testObject_RemoveLegalHoldSettingsRequest_totp.json")],
-            testObjects [(testObject_DisableLegalHoldForUserRequest_totp_1, "testObject_DisableLegalHoldForUserRequest_totp.json")],
-            testObjects [(testObject_ApproveLegalHoldForUserRequest_totp_1, "testObject_ApproveLegalHoldForUserRequest_totp.json")],
-            testObjects [(testObject_CreateScimToken_totp_1, "testObject_CreateScimToken_totp.json")]
-          ],
+    [ -- One body stands in for all of them: the field is the very same
+      -- 'totpCodeFieldSchema' everywhere, and that every body accepts and
+      -- retains it is asserted generically in
+      -- 'Test.Wire.API.User.Auth.TOTP.requestBodyTests'.
+      testGroup "Request bodies with TOTP" $
+        testObjects [(testObject_EmailUpdate_totp_1, "testObject_EmailUpdate_totp.json")],
       testGroup "EmailUpdateWithoutTotpCode" $
         testObjects
           [ (testObject_EmailUpdate_withoutTotpCode_1, "testObject_EmailUpdate_withoutTotpCode_1.json"),

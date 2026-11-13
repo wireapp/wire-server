@@ -1,6 +1,0 @@
-{
-    "action": "delete_team",
-    "password": "test-password",
-    "totp_code": "totp:014921",
-    "verification_code": null
-}
