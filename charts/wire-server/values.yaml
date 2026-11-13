@@ -1074,7 +1074,6 @@ background-worker:
     # This will start the migration of user client index data.
     # It's important to set `settings.postgresMigration.userClientIndex` to `migration-to-postgresql`
     # before starting the migration.
-    migrateUserClientIndex: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.

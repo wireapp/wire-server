@@ -197,7 +197,6 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserClientIndexStore.Cassandra (interpretUserClientIndexStoreToCassandra)
-import Wire.UserClientIndexStore.DualWrite (interpretUserClientIndexStoreToCassandraAndPostgres)
 import Wire.UserClientIndexStore.Postgres (interpretUserClientIndexStoreToPostgres)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
@@ -445,7 +444,6 @@ evalGalley e =
       userClientIndexStoreInterpreter =
         case (e ^. options . postgresMigration).userClientIndex of
           CassandraStorage -> interpretUserClientIndexStoreToCassandra (e ^. cstate)
-          MigrationToPostgresql -> interpretUserClientIndexStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretUserClientIndexStoreToPostgres
       teamFeatureStoreInterpreter =
         case (e ^. options . postgresMigration).teamFeatures of
