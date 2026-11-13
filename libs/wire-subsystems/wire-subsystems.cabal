@@ -459,8 +459,6 @@ library
     Wire.ProposalStore.Cassandra
     Wire.PushTokenStore
     Wire.PushTokenStore.Cassandra
-    Wire.PushTokenStore.DualWrite
-    Wire.PushTokenStore.Migration
     Wire.PushTokenStore.Postgres
     Wire.RateLimit
     Wire.RateLimit.Interpreter
