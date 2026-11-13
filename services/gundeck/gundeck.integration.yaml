@@ -67,6 +67,7 @@ postgresMigration:
   nonce: postgresql
   connections: postgresql
   notifications: postgresql
+  pushTokens: postgresql
 
 settings:
   httpPoolSize: 1024
