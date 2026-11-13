@@ -1071,7 +1071,6 @@ background-worker:
     # This will start the migration of mls commit locks.
     # It's important to set `settings.postgresMigration.mlsCommitLocks` to `migration-to-postgresql`
     # before starting the migration.
-    migrateMLSCommitLocks: false
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
