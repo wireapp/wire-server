@@ -62,8 +62,7 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     customBackend :: StorageLocation,
     budget :: StorageLocation,
     nonce :: StorageLocation,
-    connections :: StorageLocation,
-    mlsCommitLocks :: StorageLocation
+    connections :: StorageLocation
   }
   deriving (Show)
 
@@ -81,4 +80,3 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "budget"
       <*> o .: "nonce"
       <*> o .: "connections"
-      <*> o .: "mlsCommitLocks"

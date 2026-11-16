@@ -276,4 +276,3 @@ postgresMigration:
   customBackend: postgresql
   budget: postgresql
   connections: postgresql
-  mlsCommitLocks: postgresql

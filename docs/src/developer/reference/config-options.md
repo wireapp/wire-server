@@ -2394,7 +2394,6 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
-      mlsCommitLocks: postgresql
 background-worker:
   config:
     migrateConversations: false
