@@ -301,7 +301,7 @@ mkClient keys (_uid, cid, cty, tme, lbl, cls, cok, mdl, cps, lastActive) =
       clientLabel = lbl,
       clientCookie = cok,
       clientModel = mdl,
-      clientCapabilities = ClientCapabilityList (maybe Set.empty (fromRight Set.empty . postgresUnmarshall) cps),
+      clientCapabilities = ClientCapabilityList (fromMaybe Set.empty cps),
       clientMLSPublicKeys = Map.fromList keys,
       clientLastActive = lastActive
     }
@@ -515,7 +515,9 @@ type ClientRow =
     Maybe ClientClass,
     Maybe CookieLabel,
     Maybe Text,
-    Maybe (Vector Int32),
+    -- Decoded element-wise in the statement: an unknown capability makes the
+    -- lookup fail instead of silently dropping all capabilities.
+    Maybe (Set ClientCapability),
     Maybe UTCTime
   )
 
