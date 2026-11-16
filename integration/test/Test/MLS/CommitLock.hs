@@ -17,22 +17,30 @@
 
 module Test.MLS.CommitLock where
 
+import API.Galley
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
--- | Every MLS commit acquires and releases the commit lock, so two successive
--- commits prove acquire -> release -> re-acquire through the pg advisory-lock
--- interpreter. A leaked lock would fail the second commit.
-testMLSCommitLock :: (HasCallStack) => App ()
-testMLSCommitLock = do
-  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
-  alice1 <- createMLSClient def alice
-  bob1 <- createMLSClient def bob
-  void $ uploadNewKeyPackage def bob1
+-- | A commit that is rejected after the commit lock for its (group, epoch)
+-- has been taken must release that lock: a valid commit for the very same
+-- (group, epoch) has to go through afterwards. If the lock leaked, the second
+-- commit would be rejected with @mls-stale-message@.
+testMLSCommitLockReleasedOnFailure :: (HasCallStack) => App ()
+testMLSCommitLockReleasedOnFailure = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
-  charlie1 <- createMLSClient def charlie
-  void $ uploadNewKeyPackage def charlie1
-  void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
+  gs <- getClientGroupState alice1
+
+  -- Removing only some of bob's clients is rejected with the commit lock held.
+  mp <- createRemoveCommit alice1 convId [bob1]
+  err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
+  err %. "label" `shouldMatch` "mls-client-mismatch"
+
+  -- Same group, same epoch: this needs the same lock again.
+  setClientGroupState alice1 gs
+  void $ createRemoveCommit alice1 convId [bob1, bob2] >>= sendAndConsumeCommitBundle
