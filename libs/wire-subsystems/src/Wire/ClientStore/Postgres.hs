@@ -24,9 +24,11 @@
 -- the locking machinery would only add contention, not correctness.
 module Wire.ClientStore.Postgres
   ( interpretClientStoreToPostgres,
+    deletePrekeysRaw,
   )
 where
 
+import Control.Exception (ErrorCall (..), throwIO)
 import Data.ByteString.Conversion (toByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
@@ -37,6 +39,8 @@ import Data.Time
 import Data.UUID qualified as UUID
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import Hasql.Pool.Extended qualified as HasqlPoolExt
+import Hasql.Session (statement)
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -408,6 +412,16 @@ deleteClientStatement =
     [resultlessStatement|DELETE FROM clients
                          WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: text)
                         |]
+
+-- | Delete all prekeys of a client directly, bypassing the 'ClientStore'
+-- effect (which has no operation for that). Exposed for the brig integration
+-- suite to simulate clients that lost their prekeys, mirroring the raw
+-- Cassandra delete used there. 'Hasql.UsageError' has no 'Exception' instance
+-- in this hasql version, so failures surface as an 'ErrorCall'.
+deletePrekeysRaw :: HasqlPoolExt.Pool -> UserId -> ClientId -> IO ()
+deletePrekeysRaw pool uid cid =
+  useWithResetAndRetry pool (statement (uid, cid) deletePrekeysStatement)
+    >>= either (throwIO . ErrorCall . show) pure
 
 deletePrekeysStatement :: Hasql.Statement (UserId, ClientId) ()
 deletePrekeysStatement =

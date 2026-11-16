@@ -58,6 +58,7 @@ import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
 import Data.UUID qualified as UUID
 import Data.Vector qualified as Vec
+import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import System.Logger qualified as Log
@@ -82,6 +83,8 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
+import Wire.ClientStore.Postgres (deletePrekeysRaw)
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (clients), StorageLocation (..))
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 
@@ -421,6 +424,20 @@ testListClientsBulk opts brig = do
       const 200 === statusCode
       const (Just expectedResponse) === responseJsonMaybe
 
+-- | Delete all prekeys of a client directly in the store brig is configured to
+-- use for clients (simulating prekey loss, which business logic prevents).
+removeClientPrekeys :: Opt.Opts -> DB.ClientState -> UserId -> ClientId -> Http ()
+removeClientPrekeys opts db uid cid = liftIO $ case opts.postgresMigration.clients of
+  CassandraStorage ->
+    DB.runClient db $
+      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid, cid))
+  _ -> do
+    pool <- HasqlPool.initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+    deletePrekeysRaw pool uid cid
+  where
+    removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
+    removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
+
 testClientsWithoutPrekeys :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
 testClientsWithoutPrekeys brig cannon db opts = do
   uid1 <- userId <$> randomUser brig
@@ -431,11 +448,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
 
   -- Simulating loss of all prekeys from c11 (due e.g. DB problems, business
   -- logic prevents this from happening)
-  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
-      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
-  liftIO $
-    DB.runClient db $
-      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, c11.clientId))
+  removeClientPrekeys opts db uid1 c11.clientId
 
   uid2 <- userId <$> randomUser brig
 
@@ -523,11 +536,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
 
   -- Simulating loss of all prekeys from c11 (due e.g. DB problems, business
   -- logic prevents this from happening)
-  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
-      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
-  liftIO $
-    DB.runClient db $
-      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, c11.clientId))
+  removeClientPrekeys opts db uid1 c11.clientId
 
   uid2 <- userId <$> randomUser brig
 
@@ -618,11 +627,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
 
   -- Simulating loss of all prekeys from c11 (due e.g. DB problems, business
   -- logic prevents this from happening)
-  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
-      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
-  liftIO $
-    DB.runClient db $
-      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, c11.clientId))
+  removeClientPrekeys opts db uid1 c11.clientId
 
   uid2 <- fakeRemoteUser
 
