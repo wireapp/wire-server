@@ -1,1 +1,1 @@
-Migration of user pending activation store from cassandra to postgres
+Brig can store pending user activations in PostgreSQL, selected via `postgresMigration.userPendingActivation` (`cassandra` or `postgresql`). Existing entries are not copied; `migration-to-postgresql` keeps using Cassandra. The expired-activation cleanup now pages by user id and looks up account statuses per page instead of per user.
