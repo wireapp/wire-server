@@ -102,6 +102,7 @@ galley:
       user: cassandra
       blockList: cassandra
       teamStore: cassandra
+      listItems: cassandra
       passwordReset: cassandra
       customBackend: cassandra
       budget: cassandra
