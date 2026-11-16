@@ -45,9 +45,22 @@ Temporary certificates and private keys are removed on exit.
 
 CI uses the same command with cluster credentials. The runner needs Helm, kubectl,
 OpenSSL and jq; SSLyze runs from a pinned upstream image inside the cluster.
+The scan Job is a Helm test hook in `integration/ingress/scan`; the shared runner
+calls `helm test` and checks the resulting JSON for completed scans and required
+TLS versions.
 Each Job has a five-minute deadline and no retries. Failures print the scanner logs,
 save resource status before cleanup, and return a nonzero exit code to CI. The cluster
 must be able to pull the scanner image and allow it to reach the proxy Service.
+
+The existing `kube-integration-setup`, `kube-integration-test`, and
+`kube-integration-teardown` flow includes this suite for Envoy setups. Use
+`WIRE_INGRESS_MODE=envoy` during setup; the test stage detects the installed
+wire-ingress chart if that variable is absent in a separate CI task. Nginx-only
+setups skip these tests. Both profiles run through the standalone runner during
+the test stage, provisioning and removing their own fixtures. Their status and
+logs join the existing integration summary and `UPLOAD_LOGS` handling. Teardown
+also removes interrupted fixtures labelled with that CI run's `NAMESPACE`.
+No changes to the Concourse task sequence are needed.
 
 To add a case, add a directory containing `values.yaml` (chart overrides) and
 `tls.json` (SSLyze policy). Shared deployment settings are in `values.yaml` in the

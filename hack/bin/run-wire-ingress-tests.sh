@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-if [[ -z "${KUBECONFIG:-}" && -f tmp/kubeconfig ]]; then export KUBECONFIG="$PWD/tmp/kubeconfig"; fi
+if [[ -z "${NAMESPACE:-}" && -z "${KUBECONFIG:-}" && -f tmp/kubeconfig ]]; then export KUBECONFIG="$PWD/tmp/kubeconfig"; fi
 WIRE_INGRESS_XDS_NAME_SCHEME_V2=${WIRE_INGRESS_XDS_NAME_SCHEME_V2:-true}
 profiles=(integration/ingress/*/values.yaml)
 if [[ -n "${1:-}" ]]; then
@@ -46,13 +46,10 @@ for profile in "${profiles[@]}"; do
     profile=${profile%/values.yaml}
     echo "Testing ${profile##*/} TLS profile"
     # generateName avoids collisions and cleanup only deletes namespaces we created.
-    namespace=$(kubectl create -f - -o jsonpath='{.metadata.name}' <<'YAML'
-apiVersion: v1
-kind: Namespace
-metadata:
-  generateName: wire-ingress-tls-
-YAML
-    )
+    namespace=$(jq -n --arg owner "${NAMESPACE:-standalone}" '
+        {apiVersion:"v1", kind:"Namespace", metadata:{generateName:"test-wire-ingress-",
+         labels:{"wire.com/ingress-test-owner":$owner}}}' |
+        kubectl create -f - -o jsonpath='{.metadata.name}')
     echo "${profile##*/}: namespace $namespace"
     kubectl -n "$namespace" create secret tls server-tls \
         --cert="$work/server.pem" --key="$work/server.key"
@@ -68,16 +65,8 @@ YAML
     kubectl -n "$namespace" create configmap tls-scan \
         --from-file=ca.pem="$work/cert.pem" --from-file=policy.json="$profile/tls.json" \
         --from-literal=target="ingress.example.test:443{$address}"
-    kubectl -n "$namespace" create -f integration/ingress/scan-job.yaml
-    # Stop promptly on either success or failure, including scheduling/image-pull timeouts.
-    deadline=$((SECONDS + 330))
-    state=Running
-    while [[ "$state" == Running && $SECONDS -lt $deadline ]]; do
-        state=$(kubectl -n "$namespace" get job tls-scan -o json | jq -r '
-            [.status.conditions[]? | select(.status == "True" and (.type == "Complete" or .type == "Failed"))][0].type // "Running"')
-        if [[ "$state" == Running ]]; then sleep 2; fi
-    done
-    [[ "$state" == Complete ]] || { echo "TLS scan job: $state" >&2; exit 1; }
+    helm install tls-scan integration/ingress/scan -n "$namespace"
+    helm test tls-scan -n "$namespace" --timeout=330s
     kubectl -n "$namespace" logs job/tls-scan > "$results/${profile##*/}.json"
     # SSLyze allowlists forbid extras; also require a completed scan and every expected TLS version.
     jq -e --slurpfile policy "$profile/tls.json" '

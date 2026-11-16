@@ -3,6 +3,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE=${NAMESPACE:-test-integration}
+export NAMESPACE
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
@@ -72,6 +73,25 @@ printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
     kubectl -n "${NAMESPACE}" logs "${CHART}-{}-integration" '>> logs-{};'
+
+# Setup and test may be separate CI tasks; detect the installed ingress when the
+# setup task's WIRE_INGRESS_MODE is no longer in the environment.
+ingress_mode=${WIRE_INGRESS_MODE:-}
+if [[ -z "$ingress_mode" ]]; then
+    releases=$(helm list -n "$NAMESPACE" -o json)
+    if jq -e 'any(.[]; .chart | startswith("wire-ingress-"))' <<<"$releases" >/dev/null; then
+        ingress_mode=envoy
+    fi
+fi
+if [[ "$ingress_mode" == envoy ]]; then
+    tests+=(wire-ingress)
+    if "$DIR/run-wire-ingress-tests.sh" > logs-wire-ingress 2>&1; then
+        echo 0 > stat-wire-ingress
+    else
+        echo 1 > stat-wire-ingress
+        echo "wire-ingress integration tests FAILED" >> logs-wire-ingress
+    fi
+fi
 
 summary
 
