@@ -44,10 +44,9 @@ interpretUserClientIndexStoreToPostgres = interpret $ \case
     | otherwise -> do
         rows <- V.toList <$> runStatement uids selectClientsStatement
         pure . Clients.fromUserClients . UserClients $
-          Map.fromList
-            [ (u, Set.fromList [c | (u', c) <- rows, u' == u])
-            | u <- uids
-            ]
+          Map.fromListWith
+            Set.union
+            ([(u, Set.empty) | u <- uids] <> [(u, Set.singleton c) | (u, c) <- rows])
   CreateClient uid cid -> runStatement (uid, cid) insertClientStatement
   DeleteClient uid cid -> runStatement (uid, cid) deleteClientStatement
   DeleteClients uid -> runStatement uid deleteClientsStatement
