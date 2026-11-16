@@ -37,8 +37,14 @@
 module Wire.MigrationLock where
 
 import Control.Concurrent.Async qualified as Async
-import Control.Exception (onException)
+import Control.Exception (onException, throwIO)
+import Control.Monad.Except (catchError)
+import Crypto.Hash (SHA256 (..), hashWith)
 import Data.Bits
+import Data.ByteArray qualified as BA
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
 import Data.Hashable (hash)
 import Data.Id
 import Data.UUID qualified as UUID
@@ -179,91 +185,100 @@ withMigrationLocks lockType maxWait lockables action = do
                                  FROM (SELECT pg_advisory_unlock_shared(lockId)
                                        FROM (SELECT UNNEST($1 :: bigint[]) as lockId) AS t) AS t2|]
 
--- | Non-blocking variant of 'withMigrationLocks' for a single lock: acquires a
--- session-scoped advisory lock for the key on a dedicated pooled connection,
--- runs the action, releases. Returns 'Nothing' without running the action if
--- the key is already locked. This is a try-lock (instead of the blocking
--- 'withMigrationLocks') because instant 'Nothing' preserves the existing
--- not-acquired -> stale-message client behavior.
+-- | Non-blocking, single-lock variant of 'withMigrationLocks': tries to take a
+-- session-scoped advisory lock on a connection from the given lock pool, runs
+-- the action while holding it and releases it afterwards. Returns 'Nothing'
+-- without running the action if the key is already locked. This is a
+-- try-lock (instead of the blocking 'withMigrationLocks') because instant
+-- 'Nothing' preserves the existing not-acquired -> stale-message client
+-- behavior.
 --
--- The release is bracketed with 'Polysemy.Resource.bracket', so it also runs
--- when the action short-circuits via other effects (e.g. an error response).
+-- The lock pool must be dedicated to lock holding and must not be the pool the
+-- action itself uses: the lock-holding connection sits idle for the whole
+-- action, so with a shared pool concurrent lock holders could exhaust it and
+-- starve their own work.
+--
+-- The lock is taken in the (masked) acquire step of 'bracket', so an
+-- asynchronous exception can't separate a taken lock from its release, and it
+-- is released when the action finishes, also when it short-circuits via other
+-- effects (e.g. an error response). The lock cannot outlive the holding
+-- connection's checkout from the pool: if unlocking fails or the holding
+-- session is interrupted, the session ends with an exception and the pool
+-- destroys (closes) the connection instead of returning it, which makes
+-- Postgres drop all advisory locks held by it.
+--
+-- The advisory-lock key is 'scopedLockKey', so equal 'lockKey's of different
+-- 'MigrationLockable' scopes don't share a lock.
 tryWithMigrationLock ::
   forall x a r.
-  ( PGConstraints r,
+  ( Member (Embed IO) r,
+    Member (Error Hasql.UsageError) r,
     Member Resource r,
     Member TinyLog r,
     MigrationLockable x
   ) =>
+  HasqlPoolExt.Pool ->
   x ->
   Sem r a ->
   Sem r (Maybe a)
-tryWithMigrationLock lockable action =
-  tryAcquireMigrationLock lockable >>= \case
-    Nothing -> pure Nothing
-    Just token ->
-      Just
-        <$> bracket
-          (pure ())
-          (const (releaseMigrationLock lockable token))
-          (const action)
+tryWithMigrationLock lockPool lockable action =
+  bracket
+    (embed (tryAcquireMigrationLock lockPool (scopedLockKey lockable)) >>= either throw pure)
+    (traverse_ (releaseMigrationLock lockable))
+    (traverse (const action))
 
--- | Opaque handle to the connection holding an acquired advisory lock.
+-- | Handle to the thread whose pooled connection holds an acquired lock.
 data MigrationLockToken = MigrationLockToken
   { actionCompleted :: MVar (),
-    lockThread :: Async.Async ()
+    lockThread :: Async.Async (Either Hasql.UsageError ())
   }
 
--- | Non-blocking acquire of a session-scoped advisory lock for the key on a
--- dedicated pooled connection. Returns 'Nothing' without side effects if the
--- key is already locked.
-tryAcquireMigrationLock ::
-  forall x r.
-  ( PGConstraints r,
-    MigrationLockable x
-  ) =>
-  x ->
-  Sem r (Maybe MigrationLockToken)
-tryAcquireMigrationLock lockable = do
-  lockAcquired <- embed newEmptyMVar
-  actionCompleted <- embed newEmptyMVar
+-- | Thrown inside the lock-holding session when unlocking fails, so that the
+-- pool destroys the connection (and with it the lock) instead of reusing it.
+data MigrationLockReleaseFailed = MigrationLockReleaseFailed
+  deriving (Show)
 
-  pool <- (.rawPool) <$> input @HasqlPoolExt.Pool
-  lockThread <-
-    embed . Async.async $
-      let holdSession =
-            Hasql.use pool $ do
-              ok <- Session.statement (lockKey lockable) tryAcquireLock
-              liftIO $ putMVar lockAcquired (Right ok)
-              when ok $ do
-                liftIO $ takeMVar actionCompleted
-                Session.statement [lockKey lockable] releaseLock
-          -- If the session failed before signaling (e.g. connection error),
-          -- the caller would otherwise block forever on 'lockAcquired'.
-          signalFailure = \case
-            Left e -> void (tryPutMVar lockAcquired (Left e))
-            Right _ -> pure ()
-       in holdSession >>= signalFailure
+instance Exception MigrationLockReleaseFailed
 
-  -- Cancelling the thread ends its session, which releases any advisory lock
-  -- it may already have taken; without this an async exception while waiting
-  -- here would leak the lock.
-  acquired <- embed $ takeMVar lockAcquired `onException` Async.cancel lockThread
-  case acquired of
-    Left e -> do
-      embed $ Async.cancel lockThread
-      throw e
-    Right False -> do
-      embed $ Async.cancel lockThread
-      pure Nothing
-    Right True ->
-      pure . Just $ MigrationLockToken {actionCompleted, lockThread}
+-- | Non-blocking acquire of a session-scoped advisory lock on a connection
+-- from the pool. Returns @Right Nothing@ if the key is already locked; the
+-- connection is then returned to the pool without holding any lock.
+tryAcquireMigrationLock :: HasqlPoolExt.Pool -> Int64 -> IO (Either Hasql.UsageError (Maybe MigrationLockToken))
+tryAcquireMigrationLock lockPool key = do
+  lockAcquired <- newEmptyTMVarIO
+  actionCompleted <- newEmptyMVar
+  let holdLock = do
+        ok <- Session.statement key tryAcquireLock
+        liftIO . atomically $ putTMVar lockAcquired ok
+        when ok $ do
+          liftIO $ takeMVar actionCompleted
+          released <- Session.statement key releaseLock `catchError` const (pure False)
+          unless released . liftIO $ throwIO MigrationLockReleaseFailed
+  lockThread <- Async.async $ useObserved lockPool holdLock
+  -- Wait until the lock is taken (or not), or the thread ended without
+  -- getting that far (pool or connection error). If we are interrupted while
+  -- waiting, cancelling the thread interrupts its session, which makes the
+  -- pool destroy the connection and thereby drop any lock it took.
+  outcome <-
+    atomically
+      ( (Right <$> readTMVar lockAcquired)
+          <|> (Left <$> Async.waitCatchSTM lockThread)
+      )
+      `onException` Async.cancel lockThread
+  case outcome of
+    Right True -> pure . Right . Just $ MigrationLockToken {actionCompleted, lockThread}
+    Right False -> pure (Right Nothing)
+    Left (Right (Left e)) -> pure (Left e)
+    Left (Right (Right ())) -> pure (Right Nothing)
+    Left (Left e) -> throwIO e
 
 -- | Release a lock acquired with 'tryAcquireMigrationLock'. Signals the
--- holding connection to unlock and gives it ~1s to finish cleanly.
+-- holding session to unlock and gives it ~1s to finish cleanly; otherwise it
+-- is cancelled, which makes the pool destroy its connection and thereby drop
+-- the lock.
 releaseMigrationLock ::
   forall x r.
-  ( PGConstraints r,
+  ( Member (Embed IO) r,
     Member TinyLog r,
     MigrationLockable x
   ) =>
@@ -271,28 +286,48 @@ releaseMigrationLock ::
   MigrationLockToken ->
   Sem r ()
 releaseMigrationLock lockable token = do
-  let MigrationLockToken {actionCompleted, lockThread} = token
+  let logError :: String -> Sem r ()
       logError errorStr =
         TinyLog.warn $
-          Log.msg (Log.val "Failed to cleanly unlock the migration locks")
-            . Log.field ("scope_" <> lockScope @x) (lockKey lockable)
+          Log.msg (Log.val "Failed to cleanly unlock the migration lock; its connection was discarded")
+            . Log.field ("scope_" <> lockScope @x) (toText lockable)
             . Log.field "error" errorStr
-  _ <- embed $ tryPutMVar actionCompleted ()
-  mRes <- embed $ System.Timeout.timeout 1_000_000 (Async.wait lockThread)
-  case mRes of
-    Nothing -> logError ("timed out waiting for unlock" :: Text)
-    Just () -> pure ()
+  res <- embed $ do
+    void $ tryPutMVar token.actionCompleted ()
+    r <- System.Timeout.timeout 1_000_000 (Async.waitCatch token.lockThread)
+    when (isNothing r) $ Async.cancel token.lockThread
+    pure r
+  case res of
+    Nothing -> logError "timed out waiting for unlock"
+    Just (Left e) -> logError (displayException e)
+    Just (Right (Left e)) -> logError (show e)
+    Just (Right (Right ())) -> pure ()
 
 tryAcquireLock :: Hasql.Statement Int64 Bool
 tryAcquireLock =
   [singletonStatement|SELECT (pg_try_advisory_lock($1 :: bigint) :: bool)|]
 
-releaseLock :: Hasql.Statement [Int64] ()
+releaseLock :: Hasql.Statement Int64 Bool
 releaseLock =
-  lmapPG @(Vector _)
-    [resultlessStatement|SELECT (1 :: int)
-                         FROM (SELECT pg_advisory_unlock(lockId)
-                               FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+  [singletonStatement|SELECT (pg_advisory_unlock($1 :: bigint) :: bool)|]
+
+-- | Advisory-lock key derived from both 'lockScope' and 'lockKey', so equal
+-- 'lockKey's of different scopes map to different locks. Uses SHA-256 (via
+-- 'stableHash64') rather than 'hash', so the key is the same on all pods
+-- regardless of the @hashable@ version they were built with.
+scopedLockKey :: forall x. (MigrationLockable x) => x -> Int64
+scopedLockKey x =
+  stableHash64 $
+    lockScope @x
+      <> "\0"
+      <> LBS.toStrict (Builder.toLazyByteString (Builder.int64BE (lockKey x)))
+
+-- | First 64 bits of the SHA-256 digest, as a (big-endian) 'Int64'.
+stableHash64 :: ByteString -> Int64
+stableHash64 bytes =
+  let digest :: ByteString
+      digest = BA.convert (hashWith SHA256 bytes)
+   in foldl' (\acc w -> (acc `shiftL` 8) .|. fromIntegral w) 0 (BS.unpack (BS.take 8 digest))
 
 --------------------------------------------------------------------------------
 -- Combines team id and feature name into one lock key to keep per-feature locks distinct within a team

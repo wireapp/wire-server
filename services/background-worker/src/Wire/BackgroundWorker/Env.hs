@@ -92,6 +92,11 @@ data Env = Env
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
     hasqlPool :: Hasql.Pool,
+    -- | Dedicated pool for the connections holding MLS commit locks (pg
+    -- advisory locks). Kept separate from 'hasqlPool' because a lock-holding
+    -- connection stays checked out for the whole commit, while the commit
+    -- itself needs connections from 'hasqlPool'.
+    mlsCommitLockPool :: Hasql.Pool,
     -- May contain the PostgreSQL password. Do not unwrap outside the Arbiter boundary.
     arbiterConnStr :: SecretText,
     -- Dedicated AMQP channels per concern
@@ -202,6 +207,7 @@ mkEnv opts galleyOpts = do
       license = opts.license
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
+  mlsCommitLockPool <- initNamedPostgresPool "mls_commit_lock_pool" opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   arbiterConnStr <- mkArbiterConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
   Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
