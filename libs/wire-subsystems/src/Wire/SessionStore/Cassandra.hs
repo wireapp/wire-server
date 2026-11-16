@@ -107,4 +107,3 @@ deleteAllCookiesImpl u = retry x5 (write cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"
-
