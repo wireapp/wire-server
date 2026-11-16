@@ -167,6 +167,7 @@ import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
+import Hasql.Pool.Extended (initPostgresPool)
 import Imports hiding (head)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.MultipartFormData
@@ -265,6 +266,7 @@ mkEnv tstOpts opts = do
   mgr :: Manager <- newManager defaultManagerSettings
   sparCtxLogger <- Log.mkLogger (saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
   cql :: ClientState <- initCassandra opts sparCtxLogger
+  sparCtxHasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   let brig = mkVersionedRequest tstOpts.brig
       galley = mkVersionedRequest tstOpts.galley
       spar = mkVersionedRequest tstOpts.spar
@@ -277,7 +279,6 @@ mkEnv tstOpts opts = do
       sparCtxHttpGalley = galley empty
       sparCtxRequestId = RequestId "<fake request id>"
       sparCtxScimSubsystemConfig = error "mkEnv: implement sparCtxScimSubsystemConfig when needed"
-      sparCtxHasqlPool = error "mkEnv: sparCtxHasqlPool is not available in integration tests"
   pure $
     TestEnv
       mgr
