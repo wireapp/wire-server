@@ -25,7 +25,6 @@ import Data.ByteString.Conversion
 import Data.Handle
 import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
-import Wire.API.Bot.Service qualified as Bot
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -47,6 +46,7 @@ import Util.Options
 import Web.Cookie (SetCookie, parseSetCookie)
 import Web.HttpApiData
 import Web.Scim.Filter as Scim
+import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Locale

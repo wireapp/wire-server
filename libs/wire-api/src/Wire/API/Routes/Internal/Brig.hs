@@ -1136,8 +1136,8 @@ type ProviderAPI =
                :> "provider"
                :> "password-reset-code"
                :> QueryParam' '[Required, Strict] "email" EmailAddress
-           :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
-    )
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+           )
     :<|> Named
            "get-service-conn"
            ( Summary "Get provider service connection (for bot webhook delivery)"
