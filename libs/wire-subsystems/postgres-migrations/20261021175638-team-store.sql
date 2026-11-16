@@ -7,17 +7,15 @@
 --   * enum domains -> text with the wire JSON/ swagger tag values
 --     (TeamStatus: active|pending_delete|deleted|suspended|pending_active,
 --      TeamBinding: binding|non_binding,
---      TeamSearchVisibility: standard|no_name_outside_team,
+--      TeamSearchVisibility: standard|no-name-outside-team,
 --      UserLegalHoldStatus: disabled|pending|enabled|no_consent)
 --   * Icon         -> text, 'default' or the asset key
 --
--- Every column whose Cassandra writetime is consumed is mirrored by a nullable
--- @*_time@ column holding that writetime.  The two consumers of writetimes
--- (TeamData.tdStatusTime from writetime(status) and TeamCreationTime from
--- writetime(binding)) read @status_time@ and @binding_time@; like Cassandra's
--- writetime function, those columns are NULL when the corresponding Cassandra
--- column has no writetime.  They are carried over from Cassandra by the team
--- migration copy loop and maintained by the dual-write leg via now().
+-- Cassandra writetimes that are consumed by the API are replaced by explicitly
+-- maintained columns: @status_time@ (TeamData.tdStatusTime, set whenever the
+-- status is written), @binding_time@ (TeamCreationTime, set on team creation)
+-- and @perms_write_time@ (TeamMemberInfo.permissionsWriteTime, set whenever
+-- the permissions are written).
 --
 -- NOTE: "user" is a reserved word in PostgreSQL; user-facing columns are named
 -- user_id.
@@ -29,7 +27,6 @@ CREATE TABLE IF NOT EXISTS team (
     icon          text NOT NULL,
     icon_key      text,
     splash_screen text,
-    deleted       boolean NOT NULL DEFAULT false,
     status        text NOT NULL,
     status_time   timestamptz,
     binding       text NOT NULL,
@@ -48,8 +45,6 @@ CREATE TABLE IF NOT EXISTS team_member (
     perms_write_time       timestamptz NOT NULL,
     PRIMARY KEY (team, user_id)
 );
-
-CREATE INDEX IF NOT EXISTS team_member_user_idx ON team_member (user_id);
 
 CREATE TABLE IF NOT EXISTS user_team (
     user_id uuid NOT NULL,

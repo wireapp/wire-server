@@ -1771,7 +1771,6 @@ CREATE TABLE public.team (
     icon text NOT NULL,
     icon_key text,
     splash_screen text,
-    deleted boolean DEFAULT false NOT NULL,
     status text NOT NULL,
     status_time timestamp with time zone,
     binding text NOT NULL,
@@ -2896,13 +2895,6 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 
 
 --
--- Name: team_member_user_idx; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX team_member_user_idx ON public.team_member USING btree (user_id);
-
-
---
 -- Name: user_cookies_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2931,6 +2923,13 @@ CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btr
 
 
 --
+-- Name: user_team_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_team_team_idx ON public.user_team USING btree (team);
+
+
+--
 -- Name: wire_user_pending_scim_users_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2942,10 +2941,6 @@ CREATE INDEX wire_user_pending_scim_users_idx ON public.wire_user USING btree (t
 --
 
 CREATE INDEX wire_user_scim_users_idx ON public.wire_user USING btree (team, id) WHERE (managed_by = 1);
--- Name: user_team_team_idx; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX user_team_team_idx ON public.user_team USING btree (team);
 
 
 --
