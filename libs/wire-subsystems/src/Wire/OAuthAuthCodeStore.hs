@@ -37,8 +37,13 @@ data OAuthAuthCodeStore m a where
     RedirectUrl ->
     OAuthCodeChallenge ->
     OAuthAuthCodeStore m ()
-  -- | Consume-on-read: the code is deleted in the same operation, and expired
+  -- | Consume-on-read: the code is deleted as part of the lookup, and expired
   -- codes are indistinguishable from unknown ones.
+  --
+  -- Atomicity depends on the backend: the Postgres interpreter returns a code
+  -- at most once (single @DELETE … RETURNING@), whereas the Cassandra
+  -- interpreter reads then deletes in two steps, so concurrent lookups of the
+  -- same code may both succeed.
   LookupAndDeleteOAuthAuthCode ::
     OAuthAuthorizationCode ->
     OAuthAuthCodeStore
