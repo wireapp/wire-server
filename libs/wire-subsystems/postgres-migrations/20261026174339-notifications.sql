@@ -2,10 +2,10 @@
 -- Mirrors the Cassandra `notifications` / `notification_payload` tables
 -- (gundeck keyspace). `user` is a reserved word in PostgreSQL, so the column
 -- is renamed `user_id`. `clients` (Cassandra set<text>) becomes text[].
--- Payload bytes are copied raw by the copy loop, so the bytea columns hold
--- exactly the Cassandra bytes. occurred_at is the RFC 4122 v1 timestamp of
--- the notification id (payload ids are v4 and anchor at the copy time);
--- expires_at plays the role of the Cassandra row TTL.
+-- The bytea columns hold the encoded payload bytes verbatim. occurred_at is
+-- the RFC 4122 v1 timestamp of the notification id (payload ids are v4 and
+-- anchor at the write time); expires_at plays the role of the Cassandra row
+-- TTL.
 
 CREATE TABLE notifications (
   user_id uuid NOT NULL,

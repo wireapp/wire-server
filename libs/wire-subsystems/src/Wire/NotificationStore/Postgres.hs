@@ -26,8 +26,6 @@
 module Wire.NotificationStore.Postgres
   ( interpretNotificationStoreToPostgres,
     notificationIdTime,
-    insertNotificationRow,
-    insertNotificationPayloadRow,
   )
 where
 
@@ -47,7 +45,6 @@ import Data.Range (Range, fromRange)
 import Data.Ratio ((%))
 import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
-import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Data.Time
 import Data.UUID (UUID)
@@ -139,45 +136,6 @@ insertNotificationRowsStatement =
         (user_id, id, payload, payload_ref, payload_ref_size, clients, occurred_at, expires_at)
       SELECT * FROM UNNEST
         ($1 :: uuid[], $2 :: uuid[], $3 :: bytea?[], $4 :: uuid?[], $5 :: int4?[], $6 :: text[][], $7 :: timestamptz[], $8 :: timestamptz[])
-      ON CONFLICT (user_id, id) DO NOTHING
-    |]
-
--- | Insert a @notifications@ row. The payload bytes are stored
--- verbatim (no re-encode).
-insertNotificationRow ::
-  (PGConstraints r) =>
-  UserId ->
-  NotificationId ->
-  -- | inline payload
-  Maybe ByteString ->
-  -- | payload ref
-  Maybe PayloadId ->
-  -- | payload ref size
-  Maybe Int32 ->
-  Set ClientId ->
-  UTCTime ->
-  UTCTime ->
-  Sem r ()
-insertNotificationRow u nid mbPayload mbPayloadRef mbPayloadRefSize clients occurred expires =
-  runStatement
-    ( toUUID u,
-      toUUID nid,
-      mbPayload,
-      toUUID <$> mbPayloadRef,
-      mbPayloadRefSize,
-      Vector.fromList (map clientToText (Set.toList clients)),
-      occurred,
-      expires
-    )
-    insertNotificationRowStatement
-
-insertNotificationRowStatement :: Hasql.Statement (UUID, UUID, Maybe ByteString, Maybe UUID, Maybe Int32, Vector Text, UTCTime, UTCTime) ()
-insertNotificationRowStatement =
-  [resultlessStatement|
-      INSERT INTO notifications
-        (user_id, id, payload, payload_ref, payload_ref_size, clients, occurred_at, expires_at)
-      VALUES
-        ($1 :: uuid, $2 :: uuid, $3 :: bytea?, $4 :: uuid?, $5 :: int4?, $6 :: text[], $7 :: timestamptz, $8 :: timestamptz)
       ON CONFLICT (user_id, id) DO NOTHING
     |]
 
@@ -314,7 +272,7 @@ pgFetchNotifications u c msince (fromRange -> size0) = do
               more' = Vector.length rows == fromIntegral pageSize || truncated
               nextPage = case unsnoc (Vector.toList rows) of
                 Just (_, (occurred, i, _, _, _, _)) ->
-                  runStatement (toUUID u, occurred, occurred, i, fromIntegral pageSize) fetchPageNextStatement
+                  runStatement (toUUID u, occurred, occurred, i, fromIntegral pageSize) fetchPageSinceStatement
                 Nothing -> pure Vector.empty
           collect pageSize (acc <> notifs) more' remaining' remainingBytes' nextPage
 
@@ -330,17 +288,6 @@ fetchPageStartStatement =
 
 fetchPageSinceStatement :: Hasql.Statement (UUID, UTCTime, UTCTime, UUID, Int64) (Vector PGNotifRow)
 fetchPageSinceStatement =
-  [vectorStatement|
-      SELECT occurred_at :: timestamptz, id :: uuid, payload :: bytea?, payload_ref :: uuid?, payload_ref_size :: int4?, clients :: text[]
-      FROM notifications
-      WHERE user_id = ($1 :: uuid) AND expires_at > now()
-        AND (occurred_at > ($2 :: timestamptz) OR (occurred_at = ($3 :: timestamptz) AND id > ($4 :: uuid)))
-      ORDER BY occurred_at ASC, id ASC
-      LIMIT ($5 :: int8)
-    |]
-
-fetchPageNextStatement :: Hasql.Statement (UUID, UTCTime, UTCTime, UUID, Int64) (Vector PGNotifRow)
-fetchPageNextStatement =
   [vectorStatement|
       SELECT occurred_at :: timestamptz, id :: uuid, payload :: bytea?, payload_ref :: uuid?, payload_ref_size :: int4?, clients :: text[]
       FROM notifications
