@@ -186,6 +186,7 @@ postgresMigration:
   budget: postgresql
   nonce: postgresql
   connections: cassandra
+  mlsCommitLocks: postgresql
 
 optSettings:
   setActivationTimeout: 4

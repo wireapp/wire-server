@@ -1,0 +1,3 @@
+Move mls commit locks from cassandra to postgresql advisory locks
+
+Locks are now pg advisory locks held on a dedicated pooled connection for the duration of a commit; contention answers stale-message immediately. No backfill worker or storage flag is needed; the cassandra mls_commit_locks table becomes unread and can be dropped in a follow-up. During a rolling restart of galley there is a brief mixed-arbiter window (old pods lock via cassandra, new pods via postgres); avoid running commits against one group across old and new pods simultaneously, and avoid rolling back after cutover.

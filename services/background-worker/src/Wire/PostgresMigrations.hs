@@ -114,6 +114,7 @@ domainRegistration migOpts = do
     Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
     cancel migrationLoop
 
+
 users :: MigrationOptions -> AppT IO CleanupAction
 users migOpts = do
   cassClient <- asks (.cassandraBrig)
