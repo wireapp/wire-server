@@ -17,7 +17,6 @@
 
 module Wire.ProposalStore.Cassandra
   ( interpretProposalStoreToCassandra,
-    selectAllProposals,
     ProposalOrigin (..),
   )
 where
@@ -78,6 +77,3 @@ getAllPending = "select ref, origin, proposal from mls_proposal_refs where group
 
 deleteAllProposalsForGroup :: PrepQuery W (Identity GroupId) ()
 deleteAllProposalsForGroup = "delete from mls_proposal_refs where group_id = ?"
-
-selectAllProposals :: PrepQuery R () (GroupId, Epoch, ProposalRef, Maybe ProposalOrigin, Int32, RawMLS Proposal)
-selectAllProposals = "select group_id, epoch, ref, origin, ttl(proposal), proposal from mls_proposal_refs"
