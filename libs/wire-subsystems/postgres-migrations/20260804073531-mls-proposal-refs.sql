@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS mls_proposal_refs (
   PRIMARY KEY (group_id, epoch, ref)
 );
 
--- index for lookups like `WHERE group_id = ? AND epoch = ? AND expires_at > now()`
-CREATE INDEX IF NOT EXISTS mls_proposal_refs_group_epoch_expires_at_idx
-  ON mls_proposal_refs (group_id, epoch, expires_at);
+-- Lookups by (group_id, epoch) and deletes by group_id use the primary key.
+-- This index serves the TTL cleanup `DELETE ... WHERE expires_at < now()`.
+CREATE INDEX IF NOT EXISTS mls_proposal_refs_expires_at_idx
+  ON mls_proposal_refs (expires_at);

@@ -1670,13 +1670,6 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
--- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.nonce (
-    user_id uuid NOT NULL,
-    key text NOT NULL,
-    nonce uuid NOT NULL,
 -- Name: mls_proposal_refs; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1690,8 +1683,21 @@ CREATE TABLE public.mls_proposal_refs (
 );
 
 
-ALTER TABLE public.nonce OWNER TO "wire-server";
 ALTER TABLE public.mls_proposal_refs OWNER TO "wire-server";
+
+--
+-- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.nonce (
+    user_id uuid NOT NULL,
+    key text NOT NULL,
+    nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.nonce OWNER TO "wire-server";
 
 --
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
@@ -2224,16 +2230,19 @@ ALTER TABLE ONLY public.mls_history_client
 
 
 --
--- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.nonce
-    ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 -- Name: mls_proposal_refs mls_proposal_refs_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.mls_proposal_refs
     ADD CONSTRAINT mls_proposal_refs_pkey PRIMARY KEY (group_id, epoch, ref);
+
+
+--
+-- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.nonce
+    ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
 
 --
@@ -2795,10 +2804,10 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 
 
 --
--- Name: mls_proposal_refs_group_epoch_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+-- Name: mls_proposal_refs_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
-CREATE INDEX mls_proposal_refs_group_epoch_expires_at_idx ON public.mls_proposal_refs USING btree (group_id, epoch, expires_at);
+CREATE INDEX mls_proposal_refs_expires_at_idx ON public.mls_proposal_refs USING btree (expires_at);
 
 
 --
