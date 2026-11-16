@@ -17,7 +17,6 @@
 
 module Wire.SessionStore.Postgres
   ( interpretSessionStoreToPostgres,
-    insertCookie,
   )
 where
 
@@ -32,6 +31,7 @@ where
 import Data.Id
 import Data.Time.Clock
 import Data.UUID (UUID)
+import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as Hasql
@@ -41,13 +41,13 @@ import Polysemy
 import Wire.API.PostgresMarshall
 import Wire.API.User.Auth
 import Wire.Postgres
-import Wire.SessionStore hiding (insertCookie)
+import Wire.SessionStore
 
 interpretSessionStoreToPostgres ::
   (PGConstraints r) =>
   InterpreterFor SessionStore r
 interpretSessionStoreToPostgres = interpret $ \case
-  InsertCookie uid cookie ttl -> insertCookie uid cookie ttl
+  InsertCookie uid cookie ttl -> insertCookieImpl uid cookie ttl
   LookupCookie uid expiry cid -> lookupImpl uid expiry cid
   ListCookies uid -> listImpl uid
   DeleteAllCookies uid -> deleteAllImpl uid
@@ -69,8 +69,8 @@ cookieColumns ck =
 -- row carries an explicit @invalid_after@ boundary instead: cookie expiry by
 -- default, or now() + TTL when a (short) TTL is passed, as renewCookie does
 -- for superseded cookies. Lookups ignore rows past that boundary.
-insertCookie :: (PGConstraints r) => UserId -> Cookie () -> Maybe TTL -> Sem r ()
-insertCookie u ck ttl =
+insertCookieImpl :: (PGConstraints r) => UserId -> Cookie () -> Maybe TTL -> Sem r ()
+insertCookieImpl u ck ttl =
   runSessionWithRetry $ do
     HasqlSession.statement u.toUUID purgeExpiredStatement
     HasqlSession.statement (u.toUUID, i, t, c, l, s, x, ttlSecs) insertStatement
@@ -155,14 +155,14 @@ listImpl u =
                           ORDER BY expires_at ASC|]
 
 deleteImpl :: (PGConstraints r) => UserId -> [Cookie ()] -> Sem r ()
+deleteImpl _ [] = pure ()
 deleteImpl u cs =
-  runSessionWithRetry $
-    traverse_ (\c -> HasqlSession.statement (u.toUUID, postgresMarshall (cookieId c)) deleteStatement) cs
+  runStatement (u.toUUID, Vector.fromList (map (postgresMarshall . cookieId) cs)) deleteStatement
   where
-    deleteStatement :: Hasql.Statement (UUID, Int64) ()
+    deleteStatement :: Hasql.Statement (UUID, Vector Int64) ()
     deleteStatement =
       [resultlessStatement|DELETE FROM user_cookies
-                           WHERE user_id = ($1 :: uuid) AND id = ($2 :: int8)|]
+                           WHERE user_id = ($1 :: uuid) AND id = ANY ($2 :: int8[])|]
 
 deleteAllImpl :: (PGConstraints r) => UserId -> Sem r ()
 deleteAllImpl u =
