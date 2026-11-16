@@ -47,9 +47,8 @@ import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Test.QuickCheck (Arbitrary (..), listOf1)
+import Test.QuickCheck (Arbitrary (..), Gen, chooseInt, elements, listOf1, oneof, vectorOf)
 import URI.ByteString
-import URI.ByteString.QQ qualified as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
 import Wire.API.PostgresMarshall
@@ -87,8 +86,25 @@ instance FromHttpApiData RedirectUrl where
   parseUrlPiece = parseHeader . TE.encodeUtf8
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
+-- | Generates absolute @http(s)@ URLs with varying host, optional port, path
+-- and query. Components only use lowercase alphanumerics, so the generated
+-- values survive serialisation round trips unchanged.
 instance Arbitrary RedirectUrl where
-  arbitrary = pure $ RedirectUrl [URI.QQ.uri|https://example.com|]
+  arbitrary = do
+    scheme <- elements ["http", "https"]
+    host <- intercalate "." <$> listOfRange 1 3 component
+    port <- oneof [pure "", (':' :) . show <$> chooseInt (1, 65535)]
+    path <- concatMap ('/' :) <$> listOfRange 0 3 component
+    queryPairs <- listOfRange 0 3 ((\k v -> k <> "=" <> v) <$> component <*> component)
+    let queryPart = if null queryPairs then "" else '?' : intercalate "&" queryPairs
+        raw = scheme <> "://" <> host <> port <> path <> queryPart
+    either (error . ("Arbitrary RedirectUrl: " <>) . show) (pure . RedirectUrl) $
+      parseURI strictURIParserOptions (TE.encodeUtf8 (T.pack raw))
+    where
+      listOfRange :: Int -> Int -> Gen a -> Gen [a]
+      listOfRange lo hi g = chooseInt (lo, hi) >>= flip vectorOf g
+      component :: Gen String
+      component = listOfRange 1 10 (elements (['a' .. 'z'] <> ['0' .. '9']))
 
 type OAuthApplicationNameMinLength = (6 :: Nat)
 
