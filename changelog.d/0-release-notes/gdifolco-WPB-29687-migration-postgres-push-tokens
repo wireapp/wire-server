@@ -1,1 +1,1 @@
-New operator configuration key for the gundeck push token store backend choice: `gundeck.postgresMigration.pushTokens` (`cassandra` | `postgresql`).
+New operator configuration key `galley.config.postgresMigration.pushTokens` (`cassandra` | `postgresql`, default `cassandra`) selects the gundeck push token store backend. The gundeck chart renders its `postgresMigration` block from `galley.config.postgresMigration`, so set it there.

@@ -22,12 +22,11 @@
 -- non-key columns on conflict.
 module Wire.PushTokenStore.Postgres
   ( interpretPushTokenStoreToPostgres,
-    insertPushTokenRow,
   )
 where
 
 import Data.ByteString.Conversion (fromByteString)
-import Data.Id (ClientId, ConnId (..), Id (..), UserId, toUUID)
+import Data.Id (ClientId, Id (..), UserId, toUUID)
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (UUID)
@@ -53,7 +52,9 @@ interpretPushTokenStoreToPostgres = interpret $ \case
   LookupPushTokens u _c -> pgLookup u
   LookupPushTokensForUsers us _c -> pgLookupForUsers us
   InsertPushToken u t a p arn conn client ->
-    insertPushTokenRow u t a p (Just arn) conn (Just client)
+    runStatement
+      (toUUID u, postgresMarshall t, appNameText a, tokenText p, Just arn, postgresMarshall conn, Just (postgresMarshall client))
+      insertStatement
   UpdatePushTokenArn u t a p arn ->
     runStatement (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn)
       updateArnStatement
@@ -62,24 +63,6 @@ interpretPushTokenStoreToPostgres = interpret $ \case
       deleteStatement
   ErasePushTokens u ->
     runStatement (toUUID u) eraseStatement
-
--- | Insert (upsert) one @user_push@ row. Shared by the runtime path (which
--- always has an ARN and a client) and the migration copy loop (which copies
--- whatever Cassandra holds, including nulls) so they cannot drift.
-insertPushTokenRow ::
-  (PGConstraints r) =>
-  UserId ->
-  Transport ->
-  AppName ->
-  Token ->
-  Maybe Text ->
-  ConnId ->
-  Maybe ClientId ->
-  Sem r ()
-insertPushTokenRow u t a p arn conn client =
-  runStatement
-    (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn, postgresMarshall conn, postgresMarshall <$> client)
-    insertStatement
 
 pgLookup ::
   (PGConstraints r) =>

@@ -1,5 +1,5 @@
 -- Mirrors the Cassandra user_push table (cassandra-schema.cql); push tokens
--- have no TTL, so this is a copy-only migration with no expires/pg_cron.
+-- have no TTL, so there is no expires_at column and no pg_cron job.
 CREATE TABLE user_push (
   usr uuid NOT NULL,
   ptoken text NOT NULL,
