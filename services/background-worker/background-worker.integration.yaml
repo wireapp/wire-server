@@ -106,4 +106,3 @@ postgresMigration:
   nonce: postgresql
   connections: postgresql
   sessions: postgresql
-  mlsCommitLocks: postgresql

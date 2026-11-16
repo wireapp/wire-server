@@ -58,8 +58,7 @@ testEnv = do
             budget = CassandraStorage,
             nonce = CassandraStorage,
             connections = CassandraStorage,
-            sessions = CassandraStorage,
-            mlsCommitLocks = CassandraStorage
+            sessions = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
@@ -78,6 +77,7 @@ testEnv = do
             maxAttempts = toRange (Proxy @3)
           }
       hasqlPool = undefined
+      mlsCommitLockPool = undefined
       amqpJobsPublisherChannel = undefined
       amqpBackendNotificationsChannel = undefined
       federationDomain = Domain "local"

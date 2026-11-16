@@ -277,4 +277,3 @@ postgresMigration:
   budget: postgresql
   connections: postgresql
   sessions: postgresql
-  mlsCommitLocks: postgresql

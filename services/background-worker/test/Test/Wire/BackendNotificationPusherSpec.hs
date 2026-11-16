@@ -487,6 +487,7 @@ spec = do
                 maxAttempts = toRange (Proxy @3)
               }
           hasqlPool = undefined
+          mlsCommitLockPool = undefined
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
@@ -504,8 +505,7 @@ spec = do
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
                 connections = CassandraStorage,
-                sessions = CassandraStorage,
-                mlsCommitLocks = CassandraStorage
+                sessions = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -561,6 +561,7 @@ spec = do
                 maxAttempts = toRange (Proxy @3)
               }
           hasqlPool = undefined
+          mlsCommitLockPool = undefined
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
@@ -578,8 +579,7 @@ spec = do
                 budget = CassandraStorage,
                 nonce = CassandraStorage,
                 connections = CassandraStorage,
-                sessions = CassandraStorage,
-                mlsCommitLocks = CassandraStorage
+                sessions = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
