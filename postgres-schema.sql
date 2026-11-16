@@ -1382,7 +1382,11 @@ CREATE TABLE public.budget (
 
 
 ALTER TABLE public.budget OWNER TO "wire-server";
+
+--
 -- Name: clients; Type: TABLE; Schema: public; Owner: wire-server
+--
+
 CREATE TABLE public.clients (
     user_id uuid NOT NULL,
     client_id text NOT NULL,
@@ -1394,6 +1398,9 @@ CREATE TABLE public.clients (
     model text,
     capabilities integer[],
     last_active timestamp with time zone
+);
+
+
 ALTER TABLE public.clients OWNER TO "wire-server";
 
 --
@@ -1683,6 +1690,20 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
+-- Name: mls_public_keys; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_public_keys (
+    user_id uuid NOT NULL,
+    client_id text NOT NULL,
+    sig_scheme text NOT NULL,
+    key bytea NOT NULL
+);
+
+
+ALTER TABLE public.mls_public_keys OWNER TO "wire-server";
+
+--
 -- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1695,12 +1716,6 @@ CREATE TABLE public.nonce (
 
 
 ALTER TABLE public.nonce OWNER TO "wire-server";
--- Name: mls_public_keys; Type: TABLE; Schema: public; Owner: wire-server
-CREATE TABLE public.mls_public_keys (
-    client_id text NOT NULL,
-    sig_scheme text NOT NULL,
-    key bytea NOT NULL
-ALTER TABLE public.mls_public_keys OWNER TO "wire-server";
 
 --
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
@@ -1795,15 +1810,6 @@ CREATE TABLE public.team_features (
 
 
 ALTER TABLE public.team_features OWNER TO "wire-server";
-
---
---
-
-    user_id uuid NOT NULL,
-    client_id text NOT NULL
-);
-
-
 
 --
 -- Name: user_cookies; Type: TABLE; Schema: public; Owner: wire-server
@@ -2117,7 +2123,12 @@ ALTER TABLE ONLY public.bot_conv
 
 ALTER TABLE ONLY public.budget
     ADD CONSTRAINT budget_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: clients clients_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
 ALTER TABLE ONLY public.clients
     ADD CONSTRAINT clients_pkey PRIMARY KEY (user_id, client_id);
 
@@ -2259,14 +2270,19 @@ ALTER TABLE ONLY public.mls_history_client
 
 
 --
+-- Name: mls_public_keys mls_public_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_public_keys
+    ADD CONSTRAINT mls_public_keys_pkey PRIMARY KEY (user_id, client_id, sig_scheme);
+
+
+--
 -- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
--- Name: mls_public_keys mls_public_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
-ALTER TABLE ONLY public.mls_public_keys
-    ADD CONSTRAINT mls_public_keys_pkey PRIMARY KEY (user_id, client_id, sig_scheme);
 
 
 --
@@ -2307,10 +2323,6 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
-
-
---
---
 
 
 --
