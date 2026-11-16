@@ -33,7 +33,7 @@ module Test.Spar.SCIM where
 import API.Brig
 import API.BrigInternal (getUsersByEmail)
 import API.Common (defPassword, randomEmail)
-import API.Galley qualified as Galley
+import qualified API.Galley as Galley
 import API.Spar
 import SetupHelpers
 import Testlib.Prelude
@@ -152,8 +152,8 @@ checkScimGroupIsLocked mutate = do
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
   uid <- scimUser %. "id" >>= asString
   other <- wireUser %. "id" >>= asString
-  let group = object ["schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group" :: String], "displayName" .= ("original" :: String), "members" .= [object ["value" .= uid]]]
-  gid <- createScimUserGroup OwnDomain tok group >>= getJSON 201 >>= (%. "id") >>= asString
+  let grp = object ["schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group" :: String], "displayName" .= ("original" :: String), "members" .= [object ["value" .= uid]]]
+  gid <- createScimUserGroup OwnDomain tok grp >>= getJSON 201 >>= (%. "id") >>= asString
   before <- getScimUserGroup OwnDomain tok gid >>= getJSON 200
   mutate owner gid uid other >>= assertStatus 403
   after <- getScimUserGroup OwnDomain tok gid >>= getJSON 200
