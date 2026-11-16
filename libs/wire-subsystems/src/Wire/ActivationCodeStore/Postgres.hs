@@ -17,9 +17,6 @@
 
 module Wire.ActivationCodeStore.Postgres
   ( interpretActivationCodeStoreToPostgres,
-    insertActivationKeyRow,
-    insertActivationKeyRowIfNotDeleted,
-    insertActivationKeyDeletionMarker,
   )
 where
 
@@ -77,31 +74,6 @@ newActivationCodeImpl ek timeout u = do
   runStatement (key, "email", keyText, code, u, maxAttempts, round timeout) insertWithTtl
   pure $ Activation key code
 
--- | Used by the migration loop to copy an existing row verbatim (with a
--- computed @expires_at@ derived from the Cassandra TTL).
-insertActivationKeyRow ::
-  (PGConstraints r) =>
-  (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ->
-  Sem r ()
-insertActivationKeyRow (key, keyType, keyText, code, mUser, retries, ttlSecs) =
-  runStatement (key, keyType, keyText, code, mUser, retries, ttlSecs) insertWithTtl
-
--- | Used by the copy loop: like @insertActivationKeyRow@, but skips the insert
--- when the key was deleted after a previous pass (recorded in
--- @activation_keys_deletions@ by the dual-write delete), so re-running the
--- migration cannot resurrect a consumed key.
-insertActivationKeyRowIfNotDeleted ::
-  (PGConstraints r) =>
-  (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ->
-  Sem r ()
-insertActivationKeyRowIfNotDeleted (key, keyType, keyText, code, mUser, retries, ttlSecs) =
-  runStatement (key, keyType, keyText, code, mUser, retries, ttlSecs) insertIfNotDeleted
-
--- | Record a key as deleted in the @activation_keys_deletions@ marker table;
--- called by the dual-write delete so the copy loop can filter it out.
-insertActivationKeyDeletionMarker :: (PGConstraints r) => ActivationKey -> Sem r ()
-insertActivationKeyDeletionMarker key = runStatement key insertDeletionMarker
-
 --------------------------------------------------------------------------------
 -- Statements
 
@@ -119,25 +91,6 @@ insertWithTtl =
           user_id = ($5 :: uuid?),
           retries = ($6 :: int4),
           expires_at = now() + make_interval(secs => $7 :: int4)
-    |]
-
-insertIfNotDeleted ::
-  Hasql.Statement (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
-insertIfNotDeleted =
-  lmapPG
-    [resultlessStatement|
-      INSERT INTO activation_keys (key, key_type, key_text, code, user_id, retries, expires_at)
-      SELECT ($1 :: text), ($2 :: text), ($3 :: text), ($4 :: text), ($5 :: uuid?), ($6 :: int4), now() + make_interval(secs => $7 :: int4)
-      WHERE NOT EXISTS (SELECT 1 FROM activation_keys_deletions WHERE key = ($1 :: text))
-      ON CONFLICT (key) DO NOTHING
-    |]
-
-insertDeletionMarker :: Hasql.Statement ActivationKey ()
-insertDeletionMarker =
-  lmapPG
-    [resultlessStatement|
-      INSERT INTO activation_keys_deletions (key) VALUES (($1 :: text))
-      ON CONFLICT (key) DO NOTHING
     |]
 
 selectForVerify ::
