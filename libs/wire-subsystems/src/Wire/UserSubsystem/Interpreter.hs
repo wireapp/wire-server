@@ -1287,10 +1287,9 @@ getAccountsByEmailNoFilterImpl ::
   Sem r [User]
 getAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
   config <- input
-  nubOrd <$> flip foldMap emails \ek -> do
-    mactiveUid <- lookupKey (mkEmailKey ek)
-    getUsers (nubOrd . catMaybes $ [mactiveUid])
-      <&> map (mkUserFromStored domain config.defaultLocale)
+  uids <- lookupKeys (map mkEmailKey emails)
+  getUsers (nubOrd (Map.elems uids))
+    <&> map (mkUserFromStored domain config.defaultLocale)
 
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria

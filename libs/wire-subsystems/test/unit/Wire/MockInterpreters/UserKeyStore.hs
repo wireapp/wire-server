@@ -43,6 +43,8 @@ inMemoryUserKeyStoreInterpreter ::
 inMemoryUserKeyStoreInterpreter = interpret $ \case
   LookupKey key -> do
     gets (M.lookup key)
+  LookupKeys keys ->
+    gets \m -> M.fromList [(k, u) | k <- keys, u <- maybeToList (M.lookup k m)]
   InsertKey uid key ->
     modify $ M.insert key uid
   DeleteKey key ->
