@@ -237,7 +237,9 @@ lookupClientIdsBulkImpl :: (PGConstraints r) => [UserId] -> Sem r UserClients
 lookupClientIdsBulkImpl uids = do
   rows <- V.toList <$> runStatement uids selectClientIdsBulkStatement
   pure . UserClients $
-    Map.fromList [(u, Set.fromList [c | (u', c) <- rows, u' == u]) | u <- uids]
+    Map.fromListWith
+      Set.union
+      ([(u, Set.empty) | u <- uids] <> [(u, Set.singleton c) | (u, c) <- rows])
 
 lookupClientsBulkImpl :: (PGConstraints r) => [UserId] -> Sem r (UserMap (Set Client))
 lookupClientsBulkImpl uids = do
@@ -266,10 +268,11 @@ lookupPubClientsBulkImpl ::
 lookupPubClientsBulkImpl uids = do
   rows <- V.toList <$> runStatement uids selectPubClientsBulkStatement
   pure . UserMap $
-    Map.fromList
-      [ (u, Set.fromList [PubClient c cl | (u', c, cl) <- rows, u' == u])
-      | u <- uids
-      ]
+    Map.fromListWith
+      Set.union
+      ( [(u, Set.empty) | u <- uids]
+          <> [(u, Set.singleton (PubClient c cl)) | (u, c, cl) <- rows]
+      )
 
 lookupPrekeyPresenceBulkImpl ::
   (PGConstraints r) =>
