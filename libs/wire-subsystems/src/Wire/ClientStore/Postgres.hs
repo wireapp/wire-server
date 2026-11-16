@@ -18,9 +18,10 @@
 -- | Postgres interpreter for the client store.
 --
 -- Unlike the Cassandra interpreter, no locking (local 'MVar' or DynamoDB-based
--- optimistic locking) is needed for 'ClaimPrekey': the single atomic
--- @DELETE … RETURNING@ statement already serialises concurrent claims, so the
--- locking machinery would only add contention, not correctness.
+-- optimistic locking) is needed for 'ClaimPrekey': a single atomic
+-- @DELETE … RETURNING@ statement whose candidate selection uses
+-- @FOR UPDATE SKIP LOCKED@ hands out distinct prekeys to concurrent claims, so
+-- the locking machinery would only add contention, not correctness.
 module Wire.ClientStore.Postgres
   ( interpretClientStoreToPostgres,
     deletePrekeyImpl,
@@ -143,9 +144,13 @@ updatePrekeysImpl uid cid pks =
 --
 -- The Cassandra interpreter needed an 'MVar' or a DynamoDB-based optimistic
 -- lock around its select-then-delete to avoid double claims; the Postgres
--- version does the selection and deletion in a single statement, so no
--- additional locking is necessary. Like the Cassandra implementation the
--- last-resort prekey (id 65535 = @lastPrekeyId@, see
+-- version does the selection and deletion in a single statement. The candidate
+-- row is selected with @FOR UPDATE SKIP LOCKED@, so concurrent claims for the
+-- same client skip rows already being claimed by another transaction and get
+-- different prekeys (instead of racing for the same row, with the loser
+-- deleting nothing and falling back to the last-resort key although other
+-- prekeys remain). No additional locking is necessary. Like the Cassandra
+-- implementation the last-resort prekey (id 65535 = @lastPrekeyId@, see
 -- "Wire.API.User.Client.Prekey") is never consumed, only served: the claim
 -- deletes one of the other keys, and if none is left the last-resort key is
 -- served via a plain select without deleting it. The literal 65535 below must
@@ -434,7 +439,8 @@ claimPrekeyStatement =
                                  WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: text)
                                    AND key <> 65535
                                  ORDER BY random()
-                                 LIMIT 1)
+                                 LIMIT 1
+                                 FOR UPDATE SKIP LOCKED)
                     RETURNING key :: int, data :: text
                    |]
 
