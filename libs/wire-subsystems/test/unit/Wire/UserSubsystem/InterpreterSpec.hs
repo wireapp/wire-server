@@ -1053,8 +1053,9 @@ spec = describe "UserSubsystem.Interpreter" do
               removeEmailEither lusr
        in result === Left UserSubsystemProfileNotFound
     prop "Cannot remove an email of a no-identity user" $
-      \(locx :: Local ()) (NotPendingEmptyIdentityStoredUser user) config ->
-        let localBackend = def {users = [user]}
+      \(locx :: Local ()) (NotPendingEmptyIdentityStoredUser user') config ->
+        let user = user' {managedBy = Just ManagedByWire} :: StoredUser
+            localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
               runNoFederationStack localBackend mempty config $
@@ -1066,7 +1067,8 @@ spec = describe "UserSubsystem.Interpreter" do
               user'
                 { activated = True,
                   email = email,
-                  ssoId = if isNothing email then Just sso else Nothing
+                  ssoId = if isNothing email then Just sso else Nothing,
+                  managedBy = Just ManagedByWire
                 } ::
                 StoredUser
             localBackend = def {users = [user]}
@@ -1075,9 +1077,20 @@ spec = describe "UserSubsystem.Interpreter" do
               runNoFederationStack localBackend mempty config $
                 removeEmailEither lusr
          in result === Left UserSubsystemLastIdentity
+    prop "Cannot remove a SCIM-managed email" $
+      \(locx :: Local ()) (NotPendingSSOIdWithEmailStoredUser user') config ->
+        let user = user' {managedBy = Just ManagedByScim} :: StoredUser
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend mempty config $ do
+                remRes <- removeEmailEither lusr
+                (remRes,) <$> gets users
+         in result === (Left UserSubsystemEmailManagedByScim, [user])
     prop "Successfully remove an email from an SSOId user" $
-      \(locx :: Local ()) (NotPendingSSOIdWithEmailStoredUser user) config ->
-        let localBackend = def {users = [user]}
+      \(locx :: Local ()) (NotPendingSSOIdWithEmailStoredUser user') config ->
+        let user = user' {managedBy = Just ManagedByWire} :: StoredUser
+            localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
               runNoFederationStack localBackend mempty config $ do

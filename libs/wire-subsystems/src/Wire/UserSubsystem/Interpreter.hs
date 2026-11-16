@@ -1452,6 +1452,8 @@ removeEmailEitherImpl ::
 removeEmailEitherImpl lusr = runError $ do
   let uid = tUnqualified lusr
   ident <- getSelfProfileImpl lusr >>= note UserSubsystemProfileNotFound
+  when (ident.selfUser.userManagedBy == ManagedByScim) $
+    throw UserSubsystemEmailManagedByScim
   case ident.selfUser.userIdentity of
     Just (SSOIdentity (UserSSOId _) (Just e)) -> do
       deleteKey $ mkEmailKey e
