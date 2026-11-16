@@ -40,6 +40,14 @@ spec:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
+        {{- if hasKey .Values.gundeck.secrets "notificationFanInPostgresPassword" }}
+        - name: "notification-fan-in-secrets"
+          secret:
+            secretName: gundeck
+            items:
+              - key: notificationFanInPostgresPassword
+                path: password
+        {{- end }}
         {{- if and .Values.gundeck.config.rabbitmq .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
@@ -71,6 +79,11 @@ spec:
           volumeMounts:
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
+          {{- if hasKey .Values.gundeck.secrets "notificationFanInPostgresPassword" }}
+          - name: "notification-fan-in-secrets"
+            mountPath: "/etc/wire/gundeck/notification-fan-in-secrets"
+            readOnly: true
+          {{- end }}
           {{- if eq (include "useCassandraTLS" .Values.gundeck.config.cassandra) "true" }}
           - name: "gundeck-cassandra"
             mountPath: "/etc/wire/gundeck/cassandra"
