@@ -5,6 +5,7 @@ cd "$(dirname "$0")/../.."
 if [[ -z "${NAMESPACE:-}" && -z "${KUBECONFIG:-}" && -f tmp/kubeconfig ]]; then export KUBECONFIG="$PWD/tmp/kubeconfig"; fi
 chart=charts/wire-ingress
 if [[ -z "${1:-}" ]]; then
+    "$chart/test/check-scan-tests.sh"
     # Give each child's EXIT trap time to delete its namespace on cancellation.
     for values in "$chart"/test/*/values.yaml; do basename "$(dirname "$values")"; done |
         parallel --tag --line-buffer --term-seq TERM,10000,KILL,25 --jobs "${HELM_PARALLELISM:-2}" "$0" '{}'

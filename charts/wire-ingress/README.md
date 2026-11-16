@@ -192,9 +192,14 @@ With the Nix development environment and a configured Envoy cluster:
 ```sh
 make kube-ingress-test
 make kube-ingress-test profile=fips
+make kube-ingress-test profile=tr-02102-2
 ```
 
-These scan both TLS profiles without requiring a Wire backend. `KUBECONFIG`
+These scan the default, FIPS and TR-02102-2 profiles without requiring a Wire backend.
+The TR profile follows the 2026-01 deployment guidance: FIPS TLS parameters with
+ECDSA server certificates and ECDSA signatures throughout the verified chain,
+including the trust anchor. It does not assess federation partners or other TLS
+terminators. `KUBECONFIG`
 overrides `tmp/kubeconfig`; if neither is available, kubectl's normal context is
 used. Tests assume V2 naming. For a legacy controller, set
 `WIRE_INGRESS_XDS_NAME_SCHEME_V2=false`. Non-default installations can set
