@@ -443,15 +443,10 @@ runBrigToIO e (AppT ma) = do
       -- mapError postgresUsageErrorToHttpError providers, so the Postgres-backed
       -- branches supply Input Pool and Error UsageError locally (raiseUnder2 +
       -- runInputConst + mapError); UsageError is mapped to HttpError (handled
-      -- by rethrowHttpErrorIO further up).  The dual-write branch additionally
-      -- needs TinyLog, Error MigrationLockError, Async, Race and Resource for
-      -- the shared per-user migration locks; TinyLog and MigrationLockError
-      -- are discharged positionally right above the Pool / UsageError
-      -- providers, and Async / Race / Resource come from the ambient stack.
+      -- by rethrowHttpErrorIO further up).
       sessionStoreInterpreter = case e.postgresMigration.sessions of
         CassandraStorage -> interpretSessionStoreCassandra e.casClient
-        -- The copy loop is gone; the legacy migration setting degrades to
-        -- Cassandra-only reads/writes.
+        -- Sessions have no dual-write; this setting keeps using Cassandra.
         MigrationToPostgresql -> interpretSessionStoreCassandra e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
