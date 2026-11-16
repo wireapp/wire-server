@@ -61,12 +61,10 @@ interpretTeamNotificationStoreToPostgres = interpret $ \case
 notificationTTL :: NominalDiffTime
 notificationTTL = 28 * nominalDay
 
--- | Insert a notification row. Shared by the runtime path and the migration
--- copy loop so they cannot drift. @occurred_at@ is decoded from the RFC 4122
--- v1 timestamp bits of the notification id (falling back to @now@ for a
--- non-v1 id, which cannot happen for ids produced by 'mkNotificationId');
--- @expires_at@ is anchored at the occurrence, so rows copied late from
--- Cassandra keep their original expiry.
+-- | Insert a notification row. @occurred_at@ is decoded from the RFC 4122 v1
+-- timestamp bits of the notification id (falling back to @now@ for a non-v1
+-- id, which cannot happen for ids produced by 'mkNotificationId');
+-- @expires_at@ is anchored at the occurrence.
 insertTeamNotification :: (PGConstraints r) => TeamId -> NotificationId -> NonEmpty JSON.Object -> Sem r ()
 insertTeamNotification tid nid objs = do
   now <- embed getCurrentTime
@@ -96,21 +94,20 @@ fetchTeamNotifications tid mnid (fromRange -> size0) = do
       runStatement (toUUID tid, fromIntegral limitBound) fetchTeamNotificationsStartStatement
     Just since ->
       runStatement (toUUID tid, sinceTime since, toUUID since, fromIntegral limitBound) fetchTeamNotificationsSinceStatement
-  -- Decode payloads in ascending order (silently skipping malformed rows,
-  -- like the Cassandra reader does), then drop the extra row that determined
-  -- 'resultHasMore'. The 'since' row itself is kept (inclusive semantics).
-  -- Note: unlike the Cassandra driver, 'resultHasMore' is reported true when
-  -- the result set exactly fills the fetched limit; clients only pay one
-  -- extra empty page.
-  let decoded =
+  -- 'resultHasMore' is true iff the extra row exists, i.e. strictly more rows
+  -- are available than requested; an exact fill reports false (like the
+  -- Cassandra reader). Drop the extra raw row first, then decode payloads in
+  -- ascending order (silently skipping malformed rows, like the Cassandra
+  -- reader does). The 'since' row itself is kept (inclusive semantics).
+  let more = Vector.length rows == limitBound
+      kept = bool rows (Vector.take (limitBound - 1) rows) more
+      decoded =
         Vector.mapMaybe
           ( \(i, payload) ->
               queuedNotification (Id i) <$> JSON.decode' (LBS.fromStrict payload)
           )
-          rows
-      more = Vector.length rows == limitBound
-      kept = bool decoded (Vector.take (Vector.length decoded - 1) decoded) more
-  pure $ ResultPage (Seq.fromList (Vector.toList kept)) more
+          kept
+  pure $ ResultPage (Seq.fromList (Vector.toList decoded)) more
   where
     -- Notification ids are v1 by construction; the fallback only matters for a
     -- caller passing a malformed id, in which case the Cassandra reader would
