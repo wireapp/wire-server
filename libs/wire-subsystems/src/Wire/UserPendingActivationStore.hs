@@ -23,7 +23,6 @@ import Data.Id
 import Data.Time.Clock
 import Imports
 import Polysemy
-import Wire.Sem.Paging
 
 data UserPendingActivation = UserPendingActivation
   { upaUserId :: !UserId,
@@ -31,14 +30,32 @@ data UserPendingActivation = UserPendingActivation
   }
   deriving stock (Eq, Show, Ord)
 
-data UserPendingActivationStore p m a where
-  Add :: UserPendingActivation -> UserPendingActivationStore p m ()
-  List ::
-    Maybe (PagingState p UserPendingActivation) ->
-    UserPendingActivationStore p m (Page p UserPendingActivation)
-  RemoveMultiple :: [UserId] -> UserPendingActivationStore p m ()
+data UserPendingActivationStore m a where
+  Add :: UserPendingActivation -> UserPendingActivationStore m ()
+  -- | @ListPage after limit@ returns up to @limit@ entries following the entry
+  -- of user @after@ (from the start for 'Nothing') in the store's iteration
+  -- order, and whether more entries follow. @after@ need not be stored
+  -- (anymore), so callers may remove entries between pages.
+  ListPage :: Maybe UserId -> Int32 -> UserPendingActivationStore m ([UserPendingActivation], Bool)
+  RemoveMultiple :: [UserId] -> UserPendingActivationStore m ()
 
 makeSem ''UserPendingActivationStore
 
-remove :: forall p r. (Member (UserPendingActivationStore p) r) => UserId -> Sem r ()
+remove :: (Member UserPendingActivationStore r) => UserId -> Sem r ()
 remove uid = removeMultiple [uid]
+
+-- | Visit every entry page by page, continuing after the last entry of the
+-- previous page. @f@ may remove the entries it is given.
+forEachPage ::
+  (Monad m) =>
+  (Maybe UserId -> m ([UserPendingActivation], Bool)) ->
+  ([UserPendingActivation] -> m ()) ->
+  m ()
+forEachPage getPage f = go Nothing
+  where
+    go after = do
+      (items, more) <- getPage after
+      f items
+      case reverse items of
+        l : _ | more -> go (Just l.upaUserId)
+        _ -> pure ()

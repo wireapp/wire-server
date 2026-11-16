@@ -280,7 +280,7 @@ type BrigLowerLevelEffects =
      Jwk,
      JwtTools,
      BudgetStore,
-     UserPendingActivationStore InternalPaging,
+     UserPendingActivationStore,
      Now,
      Delay,
      Random,
@@ -466,10 +466,10 @@ runBrigToIO e (AppT ma) = do
           PostgresqlStorage -> interpretUserStorePostgres
           MigrationToPostgresql -> interpretUserStoreToCassandraAndPostgres e.casClient
 
+      -- There is no dual-write for pending activations, so
+      -- 'MigrationToPostgresql' keeps using Cassandra.
       userPendingActivationStoreInterpreter = case e.postgresMigration.userPendingActivation of
         CassandraStorage -> userPendingActivationStoreToCassandra
-        -- The copy loop is gone; the legacy migration setting degrades to
-        -- Cassandra-only reads/writes.
         MigrationToPostgresql -> userPendingActivationStoreToCassandra
         PostgresqlStorage ->
           runInputConst e.hasqlPool
