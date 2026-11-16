@@ -222,7 +222,7 @@ data AcceptTeamInvitation = AcceptTeamInvitation
   { code :: InvitationCode,
     password :: PlainTextPassword6,
     -- `AcceptTeamInvitation` is about moving an existing account into
-    -- another team, so it's allowed to expect a registered second
+    -- another team, so it's reasonable to expect a registered second
     -- factor here.
     totpCode :: Maybe SecondFactorCode
   }
