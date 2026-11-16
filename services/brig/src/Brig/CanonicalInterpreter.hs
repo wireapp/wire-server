@@ -439,8 +439,8 @@ runBrigToIO e (AppT ma) = do
         CassandraStorage -> interpretNonceStoreToCassandra e.casClient
         PostgresqlStorage -> interpretNonceStoreToPostgres
         MigrationToPostgresql -> interpretNonceStoreToCassandraAndPostgres e.casClient
-      -- The dual-write machinery was removed: 'MigrationToPostgresql' is
-      -- treated as 'PostgresqlStorage'.
+      -- There is no dual-write interpreter for clients: 'MigrationToPostgresql'
+      -- is treated as 'PostgresqlStorage'.
       clientStore = case e.postgresMigration.clients of
         CassandraStorage -> interpretClientStoreCassandra clientStoreCassandraEnv
         PostgresqlStorage -> interpretClientStoreToPostgres
