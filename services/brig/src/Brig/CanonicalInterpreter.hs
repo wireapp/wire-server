@@ -504,8 +504,8 @@ runBrigToIO e (AppT ma) = do
       userKeyStoreInterpreter =
         case e.postgresMigration.userKey of
           CassandraStorage -> interpretUserKeyStoreCassandra e.casClient
-          -- The copy loop is gone; the legacy migration setting degrades to
-          -- Cassandra-only reads/writes.
+          -- User keys are not migrated: `migration-to-postgresql` keeps
+          -- using Cassandra.
           MigrationToPostgresql -> interpretUserKeyStoreCassandra e.casClient
           PostgresqlStorage -> interpretUserKeyStoreToPostgres
 

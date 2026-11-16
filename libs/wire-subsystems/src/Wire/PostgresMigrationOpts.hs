@@ -81,5 +81,4 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "budget"
       <*> o .: "nonce"
       <*> o .: "connections"
-
       <*> o .: "userKey"
