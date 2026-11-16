@@ -18,7 +18,7 @@
 
 module Wire.ConnectionStore.Cassandra
   ( connectionStoreToCassandra,
-    deleteIncomingConnections,
+    deleteConnectionsWithContacts,
 
     -- * Raw queries (used by the integration test and the migration loop)
     connectionsSelect,
@@ -277,15 +277,17 @@ deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRa
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
--- | Delete the reverse rows (@left = contact, right = u@) of the given
--- contacts. Unlike 'deleteConnections' this takes the contact list as an
--- argument: the dual-write interpreter uses it when u's own Cassandra
--- partitions are already cleared (u migrated), so the contact list can only
--- come from Postgres.
-deleteIncomingConnections :: (MonadClient m, MonadUnliftIO m) => UserId -> [UserId] -> m ()
-deleteIncomingConnections u contacts =
+-- | Like 'deleteConnections', but takes the contact list as an argument
+-- instead of enumerating u's Cassandra partition: deletes the reverse rows
+-- (@left = contact, right = u@) of the given contacts and clears u's own
+-- partitions. The dual-write interpreter uses it with the union of both
+-- stores' contact lists, since once u is migrated only Postgres knows them.
+deleteConnectionsWithContacts :: (MonadClient m, MonadUnliftIO m) => UserId -> [UserId] -> m ()
+deleteConnectionsWithContacts u contacts = do
   pooledForConcurrentlyN_ 16 contacts $ \other ->
     write connectionDelete $ params LocalQuorum (other, u)
+  retry x1 . write connectionClear $ params LocalQuorum (Identity u)
+  retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
 
 connectionStoreToCassandra ::
   forall r.
