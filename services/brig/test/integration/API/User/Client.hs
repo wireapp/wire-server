@@ -108,7 +108,7 @@ tests _cl _at opts p db n b c g =
       test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
       testGroup
         "post /clients - verification code"
-        [ test p "success" $ testAddGetClientVerificationCode db b g,
+        [ test p "success" $ testAddGetClientVerificationCode db opts b g,
           test p "testAddGetClientMissingCode - missing code" $ testAddGetClientMissingCode b g,
           test p "testAddGetClientWrongCode - wrong code" $ testAddGetClientWrongCode b g,
           test p "testAddGetClientCodeExpired - expired code" $ testAddGetClientCodeExpired db opts b g
@@ -140,8 +140,8 @@ tests _cl _at opts p db n b c g =
         ]
     ]
 
-testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
-testAddGetClientVerificationCode db brig galley = do
+testAddGetClientVerificationCode :: DB.ClientState -> Opt.Opts -> Brig -> Galley -> Http ()
+testAddGetClientVerificationCode db opts brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
   let uid = userId u
   let Just email = userEmail u
@@ -153,7 +153,8 @@ testAddGetClientVerificationCode db brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let k = mkKey email
-  codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
+  vdb <- mkVerificationCodeDB opts db
+  codeValue <- Code.codeValue <$$> lookupCode vdb k Code.AccountLogin
   checkLoginSucceeds $
     MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue Nothing
   c :: Client <- addClient' codeValue
@@ -215,7 +216,8 @@ testAddGetClientCodeExpired db opts brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let k = mkKey email
-  codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
+  vdb <- mkVerificationCodeDB opts db
+  codeValue <- (.codeValue) <$$> lookupCode vdb k Code.AccountLogin
   checkLoginSucceeds $
     MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue Nothing
   let timeout = round (verificationTimeout opts.settings)
