@@ -857,6 +857,7 @@ spar:
     repository: quay.io/wire/spar
     tag: do-not-use
   imagePullPolicy: ""
+  secrets: {}
   metrics:
     serviceMonitor:
       enabled: false

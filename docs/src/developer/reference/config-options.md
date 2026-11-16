@@ -2410,8 +2410,8 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
-used as `password` field.
+The `postgresqlPassword` file is read by `brig`, `galley`, `spar`, and
+`background-worker`. Its content is used as `password` field.
 
 ### Using PostgreSQL for storing Cassandra-backed data
 
