@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tls-scan
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sslyze
+          image: nablac0d3/sslyze:6.3.1@sha256:3060ce2f3168cf1d74e5a0989660008052bee645826875122ba7edea95e5b95c
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          command: [/bin/sh, -c]
+          args:
+            - |
+              # --json_out - skips policy checks; write to a file instead.
+              if sslyze --custom_tls_config /config/policy.json --certinfo_ca_file /config/ca.pem \
+                  --json_out /tmp/scan.json "$(cat /config/target)" > /tmp/scan.log 2>&1; then
+                  cat /tmp/scan.json
+              else
+                  cat /tmp/scan.log
+                  exit 1
+              fi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: tls-scan

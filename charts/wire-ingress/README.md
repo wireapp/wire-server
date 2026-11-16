@@ -27,10 +27,18 @@ Use `false` for controllers using legacy xDS names. Optional overrides are
 `ENVOY_GATEWAY_NAMESPACE` (default `envoy-gateway-system`).
 
 The runner uses fresh namespaces, one ClusterIP proxy at a time, a temporary
-test CA explicitly trusted by SSLyze, and loopback port-forwarding.
+test CA explicitly trusted by SSLyze, and an SSLyze Kubernetes Job connecting directly
+to the proxy's ClusterIP. The Job mounts only the public CA and scan configuration;
+private keys stay in the ingress TLS Secret. No port-forward or relay is needed.
 It deletes its namespaces and temporary files on exit. No Wire backend, public DNS,
 load balancer or cert-manager is needed. Scan errors, unexpected TLS settings and
 missing expected protocol versions fail the run.
+
+CI uses the same command with cluster credentials. The runner needs Helm, kubectl,
+OpenSSL and jq; SSLyze runs from a pinned upstream image inside the cluster.
+Each Job has a five-minute deadline and no retries. Failures print the scanner logs
+and pod status before cleanup, and return a nonzero exit code to CI. The cluster
+must be able to pull the scanner image and allow it to reach the proxy Service.
 
 To add a case, add a directory containing `values.yaml` (chart overrides) and
 `tls.json` (SSLyze policy). Shared deployment settings are in `values.yaml` in the
