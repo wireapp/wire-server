@@ -49,6 +49,12 @@ inMemoryVerificationCodeStore =
         modify $ Map.insert (code.codeKey, code.codeScope) (code, expiresAt)
       LookupCode key scope -> lookupWithExpiry (key, scope)
       DeleteCode key scope -> modify @CodeState $ Map.delete (key, scope)
+      DecrementCodeRetries key scope -> do
+        mCode :: Maybe Code <- lookupWithExpiry (key, scope)
+        for_ mCode $ \c ->
+          when (c.codeRetries > 0) $
+            modify @CodeState $
+              Map.adjust (\(_, expiresAt) -> (c {codeRetries = c.codeRetries - 1}, expiresAt)) (key, scope)
       InsertThrottle key scope ttl -> do
         expiresAt <- (addUTCTime (fromIntegral ttl)) <$> Now.get
         modify $ Map.insert (key, scope) (ttl, expiresAt)

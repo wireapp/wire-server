@@ -19,19 +19,22 @@
 --
 -- Cassandra stores these rows with a TTL and derives the remaining lifetime via
 -- @ttl(...)@ on read. Here rows carry an @expires_at@ column; the remaining
--- lifetime is computed as @expires_at - now()@, and the
--- @expires_at > now()@ guard reproduces Cassandra's vanished-row semantics.
--- Expired rows are deleted by the pg_cron jobs @expire-vcodes@ and
--- @expire-vcodes-throttle@ scheduled by the TTL-cleanup migration (ADR-0005).
+-- lifetime is computed as @expires_at - now()@ (rounded up, so a live row never
+-- reports a remaining lifetime of zero), and the @expires_at > now()@ guard
+-- reproduces Cassandra's vanished-row semantics. Expired rows are deleted by
+-- the pg_cron jobs @expire-vcodes@ and @expire-vcodes-throttle@ scheduled by the
+-- TTL-cleanup migration (ADR-0005).
 module Wire.VerificationCodeStore.Postgres
   ( interpretVerificationCodeStoreToPostgres,
-    insertCodeRow,
-    insertThrottleRow,
+    lookupCodeRaw,
   )
 where
 
+import Control.Exception (ErrorCall (..), throwIO)
 import Data.RetryAfter (RetryAfter (..))
 import Data.UUID (UUID)
+import Hasql.Pool.Extended qualified as HasqlPoolExt
+import Hasql.Session (statement)
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -46,34 +49,23 @@ interpretVerificationCodeStoreToPostgres ::
   (PGConstraints r) =>
   InterpreterFor VerificationCodeStore r
 interpretVerificationCodeStoreToPostgres = interpret $ \case
-  InsertCode c ->
-    insertCodeRow
-      ( c.codeKey,
-        c.codeScope,
-        c.codeValue,
-        c.codeRetries,
-        c.codeFor,
-        c.codeAccount,
-        round (codeTTL c)
-      )
+  InsertCode c -> insertCode c
   LookupCode key scope -> lookupCode key scope
   DeleteCode key scope -> deleteCode key scope
-  -- Cassandra binds the initial delay as both the stored column and the row
-  -- TTL; mirror that here.
-  InsertThrottle key scope t ->
-    insertThrottleRow (key, scope, fromIntegral t, fromIntegral t)
+  DecrementCodeRetries key scope -> decrementCodeRetries key scope
+  InsertThrottle key scope t -> insertThrottle key scope t
   LookupThrottle key scope -> lookupThrottle key scope
 
--- | Upsert one @vcodes@ row. Mirrors Cassandra's @INSERT ... USING TTL@, which
--- is an upsert that resets the TTL, hence the @DO UPDATE@ clause.
-insertCodeRow ::
-  (PGConstraints r) =>
-  (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ->
-  Sem r ()
-insertCodeRow row = runStatement row insertCodeRowStatement
+-- | Mirrors Cassandra's @INSERT ... USING TTL@, which is an upsert that resets
+-- the TTL, hence the @DO UPDATE@ clause.
+insertCode :: (PGConstraints r) => Code -> Sem r ()
+insertCode c =
+  runStatement
+    (c.codeKey, c.codeScope, c.codeValue, c.codeRetries, c.codeFor, c.codeAccount, round (codeTTL c))
+    insertCodeStatement
 
-insertCodeRowStatement :: Hasql.Statement (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
-insertCodeRowStatement =
+insertCodeStatement :: Hasql.Statement (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
+insertCodeStatement =
   lmapPG
     [resultlessStatement|INSERT INTO vcodes (key, scope, value, retries, email, account, expires_at)
                          VALUES
@@ -91,29 +83,36 @@ lookupCode ::
   Key ->
   Scope ->
   Sem r (Maybe Code)
-lookupCode key scope = do
-  mRow <- runStatement (key, scope) selectCodeRowStatement
-  pure $ fmap toCode mRow
-  where
-    toCode ::
-      (Value, Retries, EmailAddress, Maybe UUID, Int32) ->
-      Code
-    toCode (v, r, e, a, remaining) =
-      Code
-        { codeKey = key,
-          codeScope = scope,
-          codeValue = v,
-          codeRetries = r,
-          codeTTL = Timeout (fromIntegral remaining),
-          codeFor = e,
-          codeAccount = a
-        }
+lookupCode key scope = toCode key scope <$$> runStatement (key, scope) selectCodeStatement
 
-selectCodeRowStatement ::
+-- | Look up a live code directly through a pool, bypassing the
+-- 'VerificationCodeStore' effect. Exposed for the brig integration suite,
+-- mirroring the raw Cassandra lookup via
+-- 'Wire.VerificationCodeStore.Cassandra.lookupCodeImpl'. 'Hasql.UsageError'
+-- has no 'Exception' instance in this hasql version, so failures surface as an
+-- 'ErrorCall'.
+lookupCodeRaw :: HasqlPoolExt.Pool -> Key -> Scope -> IO (Maybe Code)
+lookupCodeRaw pool key scope =
+  useWithResetAndRetry pool (statement (key, scope) selectCodeStatement)
+    >>= either (throwIO . ErrorCall . show) (pure . fmap (toCode key scope))
+
+toCode :: Key -> Scope -> (Value, Retries, EmailAddress, Maybe UUID, Int32) -> Code
+toCode key scope (v, r, e, a, remaining) =
+  Code
+    { codeKey = key,
+      codeScope = scope,
+      codeValue = v,
+      codeRetries = r,
+      codeTTL = Timeout (fromIntegral remaining),
+      codeFor = e,
+      codeAccount = a
+    }
+
+selectCodeStatement ::
   Hasql.Statement (Key, Scope) (Maybe (Value, Retries, EmailAddress, Maybe UUID, Int32))
-selectCodeRowStatement =
+selectCodeStatement =
   dimapPG
-    [maybeStatement|SELECT (value :: text), (retries :: int4), (email :: text), (account :: uuid?), (floor(extract(epoch from (expires_at - now()))) :: int4)
+    [maybeStatement|SELECT (value :: text), (retries :: int4), (email :: text), (account :: uuid?), (ceil(extract(epoch from (expires_at - now()))) :: int4)
                     FROM vcodes
                     WHERE key = ($1 :: text) AND scope = ($2 :: int4) AND expires_at > now()
                    |]
@@ -132,24 +131,42 @@ deleteCodeStatement =
                          WHERE key = ($1 :: text) AND scope = ($2 :: int4)
        |]
 
--- | Upsert one @vcodes_throttle@ row. @initialDelay@ and @ttlSecs@ are separate
--- parameters because the migration copy loop carries the original delay along
--- with the row's remaining TTL.
-insertThrottleRow ::
+-- | Atomically consume one retry of a live code, leaving @expires_at@
+-- untouched.
+decrementCodeRetries ::
   (PGConstraints r) =>
-  (Key, Scope, Int32, Int32) ->
+  Key ->
+  Scope ->
   Sem r ()
-insertThrottleRow row = runStatement row insertThrottleRowStatement
+decrementCodeRetries key scope = runStatement (key, scope) decrementCodeRetriesStatement
 
-insertThrottleRowStatement :: Hasql.Statement (Key, Scope, Int32, Int32) ()
-insertThrottleRowStatement =
+decrementCodeRetriesStatement :: Hasql.Statement (Key, Scope) ()
+decrementCodeRetriesStatement =
+  lmapPG
+    [resultlessStatement|UPDATE vcodes
+                         SET retries = retries - 1
+                         WHERE key = ($1 :: text) AND scope = ($2 :: int4) AND retries > 0 AND expires_at > now()
+       |]
+
+-- | Cassandra binds the initial delay as both the stored column and the row
+-- TTL; mirror that here.
+insertThrottle ::
+  (PGConstraints r) =>
+  Key ->
+  Scope ->
+  Word ->
+  Sem r ()
+insertThrottle key scope t = runStatement (key, scope, fromIntegral t) insertThrottleStatement
+
+insertThrottleStatement :: Hasql.Statement (Key, Scope, Int32) ()
+insertThrottleStatement =
   lmapPG
     [resultlessStatement|INSERT INTO vcodes_throttle (key, scope, initial_delay, expires_at)
                          VALUES
-                           ($1 :: text, $2 :: int4, $3 :: int4, now() + make_interval(secs => $4 :: int4))
+                           ($1 :: text, $2 :: int4, $3 :: int4, now() + make_interval(secs => $3 :: int4))
                          ON CONFLICT (key, scope) DO UPDATE
                          SET initial_delay = ($3 :: int4),
-                             expires_at = now() + make_interval(secs => $4 :: int4)
+                             expires_at = now() + make_interval(secs => $3 :: int4)
        |]
 
 lookupThrottle ::
@@ -157,14 +174,13 @@ lookupThrottle ::
   Key ->
   Scope ->
   Sem r (Maybe RetryAfter)
-lookupThrottle key scope = do
-  mRemaining <- runStatement (key, scope) selectThrottleRowStatement
-  pure $ RetryAfter . fromIntegral <$> mRemaining
+lookupThrottle key scope =
+  RetryAfter . fromIntegral <$$> runStatement (key, scope) selectThrottleStatement
 
-selectThrottleRowStatement :: Hasql.Statement (Key, Scope) (Maybe Int32)
-selectThrottleRowStatement =
+selectThrottleStatement :: Hasql.Statement (Key, Scope) (Maybe Int32)
+selectThrottleStatement =
   dimapPG
-    [maybeStatement|SELECT (floor(extract(epoch from (expires_at - now()))) :: int4)
+    [maybeStatement|SELECT (ceil(extract(epoch from (expires_at - now()))) :: int4)
                     FROM vcodes_throttle
                     WHERE key = ($1 :: text) AND scope = ($2 :: int4) AND expires_at > now()
                    |]
