@@ -37,8 +37,7 @@ interpretActivationCodeStoreToCassandra casClient =
           >>= retry x1 . query1 lookupCode . params LocalQuorum . Identity
       NewActivationCode ek timeout uid -> newActivationCodeImpl ek timeout uid
       DeleteActivationCode ek -> deleteActivationCodeImpl ek
-      LookupActivationKey key -> lookupActivationKeyImpl key
-      DecrementActivationRetries key -> decrementActivationRetriesImpl key
+      CheckActivationCode key code -> checkActivationCodeImpl key code
       DeleteActivationKey key -> deleteActivationKeyImpl key
   where
     lookupCode :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
@@ -73,32 +72,25 @@ deleteActivationCodeImpl uk = do
   key <- liftIO $ mkActivationKey uk
   retry x5 . write keyDelete $ params LocalQuorum (Identity key)
 
--- | Read the full row for an opaque 'ActivationKey' (unexpired rows only:
--- Cassandra drops expired rows via the TTL, so no expiry filter is needed).
-lookupActivationKeyImpl ::
+-- | Check a code against the row of an opaque 'ActivationKey'. Expired rows
+-- are dropped by Cassandra's TTL, so no expiry filter is needed. A mismatch
+-- rewrites the row with one retry less, keeping the remaining TTL read along
+-- with the row.
+checkActivationCodeImpl ::
   (MonadClient m) =>
   ActivationKey ->
-  m (Maybe ActivationKeyRow)
-lookupActivationKeyImpl key = do
-  s <- retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
-  pure $ case s of
-    Just (_, Ascii t, k, c, u, r) -> Just (ActivationKeyRow t k c u r)
-    Nothing -> Nothing
-
--- | Decrement the retry counter by one, preserving the remaining TTL.
--- (TTL-preserving decrement is a Cassandra persistence detail, which is why
--- it lives in the store.)  No-op when the row is absent or already at 0.
-decrementActivationRetriesImpl ::
-  (MonadClient m) =>
-  ActivationKey ->
-  m ()
-decrementActivationRetriesImpl key = do
+  ActivationCode ->
+  m ActivationCodeCheck
+checkActivationCodeImpl key code = do
   s <- retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   case s of
+    Nothing -> pure ActivationKeyNotFound
     Just (ttl, Ascii t, k, c, u, r)
-      | r >= 1 ->
+      | c == code -> pure $ ActivationCodeMatches (ActivationKeyRow t k u)
+      | r >= 1 -> do
           retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, r - 1, ttl)
-    _ -> pure ()
+          pure ActivationCodeMismatch
+      | otherwise -> pure ActivationRetriesExhausted
 
 -- | Delete the row for an opaque 'ActivationKey' (brute-force exhaustion).
 deleteActivationKeyImpl ::

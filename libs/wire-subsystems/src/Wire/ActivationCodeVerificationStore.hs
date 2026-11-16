@@ -41,21 +41,19 @@ data ActivationCodeVerificationStore :: Effect where
 makeSem ''ActivationCodeVerificationStore
 
 -- | Verify an activation code against the stored value.  On a match,
--- return the reconstructed scope.  On a mismatch with remaining retries,
--- decrement the counter.  On exhaustion, delete the row.  'Nothing' for
--- any non-matching outcome.
+-- return the reconstructed scope.  A mismatch consumes one retry (see
+-- 'CheckActivationCode'); once the retries are exhausted, the row is deleted.
+-- 'Nothing' for any non-matching outcome.
 interpretActivationCodeVerificationStore ::
   (Member ActivationCodeStore r) =>
   InterpreterFor ActivationCodeVerificationStore r
 interpretActivationCodeVerificationStore = interpret $ \case
-  VerifyActivationCode key code -> do
-    mRow <- lookupActivationKey key
-    case mRow of
-      Nothing -> pure Nothing
-      Just row
-        | row.code == code -> pure (mkActivationScope row.keyType row.keyText row.user)
-        | row.retries >= 1 -> decrementActivationRetries key $> Nothing
-        | otherwise -> deleteActivationKey key $> Nothing
+  VerifyActivationCode key code ->
+    checkActivationCode key code >>= \case
+      ActivationCodeMatches row -> pure (mkActivationScope row.keyType row.keyText row.user)
+      ActivationCodeMismatch -> pure Nothing
+      ActivationRetriesExhausted -> deleteActivationKey key $> Nothing
+      ActivationKeyNotFound -> pure Nothing
 
 -- | Reconstruct an activation scope from the stored key type/text.
 -- Returns 'Just' if the key type is @"email"@ and the text parses as an

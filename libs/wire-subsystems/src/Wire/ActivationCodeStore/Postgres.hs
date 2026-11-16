@@ -44,12 +44,14 @@ interpretActivationCodeStoreToPostgres = interpret $ \case
   DeleteActivationCode ek -> do
     key <- embed (mkActivationKey ek)
     runStatement key deleteCode
-  LookupActivationKey key -> do
-    mRow <- runStatement key selectForVerify
+  CheckActivationCode key code -> do
+    mRow <- runStatement (key, code) checkCode
     pure $ case mRow of
-      Just (keyType, keyText, code, user, retries) -> Just (ActivationKeyRow keyType keyText code user retries)
-      Nothing -> Nothing
-  DecrementActivationRetries key -> runStatement key decrementRetries
+      Nothing -> ActivationKeyNotFound
+      Just (keyType, keyText, user, matches, retriesLeft)
+        | matches -> ActivationCodeMatches (ActivationKeyRow keyType keyText user)
+        | retriesLeft >= 0 -> ActivationCodeMismatch
+        | otherwise -> ActivationRetriesExhausted
   DeleteActivationKey key -> runStatement key deleteCode
 
 lookupCode :: Hasql.Statement ActivationKey (Maybe (Maybe UserId, ActivationCode))
@@ -93,25 +95,20 @@ insertWithTtl =
           expires_at = now() + make_interval(secs => $7 :: int4)
     |]
 
-selectForVerify ::
-  Hasql.Statement ActivationKey (Maybe (Text, Text, ActivationCode, Maybe UserId, Int32))
-selectForVerify =
+-- | Compare the code and, on a mismatch, consume one retry, all in a single
+-- statement: the row lock serialises concurrent attempts, so at most
+-- 'maxAttempts' + 1 mismatching codes are ever compared. A mismatch with no
+-- retries left drives the counter to -1, which makes the row invisible to
+-- further checks until it is deleted.
+checkCode ::
+  Hasql.Statement (ActivationKey, ActivationCode) (Maybe (Text, Text, Maybe UserId, Bool, Int32))
+checkCode =
   dimapPG
     [maybeStatement|
-      SELECT key_type :: text,
-             key_text :: text,
-             code :: text,
-             user_id :: uuid?,
-             retries :: int4
-      FROM activation_keys
-      WHERE key = ($1 :: text) AND expires_at > now()
-    |]
-
-decrementRetries :: Hasql.Statement ActivationKey ()
-decrementRetries =
-  lmapPG
-    [resultlessStatement|
-      UPDATE activation_keys SET retries = retries - 1 WHERE key = ($1 :: text) AND retries > 0
+      UPDATE activation_keys
+      SET retries = CASE WHEN code = ($2 :: text) THEN retries ELSE retries - 1 END
+      WHERE key = ($1 :: text) AND retries >= 0 AND expires_at > now()
+      RETURNING key_type :: text, key_text :: text, user_id :: uuid?, (code = ($2 :: text)) :: bool, retries :: int4
     |]
 
 deleteCode :: Hasql.Statement ActivationKey ()

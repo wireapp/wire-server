@@ -29,7 +29,8 @@ import Text.Printf (printf)
 import Wire.API.User.Activation
 import Wire.API.User.EmailAddress
 import Wire.ActivationCodeStore
-  ( ActivationCodeStore (..),
+  ( ActivationCodeCheck (..),
+    ActivationCodeStore (..),
     ActivationKeyRow (..),
     maxAttempts,
   )
@@ -50,26 +51,29 @@ emailKeyToCode =
 mockKey :: EmailKey -> ActivationKey
 mockKey = ActivationKey . Ascii.encodeBase64Url . T.encodeUtf8 . emailKeyUniq
 
+-- | Stored per 'EmailKey': the associated user, the code and the retries left.
+type MockActivationCodes = Map EmailKey (Maybe UserId, ActivationCode, Int32)
+
 inMemoryActivationCodeStoreInterpreter ::
-  (Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r) =>
+  (Member (State MockActivationCodes) r) =>
   InterpreterFor ActivationCodeStore r
 inMemoryActivationCodeStoreInterpreter =
   interpret \case
-    LookupActivationCode ek -> gets (!? ek)
+    LookupActivationCode ek -> gets (fmap (\(uid, c, _) -> (uid, c)) . (!? ek))
     NewActivationCode ek _ uid -> do
       let key = mockKey ek
           c = emailKeyToCode ek
-      modify (insert ek (uid, c)) $> Activation key c
+      modify (insert ek (uid, c, maxAttempts)) $> Activation key c
     DeleteActivationCode ek -> modify (delete ek)
-    LookupActivationKey key -> do
+    CheckActivationCode key code -> do
       m <- get
-      pure $
-        listToMaybe
-          [ ActivationKeyRow "email" (fromEmail (emailKeyOrig ek)) c uid maxAttempts
-          | (ek, (uid, c)) <- Data.Map.toList m,
-            mockKey ek == key
-          ]
-    -- The mock keeps no retry count.
-    DecrementActivationRetries _ -> pure ()
+      case [(ek, v) | (ek, v) <- Data.Map.toList m, mockKey ek == key] of
+        [] -> pure ActivationKeyNotFound
+        ((ek, (uid, c, retries)) : _)
+          | c == code -> pure $ ActivationCodeMatches (ActivationKeyRow "email" (fromEmail (emailKeyOrig ek)) uid)
+          | retries >= 1 -> do
+              put (insert ek (uid, c, retries - 1) m)
+              pure ActivationCodeMismatch
+          | otherwise -> pure ActivationRetriesExhausted
     DeleteActivationKey key ->
       modify (Data.Map.filterWithKey (\ek _ -> mockKey ek /= key))
