@@ -96,4 +96,3 @@ propertyKeysValuesSelect = "SELECT key, value FROM properties where user = ?"
 
 propertyCount :: PrepQuery R (Identity UserId) (Identity Int64)
 propertyCount = "SELECT COUNT(*) FROM properties where user = ?"
-
