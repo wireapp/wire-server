@@ -21,6 +21,7 @@ CRDs described below:
 ```sh
 make kube-ingress-test
 make kube-ingress-test profile=fips  # run just one profile
+HELM_PARALLELISM=1 make kube-ingress-test  # run profiles sequentially
 ```
 
 The runner uses `tmp/kubeconfig` when present unless `KUBECONFIG` is already set;
@@ -30,26 +31,30 @@ Optional overrides are
 `WIRE_INGRESS_GATEWAY_CLASS` (default `envoy`, must not merge Gateways) and
 `ENVOY_GATEWAY_NAMESPACE` (default `envoy-gateway-system`).
 
-The runner uses fresh namespaces, one ClusterIP proxy at a time, a temporary
-test CA explicitly trusted by SSLyze, and an SSLyze Helm test Pod connecting directly
-to the proxy's ClusterIP. The Pod mounts only the public CA and scan configuration;
+Each profile runs in its own process and namespace. Helm creates a temporary test
+certificate, its Secret, and the scanner ConfigMap. The proxy Service has an explicit,
+unique name, so the Helm test Pod connects through cluster DNS without discovering
+an IP address. SSLyze uses the test hostname for SNI and certificate verification.
+The Pod mounts only the public CA and scan configuration;
 private keys stay in the ingress TLS Secret. No port-forward or relay is needed.
-It deletes its namespaces and temporary files on exit. No Wire backend, public DNS,
+The runner deletes its namespace on exit. No Wire backend, public DNS,
 load balancer or cert-manager is needed. Scan errors, unexpected TLS settings and
 missing expected protocol versions fail the run.
 
-Repeat or run commands concurrently: every invocation has unique namespaces and
-a separate results directory under `tmp/ingress-tests/run.*`. Successful scans
+GNU parallel runs up to `HELM_PARALLELISM` profiles at once (default 2), aggregates
+failures, and keeps each profile's cleanup isolated. Repeat or run commands
+concurrently: every profile has a unique namespace and results directory under
+`tmp/ingress-tests/<profile>.*`. Successful scans
 leave JSON results; failures also save scanner logs, resource status and events.
-Temporary certificates and private keys are removed on exit.
+Private keys are never written to the local results directory.
 
 CI uses the same command with cluster credentials. The runner needs Helm, kubectl,
-OpenSSL and jq; SSLyze runs from a pinned upstream image inside the cluster.
+GNU parallel and jq; SSLyze runs from a pinned upstream image inside the cluster.
 The Pod hook lives in [`templates/tests/tls-scan.yaml`](templates/tests/tls-scan.yaml),
 following the other charts' Helm test layout. `test/values.yaml` enables it via
-`tests.enabled`; it is disabled in normal deployments. The shared runner supplies
-the scan ConfigMap, calls `helm test` on the ingress release itself, and checks
-the resulting JSON for completed scans and required TLS versions.
+`tests.enabled`; fixtures and hooks are disabled in normal deployments. The runner
+only installs the chart, waits for the Gateway, invokes `helm test`, and validates
+the resulting JSON using [`test/check-scan.jq`](test/check-scan.jq).
 Each Pod has a five-minute deadline and no retries. Failures print the scanner logs,
 save resource status before cleanup, and return a nonzero exit code to CI. The cluster
 must be able to pull the scanner image and allow it to reach the proxy Service.

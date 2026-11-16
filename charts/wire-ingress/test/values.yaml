@@ -3,9 +3,14 @@ tests:
 gateway:
   name: tls-test
   className: envoy
-  serviceType: ClusterIP
+  manageServiceType: false
   envoyProxy:
     replicas: 1
+    spec:
+      provider:
+        kubernetes:
+          envoyService:
+            type: ClusterIP
   listeners:
     https:
       hostname: ingress.example.test

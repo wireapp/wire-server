@@ -26,7 +26,8 @@ spec:
       args:
         - |
           # --json_out - skips policy checks; write to a file instead.
-          if sslyze --custom_tls_config /config/policy.json --certinfo_ca_file /config/ca.pem \
+          if sslyze --sni {{ .Values.gateway.listeners.https.hostname | quote }} \
+              --custom_tls_config /config/policy.json --certinfo_ca_file /config/ca.pem \
               --json_out /tmp/scan.json "$(cat /config/target)" > /tmp/scan.log 2>&1; then
               cat /tmp/scan.json
           else
