@@ -7,7 +7,7 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 ## TLS regression tests
 
 `make kube-ingress-test` deploys this chart once per profile in
-[`integration/ingress`](../../integration/ingress), then checks each deployment
+[`test/`](test/), then checks each deployment
 with [SSLyze](https://github.com/nabla-c0d3/sslyze)'s native custom TLS policy:
 
 | Profile | TLS versions | Ciphers | Key exchange curves |
@@ -31,8 +31,8 @@ Optional overrides are
 `ENVOY_GATEWAY_NAMESPACE` (default `envoy-gateway-system`).
 
 The runner uses fresh namespaces, one ClusterIP proxy at a time, a temporary
-test CA explicitly trusted by SSLyze, and an SSLyze Kubernetes Job connecting directly
-to the proxy's ClusterIP. The Job mounts only the public CA and scan configuration;
+test CA explicitly trusted by SSLyze, and an SSLyze Helm test Pod connecting directly
+to the proxy's ClusterIP. The Pod mounts only the public CA and scan configuration;
 private keys stay in the ingress TLS Secret. No port-forward or relay is needed.
 It deletes its namespaces and temporary files on exit. No Wire backend, public DNS,
 load balancer or cert-manager is needed. Scan errors, unexpected TLS settings and
@@ -45,10 +45,12 @@ Temporary certificates and private keys are removed on exit.
 
 CI uses the same command with cluster credentials. The runner needs Helm, kubectl,
 OpenSSL and jq; SSLyze runs from a pinned upstream image inside the cluster.
-The scan Job is a Helm test hook in `integration/ingress/scan`; the shared runner
-calls `helm test` and checks the resulting JSON for completed scans and required
-TLS versions.
-Each Job has a five-minute deadline and no retries. Failures print the scanner logs,
+The Pod hook lives in [`templates/tests/tls-scan.yaml`](templates/tests/tls-scan.yaml),
+following the other charts' Helm test layout. `test/values.yaml` enables it via
+`tests.enabled`; it is disabled in normal deployments. The shared runner supplies
+the scan ConfigMap, calls `helm test` on the ingress release itself, and checks
+the resulting JSON for completed scans and required TLS versions.
+Each Pod has a five-minute deadline and no retries. Failures print the scanner logs,
 save resource status before cleanup, and return a nonzero exit code to CI. The cluster
 must be able to pull the scanner image and allow it to reach the proxy Service.
 

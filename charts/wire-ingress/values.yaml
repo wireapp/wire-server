@@ -12,6 +12,10 @@
 # See the README of this chart and deployment documentation for more details
 FIPS_202205_tls_profile: false
 
+# The chart test runner supplies the scan ConfigMap before invoking helm test.
+tests:
+  enabled: false
+
 httpRoute:
   # Annotations added to every HTTPRoute created by this chart.
   annotations: {}
