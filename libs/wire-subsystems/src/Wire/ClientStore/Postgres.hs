@@ -24,7 +24,6 @@
 -- the locking machinery would only add contention, not correctness.
 module Wire.ClientStore.Postgres
   ( interpretClientStoreToPostgres,
-    deletePrekeyImpl,
   )
 where
 
@@ -415,19 +414,6 @@ deletePrekeysStatement =
   lmapPG
     [resultlessStatement|DELETE FROM prekeys
                          WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: text)
-                        |]
-
--- | Delete a single claimed prekey; used by the dual-write interpreter to
--- mirror a Cassandra prekey claim to Postgres.
-deletePrekeyImpl :: (PGConstraints r) => UserId -> ClientId -> PrekeyId -> Sem r ()
-deletePrekeyImpl uid cid k =
-  runStatement (uid, cid, postgresMarshall k) deletePrekeyStatement
-
-deletePrekeyStatement :: Hasql.Statement (UserId, ClientId, Int32) ()
-deletePrekeyStatement =
-  lmapPG
-    [resultlessStatement|DELETE FROM prekeys
-                         WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: text) AND key = ($3 :: int)
                         |]
 
 claimPrekeyStatement :: Hasql.Statement (UserId, ClientId) (Maybe (Int32, Text))
