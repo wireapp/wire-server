@@ -1773,13 +1773,6 @@ CREATE TABLE public.team_search_visibility (
 ALTER TABLE public.team_search_visibility OWNER TO "wire-server";
 
 --
--- Name: team_search_visibility team_search_visibility_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.team_search_visibility
-    ADD CONSTRAINT team_search_visibility_pkey PRIMARY KEY (team);
-
---
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2250,6 +2243,14 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team_search_visibility team_search_visibility_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_search_visibility
+    ADD CONSTRAINT team_search_visibility_pkey PRIMARY KEY (team);
 
 
 --
