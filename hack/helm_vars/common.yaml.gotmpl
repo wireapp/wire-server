@@ -18,6 +18,7 @@ conversationStore: {{ $preferredStore }}
 conversationCodesStore: migration-to-postgresql # WPB-29361: meeting join codes are Postgres-only and links are mandatory; dual-write keeps guest codes on Cassandra
 teamFeaturesStore: {{ $preferredStore }}
 teamStoreStore: {{ $preferredStore }}
+listItemsStore: {{ $preferredStore }}
 domainRegistration: {{ $preferredStore }}
 passwordReset: {{ $preferredStore }}
 customBackendStore: {{ $preferredStore }}
