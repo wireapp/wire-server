@@ -183,7 +183,7 @@ import Wire.UserPendingActivationStore (UserPendingActivationStore)
 import Wire.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Wire.UserSearchStore
 import Wire.UserSearchStore.ElasticSearch (interpretUserSearchStoreElasticSearch)
-import Wire.UserSearchStore.Postgres (interpretUserSearchStorePostgres)
+import Wire.UserSearchStore.Postgres (interpretUserSearchStorePostgres, setTeamSearchVisibilityInboundPostgres)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
@@ -582,7 +582,7 @@ runBrigToIO e (AppT ma) = do
               . domainVerificationChallengeStore
               . domainRegistrationStore
               . ( case e.searchBackend of
-                    SearchBackendElasticSearch -> interpretUserSearchStoreElasticSearch
+                    SearchBackendElasticSearch -> interpretUserSearchStoreElasticSearch setTeamSearchVisibilityInboundPostgres
                     -- Misconfigurations (postgres search with the user
                     -- store still on Cassandra) are rejected at startup in
                     -- 'Brig.App.newEnv'.

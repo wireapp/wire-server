@@ -38,6 +38,7 @@
 --   * 'getTeamSize': count of activated, active/suspended team members.
 module Wire.UserSearchStore.Postgres
   ( interpretUserSearchStorePostgres,
+    setTeamSearchVisibilityInboundPostgres,
   )
 where
 
@@ -104,8 +105,7 @@ interpretUserSearchStorePostgres =
     SearchUsersFederated mOnlyInTeams term maxResults mTypes ->
       searchUsersFederatedImpl mOnlyInTeams term maxResults mTypes
     GetTeamSize tid -> getTeamSizeImpl tid
-    SetTeamSearchVisibilityInbound tid vis ->
-      runStatement (tid, searchVisibilityInboundToInt vis) upsertTeamSearchVisibilityStatement
+    SetTeamSearchVisibilityInbound tid vis -> setTeamSearchVisibilityInboundPostgres tid vis
 
 --------------------------------------------------------------------------------
 -- SearchUsers
@@ -730,6 +730,13 @@ getTeamSizeImpl tid = do
 
 --------------------------------------------------------------------------------
 -- SetTeamSearchVisibilityInbound
+
+-- | Persists a team's inbound search visibility in @team_search_visibility@.
+-- Also used by the ElasticSearch backend, so that the table is up to date
+-- when search is switched over to Postgres.
+setTeamSearchVisibilityInboundPostgres :: (PGConstraints r) => TeamId -> SearchVisibilityInbound -> Sem r ()
+setTeamSearchVisibilityInboundPostgres tid vis =
+  runStatement (tid, searchVisibilityInboundToInt vis) upsertTeamSearchVisibilityStatement
 
 -- | Integral encoding shared with @instance C.Cql SearchVisibilityInbound@.
 searchVisibilityInboundToInt :: SearchVisibilityInbound -> Int32

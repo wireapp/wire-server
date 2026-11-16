@@ -353,7 +353,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDomainRegistrationStoreInterpreter
     . runFederationConfigStoreInMemory
     . inMemoryIndexedUserStoreInterpreter
-    . interpretUserSearchStoreElasticSearch
+    . interpretUserSearchStoreElasticSearch (\_ _ -> pure ())
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
     . inMemoryAppStoreInterpreter
