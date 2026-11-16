@@ -68,6 +68,26 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 
 data UserPageMarker = PagingExitingUsers UserId | PagingDeletedUsers UserId
 
+-- | How 'GetScimUsersPaginated' learns which pending SCIM users (managed by
+-- SCIM, status 'PendingInvitation', activated, with an email) have an expired
+-- team invitation.
+data ExpiredPendingScimUsers
+  = -- | The caller determined them already (e.g. from an 'InvitationStore'
+    -- that does not live next to the users).
+    ExpiredPendingScimUsersGiven [UserId]
+  | -- | The store determines them from the team's invitations, which it holds
+    -- itself, consistently with the page it returns.  Only valid when team
+    -- invitations are stored in the same database as the users.
+    ExpiredPendingScimUsersFromTeamInvitations
+  deriving stock (Eq, Show)
+
+data ScimUsersPage = ScimUsersPage
+  { scimUsers :: OffsetPage StoredUser,
+    -- | Pending SCIM users of the team whose invitation has expired; they are
+    -- hidden from 'scimUsers'.
+    expiredPendingUsers :: [UserId]
+  }
+
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)
 data UserStore m a where
@@ -75,13 +95,13 @@ data UserStore m a where
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
   DoesUserExist :: UserId -> UserStore m Bool
   GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState UserPageMarker) -> UserStore m (PageWithState UserPageMarker IndexUser)
-  -- | Returns a 'Maybe' because cassandra doesn't support this.
-  GetScimUsersPaginated :: TeamId -> Int32 -> Maybe Int32 -> UserStore m (Maybe (OffsetPage StoredUser))
-  -- | Pending SCIM users (see 'GetScimUsersPaginated''s visibility
-  -- predicate) whose team invitation has expired, for eager garbage
-  -- collection when a SCIM client lists the team's users.  Empty on
-  -- backends that cannot determine it (Cassandra).
-  GetExpiredPendingScimUsers :: TeamId -> UserStore m [UserId]
+  -- | A page of the team's SCIM-managed users (ordered by id), hiding the
+  -- pending SCIM users whose invitation has expired from both the page and
+  -- the total count.  Returns a 'Maybe' because cassandra doesn't support this.
+  GetScimUsersPaginated :: TeamId -> ExpiredPendingScimUsers -> Int32 -> Maybe Int32 -> UserStore m (Maybe ScimUsersPage)
+  -- | Pending SCIM users with an email identity, for invitation expiration checks.
+  -- Returns 'Nothing' when offset pagination is unsupported.
+  GetPendingScimUsers :: TeamId -> UserStore m (Maybe [(UserId, EmailAddress)])
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateEmail :: UserId -> EmailAddress -> UserStore m ()

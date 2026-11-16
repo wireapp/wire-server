@@ -52,13 +52,13 @@ import Wire.API.Team.Permission (fullPermissions)
 import Wire.API.Team.Role (Role (..))
 import Wire.API.User.EmailAddress (fromEmail)
 import Wire.API.User.IdentityProvider
-import Wire.InvitationStore (StoredInvitation)
 import Wire.EmailSending
 import Wire.EmailSubsystem qualified as Email
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.TemplateFixtures
 import Wire.GalleyAPIAccess
+import Wire.InvitationStore (StoredInvitation)
 import Wire.MockInterpreters
 import Wire.SAMLEmailSubsystem
 import Wire.SAMLEmailSubsystem.Interpreter (samlEmailSubsystemInterpreter)
@@ -367,8 +367,10 @@ runInterpreters users teamMap emailTemplates action = do
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
       . evalState @(Map (TeamId, InvitationId) StoredInvitation) mempty
+      . evalState @InvitationExpiries mempty
+      . interpretNowConst defaultTime
       . inMemoryUserStoreInterpreter
-      . raiseUnder @(State (Map (TeamId, InvitationId) StoredInvitation))
+      . raiseUnder3
       . emailSubsystemInterpreter emailTemplates branding Nothing
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter
