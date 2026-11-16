@@ -54,7 +54,6 @@ import Wire.API.PostgresMarshall
 import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
 import Wire.API.Team (Icon, TeamBinding)
 import Wire.API.Team.Feature
-import Wire.API.Team.LegalHold ()
 import Wire.API.Team.Permission (Permissions)
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
