@@ -44,7 +44,6 @@ import Data.UUID (UUID)
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Hasql.Connection qualified as HasqlConn
-import Pqi.Ffi qualified as Pqi (adapter)
 import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -64,6 +63,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, runResource)
 import Polysemy.TinyLog (TinyLog)
+import Pqi.Ffi qualified as Pqi (adapter)
 import System.Exit (exitFailure)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
@@ -312,7 +312,7 @@ selectBatch :: Statement Int32 [(UUID, Text)]
 selectBatch =
   Statement.preparable
     "SELECT id :: uuid, name :: text FROM wire_user WHERE name_normalized IS NULL AND name IS NOT NULL ORDER BY id LIMIT ($1 :: int4)"
-    (const (0 :: Int32) >$< Encoders.param (Encoders.nonNullable Encoders.int4))
+    (Encoders.param (Encoders.nonNullable Encoders.int4))
     (Decoders.rowList ((,) <$> Decoders.column (Decoders.nonNullable Decoders.uuid) <*> Decoders.column (Decoders.nonNullable Decoders.text)))
 
 -- | Batched update: one statement per page instead of one per row.
