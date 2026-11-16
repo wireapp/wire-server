@@ -190,6 +190,10 @@ import Wire.TeamMemberStore.Cassandra
   ( interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
   )
+import Wire.TeamMemberStore.Postgres
+  ( interpretTeamMemberStoreToPostgres,
+    interpretTeamMemberStoreToPostgresWithPaging,
+  )
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamStore (TeamStore)
@@ -462,6 +466,16 @@ evalGalley e =
           MigrationToPostgresql -> interpretTeamStoreMetadataToPostgres
       -- Team members (including their legal hold status) are stored together
       -- with the team metadata.
+      teamMemberStoreWithPagingInterpreter =
+        case (e ^. options . postgresMigration).team of
+          CassandraStorage -> interpretTeamMemberStoreToCassandraWithPaging lh
+          PostgresqlStorage -> interpretTeamMemberStoreToPostgresWithPaging lh
+          MigrationToPostgresql -> interpretTeamMemberStoreToPostgresWithPaging lh
+      teamMemberStoreInterpreter =
+        case (e ^. options . postgresMigration).team of
+          CassandraStorage -> interpretTeamMemberStoreToCassandra lh
+          PostgresqlStorage -> interpretTeamMemberStoreToPostgres lh
+          MigrationToPostgresql -> interpretTeamMemberStoreToPostgres lh
       legalHoldStoreInterpreter =
         case (e ^. options . postgresMigration).team of
           CassandraStorage -> interpretLegalHoldStoreToCassandra lh
@@ -571,8 +585,8 @@ evalGalley e =
         . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
-        . interpretTeamMemberStoreToCassandraWithPaging lh
-        . interpretTeamMemberStoreToCassandra lh
+        . teamMemberStoreWithPagingInterpreter
+        . teamMemberStoreInterpreter
         . teamFeatureStoreInterpreter
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
