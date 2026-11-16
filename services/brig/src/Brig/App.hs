@@ -686,30 +686,11 @@ instance HasRequestId (AppT r) where
 adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem (SessionStore ': SessionStoreStack) a -> m a
 adhocSessionStoreInterpreter action = do
   env <- ask
+  let runWith = runSessionStore env.hasqlPool env.appLogger env.requestId
   liftIO $ case env.postgresMigration.sessions of
-    CassandraStorage ->
-      runSessionStore
-        env.hasqlPool
-        env.appLogger
-        env.requestId
-        (interpretSessionStoreCassandra env.casClient)
-        action
-    -- The copy loop is gone; the legacy migration setting degrades to
-    -- Cassandra-only reads/writes.
-    MigrationToPostgresql ->
-      runSessionStore
-        env.hasqlPool
-        env.appLogger
-        env.requestId
-        (interpretSessionStoreCassandra env.casClient)
-        action
-    PostgresqlStorage ->
-      runSessionStore
-        env.hasqlPool
-        env.appLogger
-        env.requestId
-        interpretSessionStoreToPostgres
-        action
+    PostgresqlStorage -> runWith interpretSessionStoreToPostgres action
+    -- Sessions have no dual-write; 'MigrationToPostgresql' keeps using Cassandra.
+    _ -> runWith (interpretSessionStoreCassandra env.casClient) action
 
 -- | Effects below the 'SessionStore' slot for the ad-hoc interpreters.  The
 -- Postgres interpreter needs 'Input Pool' and 'Error UsageError' supplied
