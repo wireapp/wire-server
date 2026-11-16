@@ -485,8 +485,6 @@ let
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
     (hlib.justStaticExecutables pkgs.haskellPackages.headroom)
     (hlib.justStaticExecutables pkgs.haskellPackages.weeder)
-  ] ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system != "x86_64-darwin") [
-    (pkgs.callPackage ./pkgs/sslyze { })
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
   ];
