@@ -1566,8 +1566,10 @@ testMeetingGoogleCalendarManaged = withLicensedBackend $ \dom -> do
   calendarMeeting <-
     setField "externally_calendar_id" ("cal-1" :: String)
       =<< setField "externally_calendar_event_id" ("evt-1" :: String)
-      =<< setField "externally_managed_by" ("google_calendar" :: String)
-      (defaultMeetingJson "Calendar Meeting" startTime endTime [])
+      =<< setField
+        "externally_managed_by"
+        ("google_calendar" :: String)
+        (defaultMeetingJson "Calendar Meeting" startTime endTime [])
   created <- postMeetingsOAuth owner token calendarMeeting
   assertSuccess created
   meeting <- getJSON 201 created
