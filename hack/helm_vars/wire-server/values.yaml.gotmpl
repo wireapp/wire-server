@@ -1,4 +1,4 @@
-{{- $store := env "GUNDECK_PRESENCE_STORE" }}
+{{- $store := .Values.presenceStore }}
 tags:
   nginz: true
   federation: true 
