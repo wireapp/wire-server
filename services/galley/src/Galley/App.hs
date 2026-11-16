@@ -479,13 +479,12 @@ evalGalley e =
         if teamStoreOnPostgres
           then interpretLegalHoldStoreWithPostgresTeamMembers lh
           else interpretLegalHoldStoreToCassandra lh
-      -- ListItems is a read-only effect over user_team; the storage-location
-      -- flag picks the interpreter ('MigrationToPostgresql' is treated as
-      -- 'CassandraStorage' because there is no dual-write interpreter).
+      -- The user -> teams listing reads the user -> team index written by the
+      -- team store, so it must read from the same location.
       teamListInterpreter =
-        case (e ^. options . postgresMigration).listItems of
-          PostgresqlStorage -> interpretTeamListToPostgres
-          _ -> interpretTeamListToCassandra
+        if teamStoreOnPostgres
+          then interpretTeamListToPostgres
+          else interpretTeamListToCassandra
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig

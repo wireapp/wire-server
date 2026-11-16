@@ -2387,7 +2387,6 @@ galley:
       conversationCodes: postgresql
       teamFeatures: postgresql
       teamStore: postgresql
-         listItems: postgresql
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
