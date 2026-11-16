@@ -1563,7 +1563,11 @@ testMeetingGoogleCalendarManaged = withLicensedBackend $ \dom -> do
   token <- generateAccessToken owner cid ["write:meetings"] uri >>= flip (%.) "access_token" >>= asString
 
   -- OAuth bearer caller creates a calendar-managed meeting: 201, field echoed.
-  calendarMeeting <- setField "externally_managed_by" ("google_calendar" :: String) (defaultMeetingJson "Calendar Meeting" startTime endTime [])
+  calendarMeeting <-
+    setField "externally_calendar_id" ("cal-1" :: String)
+      =<< setField "externally_calendar_event_id" ("evt-1" :: String)
+      =<< setField "externally_managed_by" ("google_calendar" :: String)
+      (defaultMeetingJson "Calendar Meeting" startTime endTime [])
   created <- postMeetingsOAuth owner token calendarMeeting
   assertSuccess created
   meeting <- getJSON 201 created
@@ -1632,26 +1636,36 @@ testMeetingGoogleCalendarManaged = withLicensedBackend $ \dom -> do
 
 -- | Send a galley meeting request authenticated only by an OAuth bearer token
 -- (no cookie, hence no @Z-Connection@ header) and presenting the
--- @Z-Client: Calendar@ header — the calendar integration's calling pattern
--- (the token's scopes and the Z-Client injection by nginz are enforced on
--- the nginz side; these helpers target galley directly).
+-- @Z-Client: Calendar@ header — the calendar integration's calling pattern.
+-- These helpers target galley directly, so they inject the headers nginz
+-- would set after validating the bearer token (@Z-User@, plus the calendar's
+-- @Z-Client@); token scopes and the @Z-Client@ injection are enforced
+-- upstream by nginz.
 meetingOAuthRequest :: (HasCallStack, MakesValue user) => String -> user -> String -> String -> Maybe Value -> App Response
 meetingOAuthRequest method user token path mBody = do
   req <- rawBaseRequest user Galley Versioned path
+  uid <- objId user
   let req' =
-        addHeader "Z-Client" ("Calendar" :: String)
+        addHeader "Z-User" (uid :: String)
+          . addHeader "Z-Client" ("Calendar" :: String)
           . addHeader "Authorization" ("Bearer " <> token)
           $ req
   submit method $ case mBody of
     Just body -> addJSON body req'
     Nothing -> req'
 
--- | Like 'meetingOAuthRequest' but without the @Z-Client@ header, for the
--- negative (400 invalid-op) pairing cases.
+-- | Like 'meetingOAuthRequest' but without the @Z-Client@ header — for
+-- requests from callers that present no calendar client (e.g. the negative
+-- 400 invalid-op pairing cases). Still injects @Z-User@ — galley requires it
+-- to authenticate the request at all.
 meetingOAuthRequest' :: (HasCallStack, MakesValue user) => String -> user -> String -> String -> Maybe Value -> App Response
 meetingOAuthRequest' method user token path mBody = do
   req <- rawBaseRequest user Galley Versioned path
-  let req' = addHeader "Authorization" ("Bearer " <> token) req
+  uid <- objId user
+  let req' =
+        addHeader "Z-User" (uid :: String)
+          . addHeader "Authorization" ("Bearer " <> token)
+          $ req
   submit method $ case mBody of
     Just body -> addJSON body req'
     Nothing -> req'
