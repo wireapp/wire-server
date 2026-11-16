@@ -43,6 +43,7 @@ import Deriving.Aeson
 import Imports
 import Wire.API.Provider
 import Wire.API.Provider.Service (ServiceKeyPEM)
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.API.User.Client.Prekey
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -185,7 +186,8 @@ instance ToSchema UserLegalHoldStatusEntry where
 -- RemoveLegalHoldSettingsRequest
 
 data RemoveLegalHoldSettingsRequest = RemoveLegalHoldSettingsRequest
-  { rmlhsrPassword :: Maybe PlainTextPassword6
+  { rmlhsrPassword :: Maybe PlainTextPassword6,
+    rmlhsrTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoveLegalHoldSettingsRequest)
@@ -196,12 +198,14 @@ instance ToSchema RemoveLegalHoldSettingsRequest where
     object $
       RemoveLegalHoldSettingsRequest
         <$> rmlhsrPassword .= maybe_ (optField "password" schema)
+        <*> rmlhsrTotpCode .= totpCodeFieldSchema
 
 --------------------------------------------------------------------------------
 -- DisableLegalHoldForUserRequest
 
 data DisableLegalHoldForUserRequest = DisableLegalHoldForUserRequest
-  { dlhfuPassword :: Maybe PlainTextPassword6
+  { dlhfuPassword :: Maybe PlainTextPassword6,
+    dlhfuTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DisableLegalHoldForUserRequest)
@@ -212,12 +216,14 @@ instance ToSchema DisableLegalHoldForUserRequest where
     object $
       DisableLegalHoldForUserRequest
         <$> dlhfuPassword .= maybe_ (optField "password" schema)
+        <*> dlhfuTotpCode .= totpCodeFieldSchema
 
 --------------------------------------------------------------------------------
 -- ApproveLegalHoldForUserRequest
 
 data ApproveLegalHoldForUserRequest = ApproveLegalHoldForUserRequest
-  { alhfuPassword :: Maybe PlainTextPassword6
+  { alhfuPassword :: Maybe PlainTextPassword6,
+    alhfuTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ApproveLegalHoldForUserRequest)
@@ -228,6 +234,7 @@ instance ToSchema ApproveLegalHoldForUserRequest where
     object $
       ApproveLegalHoldForUserRequest
         <$> alhfuPassword .= maybe_ (optField "password" schema)
+        <*> alhfuTotpCode .= totpCodeFieldSchema
 
 -----------------------------------------------------------------------
 

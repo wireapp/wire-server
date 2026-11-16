@@ -504,7 +504,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
           . zUser owner
           . zConn "conn"
-          . json (newTeamMemberDeleteData Nothing)
+          . json (TeamMemberDeleteData Nothing Nothing)
       )
       !!! do
         const 403 === statusCode
@@ -515,7 +515,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
         . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
         . zUser owner
         . zConn "conn"
-        . json (newTeamMemberDeleteData (plainTextPassword6 "wrong passwd"))
+        . json (TeamMemberDeleteData (plainTextPassword6 "wrong passwd") Nothing)
     )
     !!! do
       const 403 === statusCode
@@ -530,7 +530,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
               . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
               . zUser owner
               . zConn "conn"
-              . json (newTeamMemberDeleteData (Just $ Util.defPassword))
+              . json (TeamMemberDeleteData (Just Util.defPassword) Nothing)
           )
           !!! const 202
             === statusCode
@@ -542,7 +542,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
               . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
               . zUser owner
               . zConn "conn"
-              . json (newTeamMemberDeleteData Nothing)
+              . json (TeamMemberDeleteData Nothing Nothing)
           )
           !!! const 202
             === statusCode
@@ -596,7 +596,7 @@ testRemoveBindingTeamOwner = do
             . paths ["teams", toByteString' tid, "members", toByteString' deletee]
             . zUser deleter
             . zConn "conn"
-            . json (newTeamMemberDeleteData pass)
+            . json (TeamMemberDeleteData pass Nothing)
         )
         !!! case maybeError of
           Nothing ->
@@ -826,7 +826,7 @@ testDeleteBindingTeamSingleMember = do
         . paths ["/i/teams", toByteString' tid]
         . zUser owner
         . zConn "conn"
-        . json (newTeamDeleteData (Just $ Util.defPassword))
+        . json (TeamDeleteData (Just Util.defPassword) Nothing Nothing)
     )
     !!! do
       const 403 === statusCode
@@ -837,7 +837,7 @@ testDeleteBindingTeamSingleMember = do
         . zUser owner
         . zConn "conn"
         . json
-          (newTeamMemberDeleteData (Just Util.defPassword))
+          (TeamMemberDeleteData (Just Util.defPassword) Nothing)
     )
     !!! const 202
       === statusCode
@@ -920,7 +920,7 @@ testDeleteTeamVerificationCodeSuccess = do
         . paths ["teams", toByteString' tid]
         . zUser (U.userId owner)
         . zConn "conn"
-        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+        . json (TeamDeleteData (Just Util.defPassword) (Just code) Nothing)
     )
     !!! do
       const 202 === statusCode
@@ -942,7 +942,7 @@ testDeleteTeamVerificationCodeMissingCode = do
         . paths ["teams", toByteString' tid]
         . zUser (U.userId owner)
         . zConn "conn"
-        . json (newTeamMemberDeleteData (Just Util.defPassword))
+        . json (TeamMemberDeleteData (Just Util.defPassword) Nothing)
     )
     !!! do
       const 403 === statusCode
@@ -969,7 +969,7 @@ testDeleteTeamVerificationCodeExpiredCode = do
         . paths ["teams", toByteString' tid]
         . zUser (U.userId owner)
         . zConn "conn"
-        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+        . json (TeamDeleteData (Just Util.defPassword) (Just code) Nothing)
     )
     !!! do
       const 403 === statusCode
@@ -994,7 +994,7 @@ testDeleteTeamVerificationCodeWrongCode = do
         . paths ["teams", toByteString' tid]
         . zUser (U.userId owner)
         . zConn "conn"
-        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just wrongCode))
+        . json (TeamDeleteData (Just Util.defPassword) (Just wrongCode) Nothing)
     )
     !!! do
       const 403 === statusCode
@@ -1058,7 +1058,7 @@ testDeleteBindingTeam ownerHasPassword = do
         . paths ["teams", toByteString' tid]
         . zUser owner
         . zConn "conn"
-        . json (newTeamDeleteData (plainTextPassword6 "wrong passwd"))
+        . json (TeamDeleteData (plainTextPassword6 "wrong passwd") Nothing Nothing)
     )
     !!! do
       const 403 === statusCode
@@ -1069,11 +1069,12 @@ testDeleteBindingTeam ownerHasPassword = do
         . zUser owner
         . zConn "conn"
         . json
-          ( newTeamMemberDeleteData
+          ( TeamMemberDeleteData
               ( if ownerHasPassword
                   then Just Util.defPassword
                   else Nothing
               )
+              Nothing
           )
     )
     !!! const 202
@@ -1086,11 +1087,13 @@ testDeleteBindingTeam ownerHasPassword = do
           . zUser owner
           . zConn "conn"
           . json
-            ( newTeamDeleteData
+            ( TeamDeleteData
                 ( if ownerHasPassword
                     then Just Util.defPassword
                     else Nothing
                 )
+                Nothing
+                Nothing
             )
       )
       !!! const 202

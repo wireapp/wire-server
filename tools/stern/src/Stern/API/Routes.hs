@@ -69,6 +69,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Search
 
 ----------------------------------------------------------------------
@@ -173,7 +174,7 @@ type SternAPI =
                :> "users"
                :> Capture "uid" UserId
                :> "email"
-               :> Servant.ReqBody '[JSON] EmailUpdate
+               :> Servant.ReqBody '[JSON] (NoTotpCode EmailUpdate)
                :> Put '[JSON] NoContent
            )
     :<|> Named

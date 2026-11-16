@@ -1,0 +1,7 @@
+{
+    "email": "user@host.com",
+    "label": null,
+    "password": "hunter2",
+    "verification_code": null,
+    "totp_code": "totp:014921"
+}

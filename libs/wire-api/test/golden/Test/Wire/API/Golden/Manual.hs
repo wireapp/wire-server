@@ -76,7 +76,25 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "TOTPEnrolment" $
+    [ -- One body stands in for all of them: the field is the very same
+      -- 'totpCodeFieldSchema' everywhere, and that every body accepts and
+      -- retains it is asserted generically in
+      -- 'Test.Wire.API.User.Auth.TOTP.requestBodyTests'.
+      testGroup "Request bodies with TOTP" $
+        testObjects [(testObject_EmailUpdate_totp_1, "testObject_EmailUpdate_totp.json")],
+      testGroup "EmailUpdateWithoutTotpCode" $
+        testObjects
+          [ (testObject_EmailUpdate_withoutTotpCode_1, "testObject_EmailUpdate_withoutTotpCode_1.json"),
+            (testObject_EmailUpdate_withoutTotpCode_2, "testObject_EmailUpdate_withoutTotpCode_2.json")
+          ]
+          <> [ testGroup
+                 "populated code is omitted"
+                 [ testToJSON
+                     testObject_EmailUpdate_withoutTotpCode_populated_1
+                     "testObject_EmailUpdate_withoutTotpCode_1.json"
+                 ]
+             ],
+      testGroup "TOTPEnrolment" $
         testObjects
           [ (testObject_TOTPEnrolment_1, "testObject_TOTPEnrolment_1.json"),
             (testObject_TOTPEnrolment_2, "testObject_TOTPEnrolment_2.json")
@@ -99,7 +117,10 @@ tests =
             (testObject_ReauthBody_4, "testObject_ReauthBody_4.json")
           ],
       testGroup "NewTOTPCredential" $
-        testObjects [(testObject_NewTOTPCredential_1, "testObject_NewTOTPCredential_1.json")],
+        testObjects
+          [ (testObject_NewTOTPCredential_1, "testObject_NewTOTPCredential_1.json"),
+            (testObject_NewTOTPCredential_2, "testObject_NewTOTPCredential_2.json")
+          ],
       testGroup "ActivateTOTPCredential" $
         testObjects [(testObject_ActivateTOTPCredential_1, "testObject_ActivateTOTPCredential_1.json")],
       testGroup "TOTPCredentialName" $
@@ -420,7 +441,8 @@ tests =
             (testObject_Login_user_2, "testObject_Login_user_2.json"),
             (testObject_Login_user_3, "testObject_Login_user_3.json"),
             (testObject_Login_user_4, "testObject_Login_user_4.json"),
-            (testObject_Login_user_5, "testObject_Login_user_5.json")
+            (testObject_Login_user_5, "testObject_Login_user_5.json"),
+            (testObject_Login_user_6, "testObject_Login_user_6.json")
           ],
       testGroup "CannonId" $
         testObjects

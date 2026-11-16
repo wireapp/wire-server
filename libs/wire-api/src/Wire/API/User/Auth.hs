@@ -86,6 +86,7 @@ import Imports
 import Servant
 import Web.Cookie
 import Wire.API.Routes.MultiVerb
+import Wire.API.User.Auth.TOTP (SecondFactorCode)
 import Wire.API.User.Identity (EmailAddress, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -337,7 +338,8 @@ data Login = MkLogin
   { lId :: LoginId,
     lPassword :: PlainTextPassword6,
     lLabel :: Maybe CookieLabel,
-    lCode :: Maybe Code.Value
+    lCode :: Maybe Code.Value,
+    lTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Login)
@@ -351,6 +353,7 @@ instance ToSchema Login where
         <*> lPassword .= field "password" schema
         <*> lLabel .= optField "label" (maybeWithDefault A.Null schema)
         <*> lCode .= optField "verification_code" (maybeWithDefault A.Null schema)
+        <*> lTotpCode .= optField "totp_code" (maybeWithDefault A.Null schema)
 
 --------------------------------------------------------------------------------
 -- RemoveCookies

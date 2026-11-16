@@ -76,6 +76,7 @@ import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Auth
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
@@ -196,7 +197,7 @@ type UserAPI =
                :> "users"
                :> CaptureUserId "uid"
                :> "email"
-               :> ReqBody '[JSON] EmailUpdate
+               :> ReqBody '[JSON] (NoTotpCode EmailUpdate)
                :> Put '[JSON] ()
            )
     :<|> Named
@@ -1864,6 +1865,8 @@ type AuthAPI =
                :> CanThrow 'AccountPending
                :> CanThrow 'CodeAuthenticationFailed
                :> CanThrow 'CodeAuthenticationRequired
+               :> CanThrow 'TOTPRequired
+               :> CanThrow 'TOTPInvalidCode
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
     :<|> Named

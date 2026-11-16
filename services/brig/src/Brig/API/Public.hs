@@ -132,6 +132,7 @@ import Wire.API.User (RegisterError (RegisterErrorAllowlistError), UserProfile)
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Auth qualified as Public
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
@@ -1549,9 +1550,9 @@ updateUserEmail ::
   ) =>
   UserId ->
   UserId ->
-  Public.EmailUpdate ->
+  NoTotpCode Public.EmailUpdate ->
   (Handler r) ()
-updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
+updateUserEmail zuserId emailOwnerId (NoTotpCode (Public.EmailUpdate email _)) = do
   maybeZuserTeamId <- lift . liftSem $ UserStore.getUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift . liftSem $ UserStore.getUserTeam emailOwnerId

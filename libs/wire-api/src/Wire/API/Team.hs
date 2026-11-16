@@ -47,7 +47,6 @@ module Wire.API.Team
     -- * TeamUpdateData
     TeamUpdateData (..),
     newTeamUpdateData,
-    newTeamDeleteDataWithCode,
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
@@ -55,8 +54,8 @@ module Wire.API.Team
 
     -- * TeamDeleteData
     TeamDeleteData (..),
-    newTeamDeleteData,
     tdAuthPassword,
+    tdTotpCode,
     tdVerificationCode,
 
     -- * Misc
@@ -82,6 +81,7 @@ import Data.Text.Encoding qualified as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Asset (AssetKey)
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -272,19 +272,14 @@ instance ToSchema TeamUpdateData where
 
 data TeamDeleteData = TeamDeleteData
   { _tdAuthPassword :: Maybe PlainTextPassword6,
-    _tdVerificationCode :: Maybe Code.Value
+    _tdVerificationCode :: Maybe Code.Value,
+    _tdTotpCode :: Maybe SecondFactorCode
   }
   deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamDeleteData)
 
 instance Arbitrary TeamDeleteData where
-  arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary
-
-newTeamDeleteData :: Maybe PlainTextPassword6 -> TeamDeleteData
-newTeamDeleteData = flip TeamDeleteData Nothing
-
-newTeamDeleteDataWithCode :: Maybe PlainTextPassword6 -> Maybe Code.Value -> TeamDeleteData
-newTeamDeleteDataWithCode = TeamDeleteData
+  arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance ToSchema TeamDeleteData where
   schema =
@@ -292,6 +287,7 @@ instance ToSchema TeamDeleteData where
       TeamDeleteData
         <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
         <*> _tdVerificationCode .= maybe_ (optField "verification_code" schema)
+        <*> _tdTotpCode .= totpCodeFieldSchema
 
 makeLenses ''Team
 makeLenses ''TeamList

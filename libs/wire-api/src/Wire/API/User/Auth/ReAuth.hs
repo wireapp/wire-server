@@ -29,6 +29,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Wire.API.User
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.Arbitrary
 
 -- | Certain operations might require reauth of the user. These are available
@@ -36,7 +37,8 @@ import Wire.Arbitrary
 data ReAuthUser = ReAuthUser
   { reAuthPassword :: Maybe PlainTextPassword6,
     reAuthCode :: Maybe Value,
-    reAuthCodeAction :: Maybe VerificationAction
+    reAuthCodeAction :: Maybe VerificationAction,
+    reAuthTotpCode :: Maybe SecondFactorCode
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ReAuthUser
@@ -48,6 +50,7 @@ instance ToSchema ReAuthUser where
         <$> reAuthPassword .= optField "password" (maybeWithDefault A.Null schema)
         <*> reAuthCode .= optField "verification_code" (maybeWithDefault A.Null schema)
         <*> reAuthCodeAction .= optField "action" (maybeWithDefault A.Null schema)
+        <*> reAuthTotpCode .= totpCodeFieldSchema
 
 instance Arbitrary ReAuthUser where
-  arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

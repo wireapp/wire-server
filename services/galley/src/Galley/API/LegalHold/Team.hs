@@ -40,6 +40,7 @@ import Wire.API.Team.FeatureFlags as Team (FanoutLimit, FeatureDefaults (..))
 import Wire.API.Team.Size
 import Wire.API.User (VerificationAction)
 import Wire.API.User.Auth.ReAuth
+import Wire.API.User.Auth.TOTP (SecondFactorCode)
 import Wire.BrigAPIAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.LegalHold
@@ -107,8 +108,9 @@ ensureReAuthorised ::
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
+  Maybe SecondFactorCode ->
   Maybe Code.Value ->
   Maybe VerificationAction ->
   Sem r ()
-ensureReAuthorised u secret mbAction mbCode =
-  reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
+ensureReAuthorised u secret mbTotpCode mbCode mbAction =
+  reauthUser u (ReAuthUser secret mbCode mbAction mbTotpCode) >>= fromEither

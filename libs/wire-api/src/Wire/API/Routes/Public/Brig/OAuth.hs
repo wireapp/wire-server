@@ -124,6 +124,9 @@ type OAuthAPI =
     :<|> Named
            "revoke-oauth-account-access"
            ( Summary "Revoke account access from an OAuth application"
+               :> Description
+                    "Revoke all active sessions for a given OAuth application. Requires the \
+                    \user's password (and MFA token, if applicable) for verification.\n\n"
                :> CanThrow 'AccessDenied
                :> ZLocalUser
                :> From 'V7

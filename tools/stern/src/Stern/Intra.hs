@@ -133,6 +133,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Auth.TOTP (NoTotpCode (..))
 import Wire.API.User.Client
 import Wire.API.User.Search
 
@@ -378,7 +379,7 @@ deleteBindingTeamForce tid = do
           . expect2xx
       )
 
-changeEmail :: UserId -> EmailUpdate -> Handler ()
+changeEmail :: UserId -> NoTotpCode EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
   b <- asks (.brig)

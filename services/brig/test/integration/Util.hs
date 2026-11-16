@@ -470,6 +470,9 @@ postUserRegister' payload brig = do
         . header "X-Forwarded-For" "127.0.0.42"
     )
 
+mkDeleteUser :: Maybe PlainTextPassword6 -> DeleteUser
+mkDeleteUser pw = DeleteUser pw Nothing
+
 deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword6 -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
@@ -885,7 +888,7 @@ defEmailLogin :: EmailAddress -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: EmailAddress -> PlainTextPassword6 -> Maybe CookieLabel -> Login
-emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing
+emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing Nothing
 
 somePrekeys :: [UncheckedPrekeyBundle]
 somePrekeys =

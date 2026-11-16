@@ -90,6 +90,7 @@ import Wire.API.Locale
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role)
+import Wire.API.User.Auth.TOTP (SecondFactorCode, totpCodeFieldSchema)
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
@@ -433,7 +434,8 @@ data CreateScimToken = CreateScimToken
     -- | Optional name for the token
     name :: Maybe Text,
     -- | Optional SAML IdP that created users will "belong" to; if Nothing, do not use SAML.
-    idp :: Maybe SAML.IdPId
+    idp :: Maybe SAML.IdPId,
+    totpCode :: Maybe SecondFactorCode
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateScimToken)
@@ -448,6 +450,7 @@ createScimTokenSchema mVersion =
       <*> verificationCode .= optField "verification_code" (maybeWithDefault A.Null schema)
       <*> nameSchema
       <*> idpSchema
+      <*> (.totpCode) .= totpCodeFieldSchema
   where
     nameSchema =
       case mVersion of

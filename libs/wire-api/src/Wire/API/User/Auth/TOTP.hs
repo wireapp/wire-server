@@ -54,6 +54,8 @@ module Wire.API.User.Auth.TOTP
     TOTPRecoveryCodes (..),
     ReauthBody (..),
     reauthBodyObjectSchema,
+    totpCodeFieldSchema,
+    NoTotpCode (..),
 
     -- * URI construction
     otpauthURI,
@@ -317,10 +319,45 @@ reauthBodyObjectSchema :: ObjectSchema SwaggerDoc ReauthBody
 reauthBodyObjectSchema =
   ReauthBody
     <$> (.password) .= maybe_ (optField "password" schema)
-    <*> (.totpCode) .= maybe_ (optField "totp_code" schema)
+    <*> (.totpCode) .= totpCodeFieldSchema
+
+-- | The optional @totp_code@ field, as it appears in every request body that
+-- re-authenticates the caller.
+totpCodeFieldSchema :: ObjectSchema SwaggerDoc (Maybe SecondFactorCode)
+totpCodeFieldSchema =
+  maybe_
+    ( optFieldWithDocModifier
+        "totp_code"
+        ( description
+            ?~ "A second factor, intended to become mandatory for users with an \
+               \activated authenticator app.  **Not enforced yet**: the field is \
+               \parsed, but its value is ignored.  Once enforcement lands, \
+               \clients are supposed to omit it on the first attempt; if one is \
+               \needed the server will answer `403 totp-required`, and the \
+               \client then re-sends the very same body with this field filled \
+               \in."
+        )
+        schema
+    )
 
 instance ToSchema ReauthBody where
   schema = object reauthBodyObjectSchema
+
+-- | Request body wrapper for routes that share their payload type with a
+-- second-factor-protected route, but do not take a code themselves.  The
+-- payload schema is parameterised over the @totp_code@ field (see
+-- 'Wire.API.User.emailUpdateObjectSchema' for an example); wrapping the body in
+-- this type picks the variant without it, so the swagger of such a route does
+-- not advertise a field it ignores.
+newtype NoTotpCode a = NoTotpCode {unNoTotpCode :: a}
+  deriving (Eq, Show)
+  deriving newtype (Arbitrary)
+
+deriving via Schema (NoTotpCode a) instance (ToSchema (NoTotpCode a)) => A.FromJSON (NoTotpCode a)
+
+deriving via Schema (NoTotpCode a) instance (ToSchema (NoTotpCode a)) => A.ToJSON (NoTotpCode a)
+
+deriving via Schema (NoTotpCode a) instance (Typeable a, ToSchema (NoTotpCode a)) => S.ToSchema (NoTotpCode a)
 
 --------------------------------------------------------------------------------
 -- Payloads

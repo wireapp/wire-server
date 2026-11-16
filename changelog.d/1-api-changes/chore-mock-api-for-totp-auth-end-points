@@ -1,0 +1,30 @@
+The following endpoints now accept an optional `totp_code` field in their
+JSON request body, preparing clients for authenticator-app and recovery-code
+support:
+
+- `POST /login`
+- `DELETE /self`
+- `PUT /self/password`
+- `PUT /access/self/email`
+- `POST /password-reset/complete`
+- `POST /clients` (including the existing versioned request bodies)
+- `DELETE /clients/{client}`
+- `POST /teams/invitations/accept` (an existing personal or team account joining another team)
+- `POST /teams/{tid}/apps`
+- `DELETE /oauth/applications/{id}/sessions` (revoke all sessions)
+- `DELETE /oauth/applications/{id}/sessions/{tokenId}` (revoke one session)
+- `DELETE /teams/{tid}`
+- `DELETE /teams/{tid}/members/{uid}`
+- `DELETE /teams/{tid}/legalhold/settings`
+- `DELETE /teams/{tid}/legalhold/{uid}`
+- `PUT /teams/{tid}/legalhold/{uid}/approve`
+- `POST /auth-tokens` (SCIM-token creation, including the V7 request body)
+
+The field is a prefixed string: `totp:123456` for an authenticator-app code
+(6–9 digits), or `recovery:xxxx-xxxx-xxxx-xxxx` for a recovery code. A bare,
+unprefixed code is not accepted. Existing clients may omit the field.
+
+**Second-factor checking is not yet enforced.** The field is parsed and
+validated for format but otherwise ignored; existing authentication and
+authorisation requirements remain unchanged. Galley and Spar forward supplied
+codes to Brig for re-authentication, but Brig does not verify them yet.

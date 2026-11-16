@@ -105,7 +105,7 @@ login ::
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.U)
-login (MkLogin li pw label code) typ = do
+login (MkLogin li pw label code _totpCode) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   checkRetryLimit uid

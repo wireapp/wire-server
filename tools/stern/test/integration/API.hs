@@ -676,7 +676,7 @@ testPutEmail = do
   uid <- randomUser
   email <- randomEmail
   -- If the user has a pending email validation, the validation email will be resent. But we simply test that this call returns 200
-  putEmail uid (EmailUpdate email)
+  putEmail uid (EmailUpdate email Nothing)
 
 -------------------------------------------------------------------------------
 -- API Calls

@@ -39,6 +39,7 @@ testObject_NewApp_1 =
     (Category "other")
     (unsafeRange "good description")
     (plainTextPassword6Unsafe "good password")
+    Nothing
 
 testObject_CreatedApp_1 :: CreatedApp V18
 testObject_CreatedApp_1 =
