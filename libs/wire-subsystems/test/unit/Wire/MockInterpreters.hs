@@ -56,6 +56,7 @@ import Wire.MockInterpreters.TeamCollaboratorsStore as MockInterpreters
 import Wire.MockInterpreters.TinyLog as MockInterpreters
 import Wire.MockInterpreters.UserGroupStore as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters
+import Wire.MockInterpreters.UserPendingActivationStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters
 import Wire.MockInterpreters.VerificationCodeStore as MockInterpreters
