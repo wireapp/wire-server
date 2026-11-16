@@ -517,6 +517,21 @@ runBrigToIO e (AppT ma) = do
               . interpretConnectionStoreToCassandraAndPostgres
               . raiseUnder2
 
+      -- Same slot consideration as passwordResetCodeStore above. There is no
+      -- data migration for invitations: 'MigrationToPostgresql' behaves like
+      -- 'PostgresqlStorage'.
+      invitationStoreInterpreter =
+        case e.postgresMigration.invitations of
+          CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
+          PostgresqlStorage -> invitationStoreToPostgres
+          MigrationToPostgresql -> invitationStoreToPostgres
+        where
+          invitationStoreToPostgres =
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretInvitationStoreToPostgres
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -560,21 +575,7 @@ runBrigToIO e (AppT ma) = do
               . connectionsStoreInterpreter
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
-              -- The dual-write machinery was removed: 'MigrationToPostgresql'
-              -- is treated as 'PostgresqlStorage'.
-              . ( case e.postgresMigration.invitations of
-                    CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
-                    PostgresqlStorage ->
-                      runInputConst e.hasqlPool
-                        . mapError postgresUsageErrorToHttpError
-                        . interpretInvitationStoreToPostgres
-                        . raiseUnder2
-                    MigrationToPostgresql ->
-                      runInputConst e.hasqlPool
-                        . mapError postgresUsageErrorToHttpError
-                        . interpretInvitationStoreToPostgres
-                        . raiseUnder2
-                )
+              . invitationStoreInterpreter
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient

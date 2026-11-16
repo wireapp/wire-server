@@ -33,9 +33,6 @@
 -- an (email, team) pair; the Postgres port intentionally keeps them visible.
 module Wire.InvitationStore.Postgres
   ( interpretInvitationStoreToPostgres,
-    insertInvitationImpl,
-    insertPendingScimUserImpl,
-    InvitationRow,
   )
 where
 
@@ -58,8 +55,7 @@ import Wire.API.User.EmailAddress ()
 import Wire.InvitationStore
 import Wire.Postgres
 
--- | The @team_invitation@ row encoding shared by the effect-level insert and
--- the migration copy loop so they cannot drift.
+-- | The @team_invitation@ row as written by 'InsertInvitation'.
 type InvitationRow =
   ( UUID, -- team
     UUID, -- invitation id
@@ -151,10 +147,10 @@ insertInvitationImpl = flip runStatement insertInvitationStatement
 
 insertInvitationStatement :: Hasql.Statement InvitationRow ()
 insertInvitationStatement =
-  -- DO UPDATE (instead of the ADR's DO NOTHING) is safe here: every caller
-  -- holds the team-wide "team_invitation" migration lock (exclusive in the
-  -- copy loop, shared in dual-write), so a concurrent delete cannot be
-  -- overwritten by a stale row re-insert.
+  -- Invitation ids are freshly generated, so a conflict is not expected.
+  -- Should one occur anyway, DO UPDATE (rather than DO NOTHING) keeps
+  -- Cassandra's upsert semantics and guarantees that the row matches the
+  -- 'StoredInvitation' returned by 'InsertInvitation'.
   [resultlessStatement|INSERT INTO team_invitation
                          (team, invitation_id, role, created_at, created_by, email, name, code, expires_at)
                        VALUES
