@@ -443,7 +443,7 @@ instance MonadPushAll MockGundeck where
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
-  mntgtLookupAddresses = mockLookupAddresses
+  mntgtLookupAddresses = fmap concat . mapM mockLookupAddresses
 
 instance MonadMapAsync MockGundeck where
   mntgtPerPushConcurrency = pure Nothing -- (unbounded)

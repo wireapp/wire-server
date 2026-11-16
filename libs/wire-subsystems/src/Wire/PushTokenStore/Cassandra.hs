@@ -26,10 +26,12 @@ module Wire.PushTokenStore.Cassandra
 where
 
 import Cassandra as C
+import Data.Containers.ListUtils (nubOrd)
 import Data.Id (ClientId, ConnId, UserId)
 import Imports hiding (lookup)
 import Polysemy
 import Polysemy.Input
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Push.V2 (AppName, Token, Transport)
 import Wire.PushTokenStore
 import Wire.Util (embedClientInput)
@@ -42,6 +44,7 @@ interpretPushTokenStoreToCassandra ::
   Sem r a
 interpretPushTokenStoreToCassandra = interpret $ \case
   LookupPushTokens u c -> embedClientInput $ lookup u c
+  LookupPushTokensForUsers us c -> embedClientInput $ lookupForUsers us c
   InsertPushToken u t a p arn conn client ->
     embedClientInput $ insert u t a p arn conn client
   UpdatePushTokenArn u t a p arn ->
@@ -60,6 +63,16 @@ lookup u c = retry x1 (query q (params c (Identity u)))
   where
     q :: PrepQuery R (Identity UserId) (UserId, Transport, AppName, Token, Maybe Text, ConnId, Maybe ClientId)
     q = "select usr, transport, app, ptoken, arn, connection, client from user_push where usr = ?"
+
+-- | One single-partition query per user, run concurrently: a multi-partition
+-- @IN@ would put the whole fan-out on a single coordinator.
+lookupForUsers ::
+  (MonadClient m, MonadUnliftIO m) =>
+  [UserId] ->
+  Consistency ->
+  m [PushTokenRow]
+lookupForUsers us c =
+  concat <$> pooledMapConcurrentlyN 16 (`lookup` c) (nubOrd us)
 
 insert ::
   (MonadClient m) =>
