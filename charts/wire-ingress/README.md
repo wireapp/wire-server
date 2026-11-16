@@ -1,20 +1,31 @@
 # wire-ingress
 
-Wire ingress using Envoy Gateway and the Kubernetes Gateway API. Install it in
-**the same namespace as `wire-server`**. See [values.yaml](values.yaml) for the
-complete configuration reference.
+A Helm chart for Wire server ingress using the **Kubernetes Gateway API**.
+
+The chart targets **Envoy Gateway** as the Gateway API controller.
+
+---
 
 ## Prerequisites
 
-- Kubernetes **1.33+** and Envoy Gateway **1.9+**. Check the controller's
-  [compatibility matrix](https://gateway.envoyproxy.io/news/releases/matrix/).
-- Gateway API CRDs including `ListenerSet` (the
-  [1.6.1 standard bundle](https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml)),
-  and Envoy Gateway extension CRDs matching the controller version.
-- A `GatewayClass` using controller
-  `gateway.envoyproxy.io/gatewayclass-controller`.
+### Supported versions
 
-For federation and the FIPS profile, configure the **Envoy Gateway Helm release**:
+Requires **Envoy Gateway >= 1.9** and Kubernetes **>= 1.33**.
+Envoy Gateway 1.9 supports Kubernetes **1.33–1.36** with **Gateway API 1.6.1 CRDs**,
+including `ListenerSet`. Install the [standard 1.6.1 CRD bundle](https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml)
+and the Envoy Gateway extension CRDs matching your controller version.
+The bundle version is distinct from the resource API versions: this chart uses
+`gateway.networking.k8s.io/v1` and `gateway.envoyproxy.io/v1alpha1`. See the [compatibility matrix](https://gateway.envoyproxy.io/news/releases/matrix/).
+
+You must install it in the same namespace as the `wire-server` helm chart, otherwise references will not work.
+FUTUREWORK: Make this helm chart a subchart of `wire-server` and remove this paragraph.
+
+### Envoy Gateway
+
+[Envoy Gateway](https://gateway.envoyproxy.io/) must be installed in the cluster before deploying
+this chart. Enable Lua (for federation certificate-header forwarding) and the
+`EnvoyPatchPolicy` extension API (required for federation — see
+[EnvoyPatchPolicy](#envoypatchpolicy)):
 
 ```yaml
 config:
@@ -22,194 +33,588 @@ config:
     extensionApis:
       enableEnvoyPatchPolicy: true
       enableLua: true
+```
+
+With `FIPS_202205_tls_profile` on Envoy Gateway 1.9, also enable the
+`XDSNameSchemeV2` runtime flag — see [xDS name scheme](#xds-name-scheme).
+
+Also make sure you've created a `GatewayClass` object with 
+```
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+```
+
+You need to refer to this object in the `gateway.className` parameter.
+
+---
+
+## Backwards compatibility
+
+
+### Migrating from the `nginx-ingress-services` chart
+
+The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever
+possible. Most existing values files should work with minimal changes.
+
+Add a `gateway` block to your values and review at least the following keys:
+
+- `gateway.className` — set to the `GatewayClass` name created during installation (see above).
+- `gateway.create` — if `false`, you must create a `Gateway` object yourself and set `gateway.name` to its name.
+- `gateway.listeners.https.hostname` — set to `*.<your-domain>`. This assumes all domains under
+  `config.dns.*` are subdomains of `<your-domain>`. If that is not the case, add
+  listeners with `config.domains` or `gateway.extraHttpsListeners`.
+- `gateway.proxyProtocol.enabled` — set to `true` if your load balancer sends PROXY protocol headers.
+- `gateway.patchPolicies.targetGatewayClass` — depends on your setup; see [EnvoyPatchPolicy](#envoypatchpolicy).
+- `gateway.envoyProxy.create` and `gateway.manageServiceType` — depend on your setup; see the parameter table below.
+
+`secrets.tlsClientCA` is no longer needed and can be removed.
+
+### Behavior changes
+
+* non-tls ingress disabled by default. If you want to make use of automated certificate validation via http01, you need `gateway.listeners.http.enabled: true`
+* s3 ingress `/minio/` path blocking. Returns 301 redirect to "/" (was 403).
+
+### New values (no equivalent in nginx-ingress-services)
+
+Only values that require explanation are listed. Trivial or self-explanatory values (ports,
+name overrides, etc.) can be found in `values.yaml`.
+
+| Key | Default | Description |
+|---|---|---|
+| `gateway.create` | `true` | If `false`, no `Gateway` resource is created — set `gateway.name` to reference an existing one. Useful when sharing a Gateway across multiple releases. |
+| `gateway.className` | `""` | **Required.** Name of the `GatewayClass` installed by the Envoy Gateway controller (e.g. `envoy`). Must match the `GatewayClass` object whose `spec.controllerName` is `gateway.envoyproxy.io/gatewayclass-controller`. |
+| `gateway.alpn.enabled` | `true` | Enables ALPN configuration via `ClientTrafficPolicy` to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
+| `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
+| `FIPS_202205_tls_profile` | `false` | Override all TLS settings to use FIPS_202205 compliance. Before setting this to true, read the section [TLS profiles](#tls-profiles). |
+| `gateway.tls.enabled` | `true` | Configure TLS parameters on all HTTPS listeners. Must remain enabled with the FIPS profile. |
+| `gateway.tls.minVersion` | `"1.3"` | Minimum TLS version. |
+| `gateway.tls.maxVersion` | `"1.3"` | Maximum TLS version. |
+| `gateway.tls.ciphers` | Four ECDHE ECDSA/RSA AES-GCM suites (see values) | TLS <=1.2 only. Omitted when minVersion is 1.3; does not constrain TLS 1.3 suites. |
+| `gateway.tls.ecdhCurves` | `["X25519MLKEM768", "X25519", "P-256", "P-384", "P-521"]` | Clients and the Envoy crypto library must support this group. |
+| `gateway.tls.signatureAlgorithms` | `[]` | Optional signature preferences; also affects federation client authentication. |
+| `gateway.patchPolicies.xdsNameSchemeV2` | _(unset)_ | Must match the controller's `XDSNameSchemeV2` runtime flag. Required only when `FIPS_202205_tls_profile` is on — see [xDS name scheme](#xds-name-scheme). |
+| `gateway.patchPolicies.xdsListenerName` | `""` | Legacy scheme only. Overrides the xDS listener name the FIPS patch targets, for an externally created Gateway that declares another listener first on the HTTPS port. |
+| `gateway.allowedListenerNamespaces` | `[]` | Namespaces besides the release namespace whose ListenerSets may attach to the chart's Gateway, e.g. `[smallstep]` — see [Companion ListenerSets](#companion-listenersets). The release namespace is always admitted. |
+| `gateway.listeners.https.sectionName` | `https` | Name of the HTTPS section in the chart-owned ListenerSet. |
+| `gateway.listeners.federator.sectionName` | `federator` | Name of the federation section in the chart-owned ListenerSet. |
+| `config.domains[].sectionName` | _(derived)_ | Per-domain listener section override for multi-ingress. Defaults to `https-<name>`; the first entry uses `gateway.listeners.https.sectionName`. |
+| `gateway.extraHttpsListeners` | `[]` | Extra named HTTPS listeners on the same port, with `hostname` and optional `certificateSecretName`; useful for admin hostnames outside the API wildcard. Attach routes explicitly and issue a matching certificate. The FIPS patch covers these listeners too. |
+| `tls.extraDnsNames` | `[]` | Additional certificate SANs for companion routes on this Gateway. |
+| `gateway.listeners.placeholder.port` | `65535` | Port for the denied Gateway-owned listener; must differ from application listener ports. |
+| `gateway.listeners.http.enabled` | `false` | Creates the ListenerSet HTTP listener. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
+| `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
+| `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
+| `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set resource requests, custom service annotations, etc. |
+| `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
+| `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
+| `gateway.envoyProxy.replicas` | `3` | Proxy pod count for three AZs — see [Availability of the proxy fleet](#availability-of-the-proxy-fleet). |
+| `gateway.envoyProxy.topologySpreadKeys` | node and zone | Topology keys to spread the proxy pods over. Advisory (`ScheduleAnyway`). `[]` for none. |
+| `gateway.zoneAwareRouting.enabled` | `true` | Prefer same-zone backend endpoints to cut inter-AZ traffic cost — see [Zone-aware routing](#zone-aware-routing). |
+| `gateway.zoneAwareRouting.minEndpointsThreshold` | `3` | Below this many backend endpoints across all zones, Envoy balances normally. |
+| `gateway.annotations` | `{}` | Annotations on the `Gateway` object itself, e.g. for external-dns' `gateway-httproute` source. Not propagated to the proxy Service. |
+| `gateway.infrastructure.labels` | `{}` | Labels forwarded to the resources Envoy Gateway generates. Gateway API >= v1.1. |
+| `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
+| `gateway.proxyProtocol.enabled` | `false` | Enables PROXY protocol on all listeners (via the ListenerSet-wide `ClientTrafficPolicy`). Required when the upstream load balancer is configured to send PROXY protocol headers. |
+| `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
+| `gateway.patchPolicies.targetGatewayClass` | `false` | When `true`, `EnvoyPatchPolicy` targets the `GatewayClass` instead of the `Gateway`. **Required when `gateway.envoyProxy.spec.mergeGateways: true`**: with merged Gateways, policies targeting a `Gateway` are not applied — they must target the `GatewayClass`. Leave `false` for single-Gateway deployments (e.g. integration tests). |
+| `gateway.controllerNamespace` | `envoy-gateway-system` | Can be ignored, relevant only for integration tests. Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
+| `tls.secret.create` | `true` | If `false`, the TLS Secret is not created by this chart. Use when the secret is managed externally (e.g. by another operator). |
+| `federator.tls.useCertManager` | `true` | Controls cert-manager for the federator TLS secret independently of `tls.useCertManager`. Requires a private CA — see [Federator TLS certificate](#federator-tls-certificate-federatortlsusecertmanager). |
+
+### Dropped values
+
+| Old key | Reason |
+|---|---|
+| `config.ingressClass` | |
+| `ingressName` | Replaced by `config.domains[].name` — see [Multi-ingress (multiple backend domains)](#multi-ingress-multiple-backend-domains) |
+| `config.isAdditionalIngress` | Implicit — every `config.domains` entry after the first is an additional ingress |
+| `config.renderCSPInIngress` | CSP is injected automatically on additional domains (team-settings route only); opt out per-domain with `config.domains[].renderCSP: false` |
+| `config.dns.base` | Replaced by `config.domains[].base` (used for the per-domain CSP wildcard) |
+| `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
+| `tls.enabled` | Removed — had no effect; all routes are always TLS-terminated |
+| `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
+| `secrets.certManager.customSolversSecret` | No longer supported. Create a custom Issuer instead. |
+
+### Fully backwards compatible values
+
+All keys below are accepted unchanged. Their names, types, and semantics are identical to
+`nginx-ingress-services`.
+
+| Key |
+|---|
+| `nameOverride` |
+| `teamSettings.enabled` |
+| `accountPages.enabled` |
+| `websockets.enabled` |
+| `webapp.enabled` |
+| `fakeS3.enabled` |
+| `federator.enabled` |
+| `federator.integrationTestHelper` |
+| `federator.tls.duration` |
+| `federator.tls.renewBefore` |
+| `federator.tls.privateKey.rotationPolicy` |
+| `federator.tls.issuer.name` |
+| `federator.tls.issuer.kind` |
+| `federator.tls.issuer.group` |
+| `tls.useCertManager` |
+| `tls.createIssuer` |
+| `tls.privateKey.rotationPolicy` |
+| `tls.privateKey.algorithm` |
+| `tls.privateKey.size` |
+| `tls.issuer.name` |
+| `tls.issuer.kind` |
+| `tls.caNamespace` |
+| `certManager.inTestMode` |
+| `certManager.certmasterEmail` |
+| `certManager.customSolvers` |
+| `service.webapp.externalPort` |
+| `service.s3.externalPort` |
+| `service.s3.serviceName` |
+| `service.useFakeS3` |
+| `service.teamSettings.externalPort` |
+| `service.accountPages.externalPort` |
+| `config.dns.https` |
+| `config.dns.ssl` |
+| `config.dns.webapp` |
+| `config.dns.fakeS3` |
+| `config.dns.federator` |
+| `config.dns.certificateDomain` |
+| `config.dns.teamSettings` |
+| `config.dns.accountPages` |
+| `secrets.tlsWildcardCert` |
+| `secrets.tlsWildcardKey` |
+
+
+## Design decisions
+
+### Gateway creation is optional
+
+All application listeners and HTTPRoutes use the release's `ListenerSet`.
+Client and backend policies target that ListenerSet; federation mTLS targets its
+`federator` section. WebSocket and certificate-header policies target HTTPRoutes.
+`EnvoyPatchPolicy` targets the Gateway, or GatewayClass with merged Gateways.
+
+The chart creates a Gateway admitting ListenerSets from the same namespace and
+from `gateway.allowedListenerNamespaces` — see
+[Companion ListenerSets](#companion-listenersets).
+Set `gateway.create: false` and `gateway.name` to use an existing Gateway in that
+namespace; it must allow ListenerSet attachment.
+
+### Companion ListenerSets
+
+Other charts can attach their own ListenerSet to this chart's Gateway instead of
+running a separate Envoy proxy, e.g. `sftd` (`gateway.create: false`,
+`gateway.name: <release>-wire-ingress-gateway`) or `step-certificates`. They then
+share the proxy, its Service and, with `FIPS_202205_tls_profile`, its TLS profile.
+
+ListenerSets from the release namespace are always admitted. To admit another
+namespace, e.g. to keep step-ca's CA secrets out of the wire-server namespace,
+list it:
+
+```yaml
+gateway:
+  allowedListenerNamespaces: [smallstep]
+```
+
+The chart renders a selector on the namespaces' `kubernetes.io/metadata.name`
+label that always includes the release namespace. An attached listener can serve
+any hostname on this Gateway, so admit only namespaces you trust with that.
+
+Gateway API requires a Gateway-owned listener. Its placeholder denies all routes
+and uses `gateway.listeners.placeholder.port` (default `65535`). Set it to an unused
+port on this Gateway, distinct from its application listener ports, to avoid
+plaintext client-policy conflicts. Its hostname, `<hash>.placeholder.invalid`, is
+unique per Gateway, so Gateways merged by `mergeGateways` can share the port.
+ListenerSets sharing a Gateway also need distinct HTTP ports when using separate
+client policies. See [External Gateways](#external-gateways) for FIPS requirements.
+
+### EnvoyProxy resource
+
+The chart creates an `EnvoyProxy` resource (when `gateway.envoyProxy.create: true`) and wires it
+to the `Gateway` via `infrastructure.parametersRef`. Use `gateway.envoyProxy.spec` to pass
+arbitrary fields from the [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec).
+
+Set `gateway.envoyProxy.create: false` when a shared `EnvoyProxy` is managed at the
+`GatewayClass` level (e.g. shared load balancer across deployments) — leave `gateway.envoyProxy.name`
+empty and the Gateway will have no `infrastructure.parametersRef`, letting the `GatewayClass`-level
+`EnvoyProxy` take effect automatically.
+
+Set `gateway.envoyProxy.name` (with `create: false`) to reference an existing `EnvoyProxy` in the
+**same namespace** via `infrastructure.parametersRef`.
+
+`gateway.manageServiceType: true` (default) is a shorthand that sets
+`provider.kubernetes.envoyService.type` to `gateway.serviceType`. Disable it when managing
+the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
+
+### Availability of the proxy fleet
+
+When both `gateway.create` and `gateway.envoyProxy.create` are true, the chart defaults to
+three proxy replicas, a PDB with `minAvailable: 1`, and advisory node/zone spread constraints.
+This targets a three-AZ deployment; advisory spreading does not guarantee one pod per zone.
+
+The PDB is derived from the final replica count, including `envoyProxy.spec` overrides:
+one replica disables it; otherwise it uses `minAvailable: 1`. There is no separate PDB setting.
+
+### Zone-aware routing
+
+Same-zone backends are preferred by default (`gateway.zoneAwareRouting.enabled: true`). Requires nodes
+labelled `topology.kubernetes.io/zone` and Envoy Gateway's topology injector. The WebSocket
+policy inherits these settings via `StrategicMerge` while disabling its idle timeout.
+
+`minEndpointsThreshold: 3` enables zone preference for backends with one replica in each of
+three AZs. It counts endpoints per upstream cluster across all zones, not per zone. Backend
+placement and capacity during an AZ failure must still be managed separately.
+
+### GatewayClass is not created
+
+`GatewayClass` is installed by the Envoy Gateway Helm chart and is cluster-scoped. This chart only
+references it by name via `gateway.className`.
+
+### EnvoyPatchPolicy
+
+When `federator.enabled: true`, the chart creates an `EnvoyPatchPolicy` resource that adds the
+FQDN variant of the federator hostname (e.g. `federator.example.com.`, with trailing dot) to the
+Envoy virtual host's domain list.
+
+**Why this is needed:** Wire federation resolves remote backends via DNS SRV records. Per the DNS
+specification, SRV record targets are always FQDNs — they include a trailing dot
+(e.g. `peer.example.com.`). The federator passes this FQDN directly as the HTTP/2 `:authority`
+header. Envoy's virtual-host matching is exact, so the trailing dot causes a `route_not_found`
+error. Adding the FQDN as an additional domain in the route configuration allows Envoy to match
+both the bare hostname and the FQDN.
+
+The policy patches the `RouteConfiguration` named
+`<namespace>/<gateway>/<namespace>/<listenerset>/<gateway.listeners.federator.sectionName>`. Route configuration names are
+per-namespace even when multiple Gateways share a single Envoy proxy, so the name is predictable
+from chart values. It is also independent of the `XDSNameSchemeV2` runtime flag — for TLS
+listeners the route config keeps the section-based name — so this policy needs no changes for
+Envoy Gateway 1.10. See [xDS name scheme](#xds-name-scheme).
+
+**`gateway.patchPolicies.targetGatewayClass`** controls what the policy targets:
+
+- **`false` (default)** — targets `kind: Gateway` by name. Use for standard single-Gateway
+  deployments, including integration tests.
+- **`true`** — targets `kind: GatewayClass` (using `gateway.className`). **Required when
+  `gateway.envoyProxy.spec.mergeGateways: true`.** With merged Gateways, all Gateways of the same
+  GatewayClass share one Envoy proxy.
+
+> **Future note:** If future versions of the Wire federator stop sending FQDNs in the
+> `:authority` header, this patch policy will no longer be needed. `gateway.patchPolicies.enabled`
+> exists so it can be disabled at that point without a chart change.
+
+---
+
+### Multi-ingress (multiple backend domains)
+
+Set `config.domains` **instead of** `config.dns` to serve several domains from one release:
+
+```yaml
+config:
+  domains:
+    - name: blueberry
+      base: blueberry.example.com
+      dns: { https: nginz-https.blueberry.example.com, ssl: nginz-ssl.blueberry.example.com, webapp: webapp.blueberry.example.com }
+    - name: red
+      base: red.example.org
+      dns: { https: nginz-https.red.example.org, ssl: nginz-ssl.red.example.org, webapp: webapp.red.example.org }
+      tls: { issuer: { name: letsencrypt-red, kind: ClusterIssuer } }  # optional per-domain issuer
+```
+
+First entry = primary (listener `https`, un-suffixed names, no injected CSP — apps set their own).
+Each additional entry gets its own listener `https-<name>`, cert/secret, suffixed routes, and an
+injected per-domain CSP header on the team-settings route (opt out with `renderCSP: false`).
+
+The webapp and account-pages routes never get an injected CSP, on any domain: both apps emit
+correct per-domain headers themselves, and the injected header would replace them with a weaker
+approximation. This matches the hosts the legacy `nginx-ingress-services` chart skips in its CSP
+snippet. Team-settings does not yet support this, hence the approximation there.
+
+Multi-ingress is mutually exclusive with federation: `config.domains` cannot be
+combined with `federator.enabled: true`. Use federation with a single backend
+domain (`config.dns`), or multi-ingress (`config.domains`) with the federator
+disabled — setting both fails template rendering with a clear error.
+
+### HTTP01 certificate challenges
+
+The default solver targets the ListenerSet's `http` section. Enable
+[Gateway API support in cert-manager](https://cert-manager.io/docs/usage/gateway/)
+and the HTTP listener:
+
+```yaml
+gateway:
+  listeners:
+    http:
+      enabled: true  # required for HTTP01 challenges
+```
+
+If you cannot or do not want to open port 80, use a DNS01 solver instead by setting
+
+```yaml
+certManager:
+  customSolvers:
+    - dns01:
+        # .. provider-specific settings
+```
+
+DNS01 requires credentials for your DNS provider but does not need
+port 80 to be open.
+
+### Federator TLS certificate (`federator.tls.useCertManager`)
+
+When `federator.tls.useCertManager: true`, cert-manager issues the federator TLS certificate.
+The certificate requires both **server auth** and **client auth** Extended Key Usages (EKUs),
+because federator connections are mutually authenticated.
+
+**Most public CAs (including Let's Encrypt) no longer issue certificates with the client auth
+EKU.** You will need a **private CA** (e.g. a cert-manager `ClusterIssuer` backed by an internal
+CA) to issue the federator certificate. Using the same public ACME issuer as for the main
+wildcard certificate will not work.
+
+A typical setup uses a cert-manager `ClusterIssuer` of type `CA`, referencing a private CA
+secret:
+
+```yaml
+federator:
+  tls:
+    useCertManager: true
+    issuer:
+      name: my-private-ca
+      kind: ClusterIssuer
+```
+
+---
+
+### One ListenerSet-wide ClientTrafficPolicy
+
+ALPN, TLS parameters and PROXY protocol are all rendered into a *single*
+`ClientTrafficPolicy` (`<release>-wire-ingress-client-traffic`): policies for the same target
+conflict rather than merge. Federation's section policy replaces the ListenerSet
+policy, so it repeats these settings alongside client-certificate validation.
+
+By default, explicit ALPN `[h2, http/1.1]` allows HTTP/2 even with overlapping
+certificate SANs across listeners, while retaining HTTP/1.1 support.
+
+### TLS profiles
+
+**By default**, this chart requires TLS 1.3 and uses all three TLS 1.3 ciphers. The X25519MLKEM768 Post-Quantum Traditional (PQ/T) Hybrid Key Exchange is also allowed.
+
+You can specify different TLS settings, like:
+
+```yaml
+gateway:
+  tls:
+    minVersion: "1.2"
+    ecdhCurves: [X25519MLKEM768, P-256, P-384]
+```
+
+OR you can also make use of the top-level `FIPS_202205_tls_profile` variable:
+
+#### FIPS_202205 profile and BSI TR-02102-2 limitations
+
+```yaml
+FIPS_202205_tls_profile: true
+gateway:
+  className: envoy
+  patchPolicies:
+    enabled: true
+    targetGatewayClass: false
+    # Must match the controller's XDSNameSchemeV2 runtime flag. Recommended:
+    # enable the flag on Envoy Gateway 1.9 and set true. See xDS name scheme below.
+    xdsNameSchemeV2: true
+```
+
+The `FIPS_202205` patch overrides `gateway.tls` with AES-GCM, P-256/P-384 and
+TLS 1.2–1.3; it cannot be combined with TLS 1.3-only or PQ settings. 
+
+The policy enables these six suites. 
+
+| TLS version | Cipher suite | Available with ECDSA-only server certificates |
+|---|---|---|
+| 1.2 | `ECDHE-ECDSA-AES128-GCM-SHA256` | Yes |
+| 1.2 | `ECDHE-ECDSA-AES256-GCM-SHA384` | Yes |
+| 1.2 | `ECDHE-RSA-AES128-GCM-SHA256` | No |
+| 1.2 | `ECDHE-RSA-AES256-GCM-SHA384` | No |
+| 1.3 | `TLS_AES_128_GCM_SHA256` | Yes |
+| 1.3 | `TLS_AES_256_GCM_SHA384` | Yes |
+
+An ECDSA-only server certificate (recommended) leaves four: the two ECDSA TLS 1.2 suites and both TLS 1.3 suites.
+
+Also read the cipher allowlist in
+[BSI TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile),
+
+Requires (on the Envoy Proxy) a`extensionApis.enableEnvoyPatchPolicy: true` and a dedicated, unmerged
+Gateway — which this chart may or may not have created, see
+[External Gateways](#external-gateways). `mergeGateways` and
+`patchPolicies.targetGatewayClass` are rejected: both change the generated
+listener names this patch targets. The patch
+covers all TLS filter chains on the HTTPS socket, including federation, extra
+listeners and [companion ListenerSets](#companion-listenersets) of other
+releases, whether or not they have a `ClientTrafficPolicy` of their own. It
+replaces each chain's TLS parameters with the compliance policy; ALPN and client
+certificate validation are not TLS parameters and stay as configured.
+
+#### What else is needed for BSI TR-02102-2 conformance?
+
+For **BSI TR-02102-2 conformance through the end of 2031** under edition 2026-01
+enabling this profile is only the TLS-parameter step. Operators must also:
+
+- Use ECDSA P-256/P-384 server certificates on every listener, including externally
+  supplied certificates. The chart checks main certificates it issues, not external
+  secrets. The [BoringSSL policy](https://boringssl.googlesource.com/boringssl/+/HEAD/include/openssl/ssl.h)
+  still permits RSA PKCS#1 v1.5 handshake signatures and overrides signature
+  preferences; using an RSA server key would leave that unwanted option available.
+- Verify certificate chains use recommended signatures and key sizes (Sections
+  3.3.3, 3.4.3 and 3.6). **RSA PKCS#1 v1.5 ceased to be recommended after 2025**
+  for both TLS 1.2 handshake signatures and certificate signatures (Tables 7 and
+  12). This does not exclude RSA-PSS, which remains recommended. An ECDSA leaf
+  alone does not fix a PKCS#1-signed chain; do not assume the default Let's Encrypt
+  chain is suitable. The tested ECDSA chain was anchored at ISRG Root X2.
+- For federation/mTLS, also enforce approved client certificate chains and client
+  handshake signatures. An ECDSA server does not prevent RSA PKCS#1 client
+  authentication. Restrict client credentials to an approved ECDSA profile or
+  independently enforce the permitted signature schemes; the FIPS flag does not
+  enforce this restriction.
+- Audit every other public TLS terminator and the remaining TR requirements,
+  including authentication, key handling and random-number generation. This chart
+  does not establish whole-system conformance.
+
+The 2031 horizon applies to TLS 1.2 and classical-only P-256/P-384 key agreement
+(Tables 6 and 10), not just cipher suites. Plan migration before 2032 and review
+newer BSI editions; this profile is not a guarantee against future guideline changes.
+
+For operator acceptance, scan every public hostname for both allowed and
+forbidden suites, protocols, groups and signatures; verify the served certificate
+chain too. Repeat after proxy upgrades and certificate renewal. A rendered Helm
+policy or a Wire-client-only test is not evidence of server-side enforcement.
+
+See the [Envoy Gateway patch documentation](https://gateway.envoyproxy.io/v1.9/tasks/extensibility/envoy-patch-policy/).
+
+##### xDS name scheme
+
+The patch targets a generated xDS listener by name, and Envoy Gateway has two
+naming schemes selected by the controller-wide `XDSNameSchemeV2` runtime flag:
+
+| Scheme | Listener name | Default in |
+|---|---|---|
+| Legacy | `<gateway-namespace>/<gateway-name>/<listenerset-namespace>/<listenerset-name>/<listener-section>` | EG 1.9 |
+| V2 | `<protocol>-<port>`, e.g. `tcp-443` | EG >= 1.10 |
+
+`gateway.patchPolicies.xdsNameSchemeV2` must state which one the controller uses.
+It is deliberately unset by default and rendering **fails** until you set it,
+because there is no safe default: EG flips it in 1.10, and either stale value
+produces a name that matches nothing. That failure is quiet — the patch lands in
+the policy's `ResourceNotFound` condition, the rest of the policy still applies,
+this chart's listeners keep the restrictive TLS 1.2-only baseline, and companion
+ListenerSets keep whatever their own `ClientTrafficPolicy` sets (e.g. TLS 1.3
+with ChaCha20 and X25519). The manifest looks correct while the profile is not in
+effect. Check both after every Envoy Gateway or chart upgrade, and alert on the
+policy's `Programmed` condition:
+
+```sh
+kubectl get envoypatchpolicy -n <ns> <release>-gateway-bsi \
+  -o jsonpath='{.status.ancestors[*].conditions[*]}' | jq
+egctl config envoy-proxy listener -n envoy-gateway-system <pod> | jq '.. | .name? // empty'
+```
+
+Only the FIPS **listener** patch is affected. The federation patch targets a
+`RouteConfiguration`, and `routeConfigName()` delegates TLS listeners to
+`httpsListenerFilterChainName()`, which ignores the flag — so federation needs no
+migration for EG 1.10.
+
+Under the legacy scheme the socket is named after the **first** listener on the
+port, not the one you might expect: EG builds one xDS listener per address+port
+and the first listener it encounters supplies the name. Gateway listeners come
+first, then ListenerSets from oldest to newest. Alone on its Gateway, this
+chart's ListenerSet supplies `gateway.listeners.https.sectionName`. If an
+external Gateway declares a different listener first, set
+`gateway.patchPolicies.xdsListenerName` to the name from the `egctl` dump above.
+
+With [companion ListenerSets](#companion-listenersets) the legacy name depends on
+creation order: if this chart's ListenerSet is recreated (e.g. by reinstalling
+the release) while sftd's is attached, the socket is named after sftd's and the
+FIPS patch stops applying to every host. **Use the V2 scheme with companion
+ListenerSets.** Envoy Gateway 1.9 supports it through the runtime flag (tested
+with 1.9.2), and 1.10 enables it by default, so setting it now also avoids a
+rename during that upgrade:
+
+```yaml
+# Envoy Gateway Helm values
+config:
+  envoyGateway:
     runtimeFlags:
       enabled: [XDSNameSchemeV2]
 ```
 
-V2 naming is recommended and is the default from Envoy Gateway 1.10. Enabling it
-changes listener names controller-wide; review existing listener patches first.
-
-## Install
-
-Create a TLS Secret covering your hostnames, then supply values such as:
-
 ```yaml
-gateway:
-  className: envoy
-  listeners:
-    https:
-      hostname: "*.example.com"
-config:
-  dns:
-    https: api.example.com
-    ssl: ws.example.com
-    webapp: webapp.example.com
-    fakeS3: assets.example.com
-tls:
-  secret:
-    create: false
-    nameOverride: wire-ingress-tls
-```
-
-```sh
-helm upgrade --install wire-ingress ./charts/wire-ingress \
-  --namespace <wire-namespace> -f my-values.yaml
-```
-
-The HTTPS listener hostname must cover the configured domains. For hostnames
-outside that wildcard, use `gateway.extraHttpsListeners` and matching certificate
-SANs, or [multiple backend domains](#multiple-backend-domains).
-
-The chart defaults to a LoadBalancer Service and three proxy replicas. Review
-these settings for your deployment:
-
-| Setting | Purpose |
-| --- | --- |
-| `gateway.serviceType` | Use `ClusterIP` when no external load balancer is needed. |
-| `gateway.infrastructure.annotations` | Cloud load balancer settings; `gateway.annotations` applies to the Gateway itself. |
-| `gateway.proxyProtocol.enabled` | Enable only when the upstream load balancer sends PROXY protocol headers. |
-| `gateway.envoyProxy.replicas` | Proxy count; one replica disables the disruption budget. |
-| `gateway.envoyProxy.spec` | Additional Envoy configuration, including resource requests. |
-| `gateway.zoneAwareRouting.enabled` | Same-zone routing; requires zone labels and Envoy Gateway's topology injector. |
-
-## Certificates and federation
-
-For cert-manager, enable `tls.useCertManager` and configure `tls.issuer`. When
-using an existing issuer, set `tls.createIssuer: false`. HTTP01 validation also
-requires `gateway.listeners.http.enabled: true` and
-[cert-manager Gateway API support](https://cert-manager.io/docs/usage/gateway/).
-Use `certManager.customSolvers` for DNS01 if port 80 cannot be exposed.
-
-Federation requires `federator.enabled: true`, its hostname in
-`config.dns.federator`, and the `federator-ca` ConfigMap supplied by `wire-server`.
-Its certificate needs **both server-auth and client-auth EKUs**. Use a suitable
-private CA through `federator.tls.issuer`; do not assume a public ACME certificate
-supports client authentication. Alternatively, set
-`federator.tls.useCertManager: false` and provide `federator.tls.secretName`.
-
-Keep Lua and patch policies enabled for federation: they provide client-certificate
-forwarding and support for federation hostnames with a trailing dot.
-
-## TLS profiles
-
-| Profile | TLS versions | Ciphers | Key exchange |
-| --- | --- | --- | --- |
-| Default | 1.3 | AES-GCM, ChaCha20 | X25519MLKEM768, X25519, P-256, P-384, P-521 |
-| `FIPS_202205` | 1.2–1.3 | AES-GCM; ECDHE for TLS 1.2 | P-256, P-384 |
-
-Customize the default profile through `gateway.tls`. To enable FIPS parameters:
-
-```yaml
-FIPS_202205_tls_profile: true
+# wire-ingress values
 gateway:
   patchPolicies:
     xdsNameSchemeV2: true
 ```
 
-**The FIPS profile overrides all other TLS parameter settings.** It cannot be
-combined with TLS 1.3-only or post-quantum settings. It requires a dedicated,
-unmerged Gateway, with `gateway.tls.enabled` and `gateway.patchPolicies.enabled`
-left enabled. Its settings apply to all TLS listeners sharing the HTTPS socket,
-including federation and companion listeners.
+The flag applies to every Gateway of that controller; review other
+`EnvoyPatchPolicy` resources on it before enabling it.
 
-`gateway.patchPolicies.xdsNameSchemeV2` must match the controller's naming scheme.
-Use `true` with the controller configuration above; use `false` only for legacy
-naming. A mismatch can leave the patch unapplied. Verify `Programmed=True` after
-installation and controller upgrades:
+##### External Gateways
 
-```sh
-kubectl -n <wire-namespace> get envoypatchpolicy \
-  -o jsonpath='{.items[*].status.ancestors[*].conditions[*]}' | jq
-```
+`FIPS_202205_tls_profile` works with `gateway.create: false`. Nothing about the
+patch requires this chart to own the Gateway; it attaches by name. The
+prerequisites are:
 
-This setting alone establishes neither FIPS certification nor
-[BSI TR-02102-2 conformance](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf?__blob=publicationFile).
-For BSI requirements, use ECDSA P-256/P-384 server certificates and separately
-assess certificate-chain signatures, federation client credentials, and other
-TLS terminators. The FIPS profile still permits RSA PKCS#1 signatures. Check the
-applicable guideline edition and verify every public hostname after upgrades
-and certificate renewal.
+- **Same namespace.** `EnvoyPatchPolicy.spec.targetRef` is a
+  `LocalPolicyTargetReference` and has no `namespace` field. The chart's
+  ListenerSet also references the Gateway in the release namespace.
+- **`allowedListeners` admitting this namespace** on the Gateway. Application
+  listeners remain chart-managed in the ListenerSet, including their section names.
+- **This chart's `ClientTrafficPolicy` should win.** Policies targeting the same
+  object do not merge — the oldest wins and the other is `Conflicted`. If another
+  policy already targets this ListenerSet, the FIPS patch still applies, but
+  this chart's ALPN, PROXY protocol and the TLS 1.2-only fallback baseline do
+  not. Verify with `kubectl get clienttrafficpolicy -n <ns> -o wide`.
 
-## Sharing a Gateway
+### Federator mTLS uses Envoy Gateway policies
 
-Set `gateway.create: false` and `gateway.name` to use an existing Gateway in the
-same namespace. It must admit this release's ListenerSet. Avoid conflicting
-`ClientTrafficPolicy` resources: policies targeting the same object do not merge.
+Federator mTLS is implemented using:
 
-Other charts can attach listeners to this chart's Gateway. Use
-`gateway.allowedListenerNamespaces` to admit additional namespaces, **only if
-you trust them to serve hostnames on this Gateway**. Prefer V2 naming with shared
-listeners; legacy listener ordering can invalidate FIPS patches.
+- `ClientTrafficPolicy` to configure TLS settings on the federator `ListenerSet` section (client
+  certificate validation, verify depth)
+- A separate listener in the same `ListenerSet` for the federator so that mTLS settings apply only to that listener
+- `X-SSL-Certificate` header forwarding is handled via an `EnvoyExtensionPolicy` with an inline
+  Lua filter that reads the URL-encoded PEM client certificate from the connection and injects it
+  as a request header, matching nginx's `$ssl_client_escaped_cert` behaviour
 
-To reuse an EnvoyProxy, set `gateway.envoyProxy.create: false` and provide its
-name, or leave the name empty to inherit the GatewayClass configuration.
-For merged Gateways, federation needs
-`gateway.patchPolicies.targetGatewayClass: true`; the FIPS profile does not
-support merged Gateways.
+## TLS regression tests
 
-## Multiple backend domains
+The chart now has an opt-in Helm test hook that runs SSLyze inside the cluster.
+The [test profiles](test/) cover default TLS 1.3 settings, FIPS TLS 1.2/1.3 settings,
+and TR-02102-2 with FIPS parameters and ECDSA certificate signatures throughout
+the verified chain. Checks reject unexpected TLS settings, missing required TLS
+versions, and incomplete scans. They do not establish whole-system compliance.
 
-Use `config.domains` instead of `config.dns` to serve the same backend on several
-domains. **This cannot be combined with federation.** For example:
-
-```yaml
-config:
-  domains:
-    - name: primary
-      base: example.com
-      dns: {https: api.example.com, ssl: ws.example.com, webapp: webapp.example.com}
-    - name: secondary
-      base: example.org
-      dns: {https: api.example.org, ssl: ws.example.org, webapp: webapp.example.org}
-      tls: {secretName: secondary-tls}
-fakeS3:
-  enabled: false
-```
-
-Each domain needs a matching certificate. Additional domains receive a
-team-settings CSP header unless `renderCSP: false`; webapp and account-pages
-manage their own CSP.
-
-## Migrating from nginx-ingress-services
-
-Most domain, service, certificate and feature values carry over. Add the Gateway
-configuration shown above and review [values.yaml](values.yaml).
-
-- Replace `config.ingressClass` with `gateway.className`.
-- Replace `ingressName`, `config.isAdditionalIngress`, and `config.dns.base` with
-  `config.domains` entries. Use per-domain `renderCSP` instead of
-  `config.renderCSPInIngress`.
-- Remove `tls.enabled`, `tls.verify_depth`, and `secrets.tlsClientCA`.
-  Client trust comes from `federator-ca`; there is no equivalent verify-depth setting.
-- Replace `secrets.certManager.customSolversSecret` with a custom Issuer.
-- HTTP is disabled by default. The S3 `/minio/` guard redirects to `/` instead of
-  returning 403.
-
-## Tests
-
-With the Nix development environment and a configured Envoy cluster:
+From the repository root, with the Nix development environment and an Envoy
+cluster configured:
 
 ```sh
-make kube-ingress-test
-make kube-ingress-test profile=fips
+make kube-ingress-test                         # all three profiles
+make kube-ingress-test profile=fips            # one profile
 make kube-ingress-test profile=tr-02102-2
+bash charts/wire-ingress/test/check-scan-tests.sh  # local checks, no cluster
 ```
 
-These scan the default, FIPS and TR-02102-2 profiles without requiring a Wire backend.
-The TR profile follows the 2026-01 deployment guidance: FIPS TLS parameters with
-ECDSA server certificates and ECDSA signatures throughout the verified chain,
-including the trust anchor. It does not assess federation partners or other TLS
-terminators. `KUBECONFIG`
-overrides `tmp/kubeconfig`; if neither is available, kubectl's normal context is
-used. Tests assume V2 naming. For a legacy controller, set
-`WIRE_INGRESS_XDS_NAME_SCHEME_V2=false`. Non-default installations can set
-`WIRE_INGRESS_GATEWAY_CLASS` and `ENVOY_GATEWAY_NAMESPACE`.
+Set `KUBECONFIG` to select the cluster. Standalone runs otherwise use
+`tmp/kubeconfig` when present, then kubectl's normal context. Tests assume V2 xDS
+naming; set `WIRE_INGRESS_XDS_NAME_SCHEME_V2=false` for a legacy controller.
+Non-default installations can set `WIRE_INGRESS_GATEWAY_CLASS` and
+`ENVOY_GATEWAY_NAMESPACE`.
 
-Runs are isolated and clean up their cluster resources. Results and failure
-diagnostics remain under `tmp/ingress-tests/`. The checks cover HTTPS TLS
-configuration, not application routing, federation mTLS, or compliance certification.
+Look for `<profile> TLS profile passed`; any failure returns a nonzero exit code.
+Each profile prints its results directory under `tmp/ingress-tests/`: inspect
+`scan.json` for scan results, or `scan.log`, `resources.yaml`, and `events.log`
+for failure diagnostics. Runs use isolated namespaces and remove them on exit;
+no Wire backend is required.
 
 The existing `kube-integration-setup`, `kube-integration-test`, and
-`kube-integration-teardown` flow includes these checks for Envoy setups
-(`WIRE_INGRESS_MODE=envoy` during setup). Standalone and CI runs use the same tests.
-See [test/](test/) for the profiles.
+`kube-integration-teardown` flow includes these tests for Envoy setups
+(`WIRE_INGRESS_MODE=envoy` during setup). Results join the integration summary and
+log uploads; teardown also cleans up interrupted fixtures. The standalone command
+uses the same tests, and nginx-only setups skip them.
