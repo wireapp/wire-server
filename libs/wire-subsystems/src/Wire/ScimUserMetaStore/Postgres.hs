@@ -17,11 +17,10 @@
 
 module Wire.ScimUserMetaStore.Postgres
   ( interpretScimUserMetaStoreToPostgres,
-    upsertScimUserMetaRow,
-    insertScimUserMetaIfAbsent,
   )
 where
 
+import Control.Error (hush)
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Time (UTCTime)
@@ -45,9 +44,8 @@ interpretScimUserMetaStoreToPostgres = interpret $ \case
   ReadMulti uids -> readScimUserMetaMultiPg uids
   Delete uid -> deleteScimUserMetaPg uid
 
--- | Upsert a full row; used by the effect interpreter and the migration
--- worker. The C* write overwrites the whole row, so the upsert overwrites all
--- columns (no @coalesce@).
+-- | Upsert a full row. The C* write overwrites the whole row, so the upsert
+-- overwrites all columns (no @coalesce@).
 upsertScimUserMetaRow :: (PGConstraints r) => UserId -> UTCTimeMillis -> UTCTimeMillis -> Maybe Text -> Maybe Bool -> Sem r ()
 upsertScimUserMetaRow uid createdAt lastUpdatedAt emailType emailPrimary =
   runStatement
@@ -66,26 +64,6 @@ upsertStatement =
                              last_updated_at = ($3 :: timestamptz),
                              email_type = ($4 :: text?),
                              email_primary = ($5 :: bool?)
-     |]
-
--- | Copy-path insert: @DO NOTHING@, because the background copier runs from a
--- scanned page that can be arbitrarily stale. A @scim_user_times@ row whose
--- user meta was deleted (dual-write 'Delete') in the meantime must not be
--- recreated by the backfill.
-insertScimUserMetaIfAbsent :: (PGConstraints r) => UserId -> UTCTimeMillis -> UTCTimeMillis -> Maybe Text -> Maybe Bool -> Sem r ()
-insertScimUserMetaIfAbsent uid createdAt lastUpdatedAt emailType emailPrimary =
-  runStatement
-    (postgresMarshall uid, postgresMarshall createdAt, postgresMarshall lastUpdatedAt, emailType, emailPrimary)
-    insertIfAbsentStatement
-
-insertIfAbsentStatement :: Hasql.Statement (UUID, UTCTime, UTCTime, Maybe Text, Maybe Bool) ()
-insertIfAbsentStatement =
-  lmapPG
-    [resultlessStatement|INSERT INTO scim_user_times
-                           (uid, created_at, last_updated_at, email_type, email_primary)
-                         VALUES
-                           ($1 :: uuid, $2 :: timestamptz, $3 :: timestamptz, $4 :: text?, $5 :: bool?)
-                         ON CONFLICT (uid) DO NOTHING
      |]
 
 readScimUserMetaPg :: (PGConstraints r) => UserId -> Sem r (Maybe ScimUserMeta)
@@ -146,6 +124,3 @@ deleteStatement =
   [resultlessStatement|DELETE FROM scim_user_times
                        WHERE uid = ($1 :: uuid)
                       |]
-
-hush :: Either a b -> Maybe b
-hush = either (const Nothing) Just
