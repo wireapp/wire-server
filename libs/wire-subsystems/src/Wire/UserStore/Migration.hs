@@ -58,6 +58,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 import Wire.Sem.Logger
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.UserSearch.Normalize (normalized)
 import Wire.UserStore.Migration.Types
 import Wire.UserStore.Postgres
 
@@ -294,6 +295,8 @@ saveToPostgres user mServiceConv = do
                   then user {handle = Nothing}
                   else user
         Transaction.statement userTuple insertUser
+        -- Keep the user searchable when search is served from Postgres.
+        Transaction.statement (user.id_, normalized (fromName user.name)) setNameNormalized
         for_ user.assets $ \assets -> do
           Transaction.statement user.id_ deleteAssetsStatement
           Transaction.statement (mkAssetRows user.id_ assets) insertAssetsStatement
@@ -344,6 +347,13 @@ saveToPostgres user mServiceConv = do
           )
           ON CONFLICT (id) DO NOTHING
       |]
+    setNameNormalized :: Hasql.Statement (UserId, Text) ()
+    setNameNormalized =
+      lmapPG
+        [resultlessStatement|
+          UPDATE wire_user SET name_normalized = $2 :: text
+          WHERE id = $1 :: uuid AND name_normalized IS NULL
+        |]
     insertBotConv :: Hasql.Statement (UserId, ConvId, Maybe TeamId) ()
     insertBotConv =
       lmapPG
