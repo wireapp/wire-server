@@ -17,6 +17,10 @@
 
 -- | Cassandra interpreter for the OAuth authorization-code store. The queries
 -- are moved verbatim from the former inline CQL in @Brig.API.OAuth@.
+--
+-- 'LookupAndDeleteOAuthAuthCode' is not atomic here (read, then delete): two
+-- concurrent lookups of the same code can both return it. This is the
+-- pre-existing Cassandra behaviour; the Postgres interpreter is atomic.
 module Wire.OAuthAuthCodeStore.Cassandra
   ( oauthAuthCodeStoreToCassandra,
   )
