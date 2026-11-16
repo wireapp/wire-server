@@ -15,7 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra, validateServiceKey) where
+module Wire.LegalHoldStore.Cassandra
+  ( interpretLegalHoldStoreToCassandra,
+    legalHoldStoreToCassandra,
+    validateServiceKey,
+  )
+where
 
 import Cassandra
 import Control.Exception (catch)
@@ -53,7 +58,21 @@ interpretLegalHoldStoreToCassandra ::
   FeatureDefaults LegalholdConfig ->
   Sem (LegalHoldStore ': r) a ->
   Sem r a
-interpretLegalHoldStoreToCassandra lh = interpret $ \case
+interpretLegalHoldStoreToCassandra lh = interpret (legalHoldStoreToCassandra lh)
+
+-- | The Cassandra handler of every 'LegalHoldStore' operation; shared with
+-- "Wire.LegalHoldStore.Postgres", which stores the per-member legal hold
+-- status in Postgres.
+legalHoldStoreToCassandra ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member (Input LegalHoldEnv) r,
+    Member TinyLog r
+  ) =>
+  FeatureDefaults LegalholdConfig ->
+  LegalHoldStore m a ->
+  Sem r a
+legalHoldStoreToCassandra lh = \case
   CreateSettings s -> do
     logEffect "LegalHoldStore.CreateSettings"
     embedClientInput $ createSettings s
