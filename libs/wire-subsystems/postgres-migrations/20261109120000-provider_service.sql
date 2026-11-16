@@ -1,4 +1,8 @@
 -- WPB-22961: brig provider-platform service tables
+--
+-- The @name@ columns of the index tables use the "C" collation: pagination
+-- merges and trims pages in Haskell, which compares names by codepoint, so
+-- the database must sort and filter (@name >= $start@) in the same order.
 
 CREATE TABLE IF NOT EXISTS provider_service (
   provider uuid NOT NULL,
@@ -20,7 +24,7 @@ CREATE TABLE IF NOT EXISTS provider_service (
 CREATE TABLE IF NOT EXISTS provider_service_tag (
   bucket int NOT NULL,
   tag bigint NOT NULL,
-  name text NOT NULL,
+  name text COLLATE "C" NOT NULL,
   service uuid NOT NULL,
   provider uuid NOT NULL,
   PRIMARY KEY (bucket, tag, name, service)
@@ -28,11 +32,15 @@ CREATE TABLE IF NOT EXISTS provider_service_tag (
 
 CREATE TABLE IF NOT EXISTS provider_service_prefix (
   prefix text NOT NULL,
-  name text NOT NULL,
+  name text COLLATE "C" NOT NULL,
   service uuid NOT NULL,
   provider uuid NOT NULL,
   PRIMARY KEY (prefix, name, service)
 );
+
+-- Supports the unfiltered service listing (ORDER BY name, service).
+CREATE INDEX IF NOT EXISTS provider_service_prefix_name_service_idx
+  ON provider_service_prefix (name, service);
 
 CREATE TABLE IF NOT EXISTS provider_service_whitelist (
   team uuid NOT NULL,
