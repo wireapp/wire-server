@@ -232,7 +232,14 @@ library
     Test.TeamCollaborators
     Test.Teams
     Test.TeamSettings
-    Test.TOTP
+    Test.TOTP.Enrol
+    Test.TOTP.Helpers
+    Test.TOTP.Login
+    Test.TOTP.MockBodies
+    Test.TOTP.Nginz
+    Test.TOTP.OtherRequestBodies
+    Test.TOTP.Routes
+    Test.TOTP.VersionGate
     Test.User
     Test.UserGroup
     Test.Version
