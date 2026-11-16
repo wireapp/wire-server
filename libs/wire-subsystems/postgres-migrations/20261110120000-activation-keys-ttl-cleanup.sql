@@ -1,7 +1,9 @@
 -- WPB-22970: delete expired activation_keys rows (ADR 0005: pg_cron for TTL
 -- deletions). The job uses the batched ctid form so a single run deletes at
--- most 10000 rows and never holds a long transaction on the table; repeated
--- runs converge on the full set.
+-- most 10000 rows and never holds a long transaction on the table. It runs
+-- every 5 minutes, i.e. it can delete up to ~2.9M rows/day, far more than
+-- activation keys are issued, so no backlog builds up; runs with nothing to
+-- delete are a cheap index lookup.
 -- Requires the operator to enable pg_cron (shared_preload_libraries + CREATE EXTENSION);
 -- the migration only schedules the job and must not fail boot without it.
 DO $mig$
@@ -10,7 +12,7 @@ BEGIN
     BEGIN
       PERFORM cron.schedule(
         'expire-activation-keys',
-        '0 3 * * *',
+        '*/5 * * * *',
         $$DELETE FROM activation_keys WHERE ctid IN (SELECT ctid FROM activation_keys WHERE expires_at <= now() LIMIT 10000)$$
       );
     EXCEPTION WHEN OTHERS THEN
