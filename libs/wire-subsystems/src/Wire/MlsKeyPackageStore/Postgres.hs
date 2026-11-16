@@ -17,10 +17,6 @@
 
 module Wire.MlsKeyPackageStore.Postgres
   ( interpretMlsKeyPackageStoreToPostgres,
-    insertKeyPackagesPg,
-    insertKeyPackagesTx,
-    isUserKeyPackagesMigrated,
-    markUserKeyPackagesMigratedTx,
   )
 where
 
@@ -31,8 +27,6 @@ import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
-import Hasql.Transaction qualified as Transaction
-import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
 import Imports
 import Polysemy
 import Wire.API.MLS.CipherSuite
@@ -49,37 +43,60 @@ interpretMlsKeyPackageStoreToPostgres = interpret $ \case
   LookupKeyPackages u c s -> toList <$> runStatement (u, c, s) lookupStatement
   LookupKeyPackagesBulk requests -> lookupKeyPackagesBulkPg requests
   DeleteKeyPackages u c s rs ->
-    runStatement (u, c, s, Vector.fromList rs) deleteKeyPackagesStatement
+    unless (null rs) $
+      runStatement (u, c, s, Vector.fromList rs) deleteKeyPackagesStatement
   DeleteAllKeyPackages u c ss ->
-    runStatement (u, c, Vector.fromList (toList ss)) deleteAllKeyPackagesStatement
-  DeleteKeyPackage u c s r -> runStatement (u, c, s, r) deleteKeyPackageStatement
+    unless (null ss) $
+      runStatement (u, c, Vector.fromList (toList ss)) deleteAllKeyPackagesStatement
+  ClaimKeyPackage u c s candidates
+    | null candidates -> pure Nothing
+    | otherwise -> runStatement (u, c, s, Vector.fromList candidates) claimKeyPackageStatement
 
 insertKeyPackagesPg :: (PGConstraints r) => UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> Sem r ()
+insertKeyPackagesPg _ _ [] = pure ()
 insertKeyPackagesPg u c kps =
-  runTransactionWithRetry ReadCommitted Write $
-    insertKeyPackagesTx u c kps
+  runStatement
+    ( u,
+      c,
+      Vector.fromList [s | (_, s, _) <- kps],
+      Vector.fromList [r | (r, _, _) <- kps],
+      Vector.fromList [d | (_, _, d) <- kps]
+    )
+    insertStatement
 
--- | Transaction-level insert, so that callers (the migration copy loop) can
--- combine the insert with the per-user migrated marker in a single transaction.
-insertKeyPackagesTx :: UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> Transaction.Transaction ()
-insertKeyPackagesTx u c kps =
-  for_ kps $ \(ref, suite, kpData) ->
-    Transaction.statement (u, c, suite, ref, kpData) insertStatement
-
-insertStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, KeyPackageRef, KeyPackageData) ()
+-- | Bulk insert. A key package ref is a hash of the cipher suite and the key
+-- package data, so a conflicting row already holds the same data and
+-- @DO NOTHING@ is sufficient (it also tolerates duplicates within one batch).
+insertStatement :: Hasql.Statement (UserId, ClientId, Vector CipherSuiteTag, Vector KeyPackageRef, Vector KeyPackageData) ()
 insertStatement =
-  -- DO UPDATE is safe here: every caller is either live brig traffic (an
-  -- upload overwrites the row for that exact ref) or the migration copy loop
-  -- inside the copy+marker transaction, which only runs for users not yet
-  -- marked migrated, so it can never overwrite rows a claim has already
-  -- removed.  A full-scan backfill without the marker gate must NOT use this
-  -- statement (it would resurrect consumed one-time-use key packages).
   lmapPG
-    [resultlessStatement|INSERT INTO mls_key_packages (user_id, client, cipher_suite, ref, data)
-                         VALUES ($1 :: uuid, $2 :: text, $3 :: int4, $4 :: bytea, $5 :: bytea)
-                         ON CONFLICT (user_id, client, cipher_suite, ref)
-                         DO UPDATE SET data = EXCLUDED.data
-                        |]
+    ( [resultlessStatement|INSERT INTO mls_key_packages (user_id, client, cipher_suite, ref, data)
+                           SELECT $1 :: uuid, $2 :: text, s, r, d
+                           FROM unnest ($3 :: int4[], $4 :: bytea[], $5 :: bytea[]) AS t(s, r, d)
+                           ON CONFLICT (user_id, client, cipher_suite, ref) DO NOTHING
+                          |] ::
+        Hasql.Statement (UUID, Text, Vector Int32, Vector ByteString, Vector ByteString) ()
+    )
+
+-- | Atomically remove and return one random key package among the given
+-- candidate refs. Rows that are locked by a concurrent claim are skipped, so
+-- two concurrent claims (possibly on different brig instances) never hand out
+-- the same key package.
+claimKeyPackageStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, Vector KeyPackageRef) (Maybe (KeyPackageRef, KeyPackageData))
+claimKeyPackageStatement =
+  dimapPG
+    ( [maybeStatement|DELETE FROM mls_key_packages
+                      WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4
+                        AND ref = (SELECT ref FROM mls_key_packages
+                                   WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4
+                                     AND ref = ANY ($4 :: bytea[])
+                                   ORDER BY random()
+                                   LIMIT 1
+                                   FOR UPDATE SKIP LOCKED)
+                      RETURNING ref :: bytea, data :: bytea
+                     |] ::
+        Hasql.Statement (UUID, Text, Int32, Vector ByteString) (Maybe (ByteString, ByteString))
+    )
 
 lookupStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag) (Vector (KeyPackageRef, KeyPackageData))
 lookupStatement =
@@ -138,30 +155,3 @@ deleteAllKeyPackagesStatement =
                           |] ::
         Hasql.Statement (UUID, Text, Vector Int32) ()
     )
-
-deleteKeyPackageStatement :: Hasql.Statement (UserId, ClientId, CipherSuiteTag, KeyPackageRef) ()
-deleteKeyPackageStatement =
-  lmapPG
-    [resultlessStatement|DELETE FROM mls_key_packages
-                         WHERE user_id = $1 :: uuid AND client = $2 :: text AND cipher_suite = $3 :: int4 AND ref = $4 :: bytea
-                        |]
-
--- | Marks a user's key packages as migrated to Postgres. Routing during the
--- migration phase is keyed on this marker, so a user with zero key packages
--- is still marked migrated (row presence in @mls_key_packages@ cannot
--- distinguish "migrated, empty" from "not yet migrated").
-markUserKeyPackagesMigratedTx :: UserId -> Transaction.Transaction ()
-markUserKeyPackagesMigratedTx u =
-  Transaction.statement u markUserKeyPackagesMigratedStatement
-
-markUserKeyPackagesMigratedStatement :: Hasql.Statement UserId ()
-markUserKeyPackagesMigratedStatement =
-  lmapPG
-    [resultlessStatement|INSERT INTO mls_key_packages_migrated_users (user_id)
-                         VALUES ($1 :: uuid)
-                         ON CONFLICT (user_id) DO NOTHING
-                        |]
-
-isUserKeyPackagesMigrated :: (PGConstraints r) => UserId -> Sem r Bool
-isUserKeyPackagesMigrated u =
-  runStatement u (lmapPG [singletonStatement|SELECT EXISTS (SELECT 1 FROM mls_key_packages_migrated_users WHERE user_id = ($1 :: uuid)) :: bool|])

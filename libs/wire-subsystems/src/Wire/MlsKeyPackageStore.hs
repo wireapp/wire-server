@@ -21,6 +21,7 @@ module Wire.MlsKeyPackageStore where
 
 import Data.Id
 import Data.Map qualified as Map
+import Imports
 import Polysemy
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
@@ -31,6 +32,10 @@ data MlsKeyPackageStore m a where
   LookupKeyPackagesBulk :: [(UserId, ClientId, CipherSuiteTag)] -> MlsKeyPackageStore m (Map.Map (UserId, ClientId, CipherSuiteTag) [(KeyPackageRef, KeyPackageData)])
   DeleteKeyPackages :: UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> MlsKeyPackageStore m ()
   DeleteAllKeyPackages :: UserId -> ClientId -> [CipherSuiteTag] -> MlsKeyPackageStore m ()
-  DeleteKeyPackage :: UserId -> ClientId -> CipherSuiteTag -> KeyPackageRef -> MlsKeyPackageStore m ()
+  -- | Remove and return one of the given candidate key packages, picked at
+  -- random. Returns 'Nothing' if none of the candidates is (still) stored.
+  -- Interpreters backed by a transactional store must make this atomic, so
+  -- that concurrent claims never return the same key package twice.
+  ClaimKeyPackage :: UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> MlsKeyPackageStore m (Maybe (KeyPackageRef, KeyPackageData))
 
 makeSem ''MlsKeyPackageStore

@@ -56,8 +56,11 @@ inMemoryMlsKeyPackageStoreInterpreter = interpret \case
     modify $ Map.update (nothingIfEmpty . dropRefs refs) (userId, clientId, suite)
   DeleteAllKeyPackages userId clientId suites ->
     modify \store -> foldr (\suite -> Map.delete (userId, clientId, suite)) store suites
-  DeleteKeyPackage userId clientId suite ref ->
-    modify $ Map.update (nothingIfEmpty . dropRefs [ref]) (userId, clientId, suite)
+  ClaimKeyPackage userId clientId suite candidates -> do
+    stored <- gets $ Map.findWithDefault [] (userId, clientId, suite)
+    for (find ((`elem` candidates) . fst) stored) \kp@(ref, _) -> do
+      modify $ Map.update (nothingIfEmpty . dropRefs [ref]) (userId, clientId, suite)
+      pure kp
   where
     dropRefs refs = filter ((`notElem` refs) . fst)
     -- Cassandra has no row for a client without key packages.
