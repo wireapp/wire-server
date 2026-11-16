@@ -26,6 +26,7 @@ module Galley.API.Internal
   )
 where
 
+import Control.Error (lastMay)
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.ByteString.UTF8 qualified as UTF8
@@ -376,10 +377,8 @@ rmUser lusr conn = do
   -- architecture is a bit lopsided, but would need further
   -- investigation.
   -- Team memberships are drained with the 'LegacyPaging' instantiation (a
-  -- plain, exclusive TeamId keyset cursor) rather than 'InternalPaging': the
-  -- Cassandra continuation token of the latter is existentially hidden and
-  -- cannot be replayed by the Postgres interpreter, which would silently
-  -- truncate the drain for users with more teams than one page holds.
+  -- plain, exclusive TeamId keyset cursor), which both the Cassandra and the
+  -- Postgres interpreters support.
   leaveTeams Nothing
   allConvIds <- conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
@@ -402,7 +401,7 @@ rmUser lusr conn = do
                 . (.status)
         uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
       when (resultSetType page == ResultSetTruncated) $
-        leaveTeams (Just (last (resultSetResult page)))
+        for_ (lastMay (resultSetResult page)) (leaveTeams . Just)
     goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
