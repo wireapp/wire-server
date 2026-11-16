@@ -100,7 +100,6 @@ import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
-import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ConnectionStore (ConnectionStore)
@@ -126,6 +125,7 @@ import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
+import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)

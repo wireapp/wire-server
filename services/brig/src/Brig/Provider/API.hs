@@ -83,6 +83,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
+import Wire.API.Bot.Service qualified as Galley
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Bot qualified as Public
@@ -95,7 +96,6 @@ import Wire.API.Password
 import Wire.API.Provider
 import Wire.API.Provider qualified as Public
 import Wire.API.Provider.Bot qualified as Ext
-import Wire.API.Bot.Service qualified as Galley
 import Wire.API.Provider.Bot qualified as Public (BotUserView)
 import Wire.API.Provider.External
 import Wire.API.Provider.External qualified as Ext
