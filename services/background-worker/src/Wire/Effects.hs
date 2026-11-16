@@ -326,7 +326,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.checkGroupInfo)
     . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
-    . interpretMLSCommitLockStoreToPostgres
+    . interpretMLSCommitLockStoreToPostgres env.mlsCommitLockPool
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres

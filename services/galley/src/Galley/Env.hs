@@ -30,6 +30,7 @@ module Galley.Env
     Galley.Env.brig,
     cstate,
     hasqlPool,
+    mlsCommitLockPool,
     deleteQueue,
     extEnv,
     aEnv,
@@ -81,6 +82,11 @@ data Env = Env
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _hasqlPool :: Pool,
+    -- | Dedicated pool for the connections holding MLS commit locks (pg
+    -- advisory locks). Kept separate from '_hasqlPool' because a lock-holding
+    -- connection stays checked out for the whole commit, while the commit
+    -- itself needs connections from '_hasqlPool'.
+    _mlsCommitLockPool :: Pool,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,

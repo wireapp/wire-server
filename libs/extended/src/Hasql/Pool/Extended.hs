@@ -137,7 +137,13 @@ runConnStrParser p =
 -- 'acquisitionTimeout' is mapped to the pool acquisition timeout,
 -- 'idlenessTimeout' controls how long idle connections stay resident.
 initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO Pool
-initPostgresPool config pgConfig mFpSecrets = do
+initPostgresPool = initNamedPostgresPool "pool"
+
+-- | Like 'initPostgresPool', but for an additional pool in the same process:
+-- its Prometheus metrics are named @wire_hasql_<name>_*@ instead of
+-- @wire_hasql_pool_*@, so they don't clash with the main pool's metrics.
+initNamedPostgresPool :: Text -> PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO Pool
+initNamedPostgresPool name config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   connStr <- runConnStrParser $ PostgresqlConnectionString.fromKeyValueParams pgConfig
   let pgSettings =
@@ -165,18 +171,20 @@ initPostgresPool config pgConfig mFpSecrets = do
         Left _ -> recordHasqlPoolConnectionFailure metrics
       pure res
 
+    metricName suffix = "wire_hasql_" <> name <> "_" <> suffix
+
     mkHasqlPoolMetrics :: IO HasqlPoolMetrics
     mkHasqlPoolMetrics =
       HasqlPoolMetrics
-        <$> register (gauge $ Info "wire_hasql_pool_ready_for_use" "Number of hasql pool connections ready for use")
-        <*> register (gauge $ Info "wire_hasql_pool_in_use" "Number of hasql pool connections in use")
-        <*> register (counter $ Info "wire_hasql_pool_connection_established_count" "Number of established connections")
-        <*> register (counter $ Info "wire_hasql_pool_connection_failure_count" "Number of failed connection acquisition attempts")
-        <*> register (counter $ Info "wire_hasql_pool_acquisition_timeout_count" "Number of pool acquisition timeouts")
-        <*> register (counter $ Info "wire_hasql_pool_session_failure_count" "Number of times a session has failed")
-        <*> register (counter $ Info "wire_hasql_pool_session_count" "Number of times a session was created")
-        <*> register (histogram (Info "wire_hasql_pool_connection_acquisition_seconds" "Time spent establishing new PostgreSQL connections") defaultBuckets)
-        <*> register (histogram (Info "wire_hasql_pool_session_seconds" "Time spent using PostgreSQL sessions") defaultBuckets)
+        <$> register (gauge $ Info (metricName "ready_for_use") "Number of hasql pool connections ready for use")
+        <*> register (gauge $ Info (metricName "in_use") "Number of hasql pool connections in use")
+        <*> register (counter $ Info (metricName "connection_established_count") "Number of established connections")
+        <*> register (counter $ Info (metricName "connection_failure_count") "Number of failed connection acquisition attempts")
+        <*> register (counter $ Info (metricName "acquisition_timeout_count") "Number of pool acquisition timeouts")
+        <*> register (counter $ Info (metricName "session_failure_count") "Number of times a session has failed")
+        <*> register (counter $ Info (metricName "session_count") "Number of times a session was created")
+        <*> register (histogram (Info (metricName "connection_acquisition_seconds") "Time spent establishing new PostgreSQL connections") defaultBuckets)
+        <*> register (histogram (Info (metricName "session_seconds") "Time spent using PostgreSQL sessions") defaultBuckets)
 
     unusedSettings =
       -- The custom getter above performs the actual connection establishment.
