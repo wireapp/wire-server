@@ -112,7 +112,10 @@ pgAddNotification nid tgts objs (notificationTTLSeconds -> ttlSeconds) = do
                 if inline then Just payload else Nothing,
                 toUUID <$> mbPayloadId,
                 if inline then Nothing else Just payloadRefSize,
-                Vector.fromList (map clientToText (tgt ^. targetClients)),
+                -- Postgres arrays must be rectangular, so a per-row
+                -- @text[]@ cannot be passed as @text[][]@; each row's client
+                -- set travels as a JSON array and is unpacked in SQL.
+                JSON.toJSON (map clientToText (tgt ^. targetClients)),
                 occurred,
                 expires
               )
@@ -129,13 +132,17 @@ pgAddNotification nid tgts objs (notificationTTLSeconds -> ttlSeconds) = do
     )
     insertNotificationRowsStatement
 
-insertNotificationRowsStatement :: Hasql.Statement (Vector UUID, Vector UUID, Vector (Maybe ByteString), Vector (Maybe UUID), Vector (Maybe Int32), Vector (Vector Text), Vector UTCTime, Vector UTCTime) ()
+insertNotificationRowsStatement :: Hasql.Statement (Vector UUID, Vector UUID, Vector (Maybe ByteString), Vector (Maybe UUID), Vector (Maybe Int32), Vector JSON.Value, Vector UTCTime, Vector UTCTime) ()
 insertNotificationRowsStatement =
   [resultlessStatement|
       INSERT INTO notifications
         (user_id, id, payload, payload_ref, payload_ref_size, clients, occurred_at, expires_at)
-      SELECT * FROM UNNEST
-        ($1 :: uuid[], $2 :: uuid[], $3 :: bytea?[], $4 :: uuid?[], $5 :: int4?[], $6 :: text[][], $7 :: timestamptz[], $8 :: timestamptz[])
+      SELECT r.user_id, r.id, r.payload, r.payload_ref, r.payload_ref_size,
+             ARRAY(SELECT jsonb_array_elements_text(r.clients)),
+             r.occurred_at, r.expires_at
+      FROM UNNEST
+        ($1 :: uuid[], $2 :: uuid[], $3 :: bytea?[], $4 :: uuid?[], $5 :: int4?[], $6 :: jsonb[], $7 :: timestamptz[], $8 :: timestamptz[])
+        AS r(user_id, id, payload, payload_ref, payload_ref_size, clients, occurred_at, expires_at)
       ON CONFLICT (user_id, id) DO NOTHING
     |]
 
