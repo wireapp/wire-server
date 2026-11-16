@@ -16,6 +16,9 @@ spec:
     - name: "spar-config"
       configMap:
         name: "spar"
+    - name: "spar-secrets"
+      secret:
+        secretName: "spar"
     {{- if eq (include "useCassandraTLS" .Values.spar.config.cassandra) "true" }}
     - name: "spar-cassandra"
       secret:
@@ -61,6 +64,8 @@ spec:
       mountPath: "/etc/wire/integration"
     - name: "spar-config"
       mountPath: "/etc/wire/spar/conf"
+    - name: "spar-secrets"
+      mountPath: "/etc/wire/spar/secrets"
     {{- if eq (include "useCassandraTLS" .Values.spar.config.cassandra) "true" }}
     - name: "spar-cassandra"
       mountPath: "/etc/wire/spar/cassandra"
