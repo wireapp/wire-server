@@ -157,7 +157,7 @@ searchUsersFederatedImpl mOnlyInTeams searchTerm maxResults mTypes =
         loc <- input
         runContactSearch (tDomain loc) (contactSearchQuery Nothing Nothing tokens term vis maxResults mTypes) (literal "order by wu.id asc")
   where
-    term = normalized searchTerm
+    term = Text.unwords (analyzeTerm searchTerm)
 
     emptyResult = SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
@@ -398,10 +398,20 @@ paginateTeamMembersImpl filters maxResults mPagingState = do
       rows <-
         runStatement
           ()
-          (refineResult (traverse withRaw) (buildStatement (browseQuery filters mRoleMap Nothing) (Dec.rowList teamRow)))
+          ( refineResult
+              (traverse withRaw)
+              ( buildStatement
+                  -- Deterministic base order: 'sortTeamContacts' is stable,
+                  -- so ties keep the id order across offset pages.
+                  (browseQuery filters mRoleMap Nothing <> literal "order by wu.id asc")
+                  (Dec.rowList teamRow)
+              )
+          )
       let total = maybe 0 (trFound . snd) (listToMaybe rows)
           dir = fromMaybe SortOrderAsc filters.mSortOrder
-          sorted = sortTeamContacts mSortBy' dir (map fst rows)
+          -- Roles must be filled BEFORE sorting, as they are a sort key.
+          contacts = maybe id (map . setRoleFromMap) mRoleMap (map fst rows)
+          sorted = sortTeamContacts mSortBy' dir contacts
           page = take maxResults (drop startOffset sorted)
           hasMore = length sorted > startOffset + length page
       applyRoleFill mRoleMap (mkSearchResult (fromIntegral total) page (Just (OffsetCursor (startOffset + length page))) hasMore)
@@ -441,22 +451,31 @@ paginateTeamMembersImpl filters maxResults mPagingState = do
       SearchResult TeamContact ->
       Sem r (SearchResult TeamContact)
     applyRoleFill (Just roleMap) result =
-      pure result {searchResults = map setRole (searchResults result)}
-      where
-        setRole tc = tc {teamContactRole = Map.lookup tc.teamContactUserId roleMap}
+      pure result {searchResults = map (setRoleFromMap roleMap) (searchResults result)}
     applyRoleFill Nothing result = do
       results <- fillRolesFromGalley filters.teamId (searchResults result)
       pure result {searchResults = results}
 
--- | Browse query on @wire_user wu@; @keyset@ (if given) is the pagination
--- continuation predicate, @mRoleMap@ provides the optional role filter.
+setRoleFromMap :: Map UserId Role -> TeamContact -> TeamContact
+setRoleFromMap roleMap tc = tc {teamContactRole = Map.lookup tc.teamContactUserId roleMap}
+
+-- | Browse query; @keyset@ (if given) is the pagination continuation
+-- predicate, @mRoleMap@ provides the optional role filter.
+--
+-- The filtered set (including the total count) is computed in a subquery
+-- aliased @wu@, and the keyset predicate is applied outside of it, so that
+-- the total is the same on every page.  (Postgres does not push predicates
+-- into a subquery containing a window function.)  The subquery's columns
+-- keep the @wire_user@ column names, so @wu.<column>@ references in the
+-- keyset predicate and ordering clause work unchanged.
 browseQuery ::
   BrowseTeamFilters ->
   Maybe (Map UserId Role) ->
   Maybe QueryFragment ->
   QueryFragment
 browseQuery filters mRoleMap keyset =
-  literal "select (count(*) over ()) :: bigint, wu.id :: uuid, wu.user_type :: int, wu.name :: text, wu.accent_id :: int, wu.handle :: text, wu.team :: uuid, wu.email :: text, wu.email_unvalidated :: text, wu.created_at :: timestamptz, wu.managed_by :: int, wu.sso_id :: jsonb, wu.searchable :: bool"
+  literal "select wu.found, wu.id, wu.user_type, wu.name, wu.accent_id, wu.handle, wu.team, wu.email, wu.email_unvalidated, wu.created_at, wu.managed_by, wu.sso_id, wu.searchable"
+    <> literal "from (select (count(*) over ()) :: bigint as found, wu.id :: uuid as id, wu.user_type :: int as user_type, wu.name :: text as name, wu.accent_id :: int as accent_id, wu.handle :: text as handle, wu.team :: uuid as team, wu.email :: text as email, wu.email_unvalidated :: text as email_unvalidated, wu.created_at :: timestamptz as created_at, wu.managed_by :: int as managed_by, wu.sso_id :: jsonb as sso_id, wu.searchable :: bool as searchable"
     <> literal "from wire_user wu"
     <> literal "where"
     <> andList
@@ -465,9 +484,11 @@ browseQuery filters mRoleMap keyset =
                searchableCondition filters.mSearchable,
                emailVerificationCondition filters.mEmailVerificationFilter
              ]
-          ++ catMaybes [roleFilterCondition mRoleMap filters.mRoleFilter, keyset]
+          ++ catMaybes [roleFilterCondition mRoleMap filters.mRoleFilter]
           ++ map (tokenMatchCondition True) (maybe [] analyzeTerm filters.mQuery)
       )
+    <> literal ") wu"
+    <> foldMap (literal "where" <>) keyset
 
 -- | Keyset continuation cursor for the last returned row.
 keysetCursor :: (TeamUserSearchSortBy, TeamUserSearchSortOrder) -> TeamRow -> BrowseCursor
@@ -521,7 +542,14 @@ sortColumnExpr = \case
   Just SortByCreatedAt -> Just "wu.created_at"
   _ -> Nothing
 
--- | Keyset continuation predicate for @(null-flag, sort value, id)@ tuples.
+-- | Keyset continuation predicate matching 'browseOrderBy', i.e. the
+-- ordering @(col is null) dir, col dir, wu.id dir@:
+--
+--   * ascending: non-null values (by value, then id), then NULLs (by id);
+--
+--   * descending: NULLs (by id, descending), then non-null values (by
+--     value, then id, both descending).
+--
 -- @Nothing@ when the cursor does not match the requested sort (the page
 -- restarts).
 keysetPredicate ::
@@ -533,42 +561,44 @@ keysetPredicate mSortBy dir = \case
   OffsetCursor _ -> Nothing
   KeysetCursor flag val uid -> do
     col <- sortColumnExpr mSortBy
-    let (op, idOp, dirSql) = case dir of
-          SortOrderAsc -> (">", ">", "asc")
-          SortOrderDesc -> ("<", "<", "desc")
+    let op = case dir of
+          SortOrderAsc -> ">"
+          SortOrderDesc -> "<"
+        isNull = literal (col <> " is null")
+        isNotNull = literal (col <> " is not null")
+        idAfter = literal ("wu.id " <> op) <> uidParam uid
     -- Branch on the null-flag BEFORE decoding the sort value: a cursor for
     -- a row whose sort value was NULL stores a placeholder that cannot be
-    -- decoded, and decoding it here would make the predicate 'Nothing' and
-    -- restart the page from the beginning (duplicate rows).  Rows after a
-    -- NULL-valued cursor are simply the other NULL-valued rows ordered by
-    -- id (the tuple comparison with a NULL sort value is UNKNOWN in SQL).
+    -- decoded.
     if flag
-      then
-        pure $
-          literal "("
-            <> literal col
-            <> literal "is null and"
-            <> literal ("wu.id " <> idOp)
-            <> uidParam uid
+      then pure $ case dir of
+        -- NULLs come last: only the remaining NULL-valued rows follow.
+        SortOrderAsc -> literal "(" <> isNull <> literal "and" <> idAfter <> literal ")"
+        -- NULLs come first: the remaining NULL-valued rows, then all
+        -- non-null rows.
+        SortOrderDesc ->
+          literal "(("
+            <> isNull
+            <> literal "and"
+            <> idAfter
+            <> literal ") or"
+            <> isNotNull
             <> literal ")"
       else do
         typed <- sortValFromAeson col val
-        pure $
-          literal "((("
-            <> literal ("(" <> col <> " is null)")
-            <> literal dirSql
-            <> literal ","
-            <> literal col
-            <> literal dirSql
-            <> literal ","
-            <> literal ("wu.id " <> dirSql)
-            <> literal (") " <> op <> " (")
-            <> boolParam flag
-            <> literal ","
-            <> sortValParam typed
-            <> literal ","
-            <> uidParam uid
-            <> literal "))"
+        let valueAfter =
+              literal "("
+                <> isNotNull
+                <> literal ("and (" <> col <> ", wu.id) " <> op <> " (")
+                <> sortValParam typed
+                <> literal ","
+                <> uidParam uid
+                <> literal "))"
+        pure $ case dir of
+          -- NULLs come last: they all follow any non-null cursor.
+          SortOrderAsc -> literal "(" <> valueAfter <> literal "or" <> isNull <> literal ")"
+          -- NULLs came first: they all precede any non-null cursor.
+          SortOrderDesc -> valueAfter
 
 -- | Sort value of a row, used for keyset pagination cursors.
 data SortVal = SortText Text | SortInt32 Int32 | SortTime UTCTime
@@ -723,7 +753,7 @@ upsertTeamSearchVisibilityStatement =
 -- leading '@' of each token (the former ES analyzer did this implicitly;
 -- the swagger documents that '@' does nothing special).
 analyzeTerm :: Text -> [Text]
-analyzeTerm = map (Text.dropWhile (== '@')) . Text.words . normalized
+analyzeTerm = filter (not . Text.null) . map (Text.dropWhile (== '@')) . Text.words . normalized
 
 -- | Prefix match on a single (whitespace-split) token of the normalized
 -- search term.  A name token must start at the beginning of the name or be
@@ -745,7 +775,7 @@ tokenMatchCondition matchEmail tok =
     <> likeParam "wu.name_normalized" midWord
     <> literal "or"
     <> likeParam "lower(wu.handle)" prefix
-    <> (if matchEmail then literal "or" <> likeParam "lower(wu.email)" prefix else literal "true")
+    <> (if matchEmail then literal "or" <> likeParam "lower(wu.email)" prefix else mempty)
     <> literal ")"
   where
     prefix = escapeLike tok <> "%"
@@ -756,7 +786,7 @@ tokenMatchCondition matchEmail tok =
 candidateCondition :: [QueryFragment]
 candidateCondition =
   [ literal "wu.activated",
-    literal "(wu.account_status is null or wu.account_status in"
+    literal "(wu.account_status is null or wu.account_status in ("
       <> commaList (intParam . postgresMarshall @Int32 <$> accountStatusIndexed)
       <> literal "))",
     literal "wu.service is null"
@@ -830,9 +860,6 @@ textParam t = paramLiteral (const t >$< Enc.param (Enc.nonNullable Enc.text)) (a
 
 timeParam :: UTCTime -> QueryFragment
 timeParam t = paramLiteral (const t >$< Enc.param (Enc.nonNullable Enc.timestamptz)) (argPattern "timestamptz")
-
-boolParam :: Bool -> QueryFragment
-boolParam b = paramLiteral (const b >$< Enc.param (Enc.nonNullable Enc.bool)) (argPattern "bool")
 
 uidParam :: Id a -> QueryFragment
 uidParam u = paramLiteral (const (toUUID u) >$< Enc.param (Enc.nonNullable Enc.uuid)) (argPattern "uuid")
