@@ -1709,7 +1709,7 @@ CREATE TABLE public.presence (
     resource text NOT NULL,
     client_id text,
     created_at timestamp with time zone NOT NULL,
-    expires_at timestamp with time zone NOT NULL
+    expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval) NOT NULL
 );
 
 
