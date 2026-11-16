@@ -17,10 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.PasswordStore.Cassandra
-  ( interpretPasswordStore,
-  )
-where
+module Wire.PasswordStore.Cassandra (interpretPasswordStore) where
 
 import Cassandra
 import Data.Id
@@ -50,8 +47,6 @@ insertProviderPasswordImpl pid pw =
 deleteProviderPasswordImpl :: (MonadClient m) => ProviderId -> m ()
 deleteProviderPasswordImpl pid =
   retry x5 (write providerPasswordDelete (params LocalQuorum (Identity pid)))
-
--- | Page over all provider passwords for the Cassandra -> PostgreSQL migration.
 
 ------------------------------------------------------------------------
 -- Queries

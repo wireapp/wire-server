@@ -457,8 +457,8 @@ runBrigToIO e (AppT ma) = do
 
       passwordStoreInterpreter = case e.postgresMigration.providerPassword of
         CassandraStorage -> interpretPasswordStore e.casClient
-        -- The copy loop is gone; the legacy migration setting degrades to
-        -- Cassandra-only reads/writes.
+        -- Provider passwords are not migrated: `migration-to-postgresql` keeps
+        -- using Cassandra.
         MigrationToPostgresql -> interpretPasswordStore e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool

@@ -15,11 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.PasswordStore.Postgres
-  ( interpretPasswordStoreToPostgres,
-    upsertProviderPassword,
-  )
-where
+module Wire.PasswordStore.Postgres (interpretPasswordStoreToPostgres) where
 
 import Data.Id
 import Hasql.Statement qualified as Hasql
@@ -40,12 +36,12 @@ interpretPasswordStoreToPostgres = interpret $ \case
   DeleteHashedProviderPassword pid -> deleteProviderPassword pid
 
 lookupImpl :: (PGConstraints r) => ProviderId -> Sem r (Maybe Password)
-lookupImpl pid = join <$> runStatement pid select
+lookupImpl pid = runStatement pid select
   where
-    select :: Hasql.Statement ProviderId (Maybe (Maybe Password))
+    select :: Hasql.Statement ProviderId (Maybe Password)
     select =
       dimapPG
-        [maybeStatement|SELECT password :: text?
+        [maybeStatement|SELECT password :: text
                         FROM provider_password
                         WHERE id = $1 :: uuid|]
 
@@ -65,7 +61,6 @@ deleteProviderPassword pid = runStatement pid deleteStatement
   where
     deleteStatement :: Hasql.Statement ProviderId ()
     deleteStatement =
-      dimapPG
+      lmapPG
         [resultlessStatement|DELETE FROM provider_password
                              WHERE id = $1 :: uuid|]
-
