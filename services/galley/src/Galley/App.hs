@@ -109,7 +109,7 @@ import Wire.CodeStore.Cassandra
 import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
-import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
@@ -143,6 +143,7 @@ import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
   )
+import Wire.MLSCommitLockStore.Postgres (interpretMLSCommitLockStoreToPostgres)
 import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore (MeetingsStore)
@@ -560,7 +561,7 @@ evalGalley e =
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . teamFeatureStoreInterpreter
-        . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
+        . interpretMLSCommitLockStoreToPostgres
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
