@@ -2468,6 +2468,7 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
+         verificationCodes: cassandra
    background-worker:
      config:
        migrateConversations: false
