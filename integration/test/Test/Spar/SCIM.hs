@@ -33,6 +33,7 @@
 --   'Test.Spar.testAllowUpdatesBySCIMWhenE2EIdEnabled' (self, e2eid teams).
 -- * @userLocale@ <- @locale@: 'testScimManagedLocaleIsLockedForUser' (self).
 -- * @userIdentity@ (email) <- @emails@: 'testScimManagedEmailIsLockedForUser' (self),
+--   'testScimManagedEmailCannotBeRemoved' (self, deletion),
 --   'testScimManagedEmailIsLockedForTeamAdmin' (team admin).
 -- * @userIdentity@ (sso id) <- @externalId@: no non-SCIM write path exists (brig only
 --   accepts sso ids on internal end-points used by spar);
@@ -116,6 +117,19 @@ testScimManagedEmailIsLockedForUser = do
     resp.status `shouldMatchInt` 200
     resp.json %. "email" `shouldMatch` emailBefore
     lookupField resp.json "email_unvalidated" `shouldMatch` (Nothing :: Maybe Value)
+
+-- | Removing a SCIM-managed email must be rejected without changing the identity.
+testScimManagedEmailCannotBeRemoved :: (HasCallStack) => App ()
+testScimManagedEmailCannotBeRemoved = do
+  (_owner, scimUser, _wireUser) <- setupScimTeam
+  emailBefore <- scimUser %. "email"
+
+  deleteSelfEmail scimUser `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+  getSelf scimUser `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "email" `shouldMatch` emailBefore
 
 -- | ... and neither may a team admin, who can change the email address of any other
 -- wire-managed member of her team (@PUT \/users\/:uid\/email@).
