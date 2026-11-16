@@ -111,3 +111,5 @@ postgresMigration:
   budget: postgresql
   nonce: postgresql
   connections: postgresql
+  scimTokens: postgresql
+  scimExternalIds: postgresql

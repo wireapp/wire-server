@@ -100,8 +100,6 @@ import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
@@ -131,6 +129,8 @@ import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import Wire.ScimSubsystem
+import Wire.ScimTokenStore (ScimTokenStore)
+import qualified Wire.ScimTokenStore as ScimTokenStore
 import Wire.ScimUserMetaStore (ScimUserMetaStore)
 import qualified Wire.ScimUserMetaStore as ScimUserMetaStore
 import Wire.Sem.Logger (Logger)
