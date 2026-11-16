@@ -642,8 +642,9 @@ paginateProviderServiceTags tags start size providerFilter = do
       dimapPG
         [vectorStatement|SELECT (name :: text), (provider :: uuid), (service :: uuid)
                          FROM provider_service_tag
-                         WHERE bucket = ($1 :: int) AND tag = ($2 :: bigint) AND name >= ($3 :: text)
-                         ORDER BY name, service
+                         WHERE bucket = ($1 :: int) AND tag = ($2 :: bigint)
+                           AND name COLLATE "C" >= ($3 :: text)
+                         ORDER BY name COLLATE "C", service
                          LIMIT ($4 :: int)
         |]
     thd (_, pid, sid) = (pid, sid)
@@ -682,7 +683,7 @@ paginateProviderServiceNames mbPrefix size providerFilter = do
       dimapPG
         [vectorStatement|SELECT (name :: text), (provider :: uuid), (service :: uuid)
                          FROM provider_service_prefix
-                         ORDER BY name, service
+                         ORDER BY name COLLATE "C", service
                          LIMIT ($1 :: int)
         |]
     queryPrefixes :: (PGConstraints r) => Text -> Int32 -> Sem r (Page IndexRow)
@@ -696,8 +697,8 @@ paginateProviderServiceNames mbPrefix size providerFilter = do
       dimapPG
         [vectorStatement|SELECT (name :: text), (provider :: uuid), (service :: uuid)
                          FROM provider_service_prefix
-                         WHERE prefix = ($1 :: text) AND name >= ($2 :: text)
-                         ORDER BY name, service
+                         WHERE prefix = ($1 :: text) AND name COLLATE "C" >= ($2 :: text)
+                         ORDER BY name COLLATE "C", service
                          LIMIT ($3 :: int)
         |]
     thd (_, pid, sid) = (pid, sid)
