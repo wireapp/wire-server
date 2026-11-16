@@ -321,6 +321,7 @@ galley:
       sessions: {{ .Values.sessionsStore }}
       scimTokens: {{ .Values.scimTokensStore }}
       scimExternalIds: {{ .Values.scimExternalIdsStore }}
+      samlUsers: {{ .Values.samlUsersStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -620,6 +621,7 @@ spar:
       sessions: {{ .Values.sessionsStore }}
       scimTokens: {{ .Values.scimTokensStore }}
       scimExternalIds: {{ .Values.scimExternalIdsStore }}
+      samlUsers: {{ .Values.samlUsersStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/

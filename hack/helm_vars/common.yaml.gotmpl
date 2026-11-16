@@ -29,6 +29,7 @@ sessionsStore: {{ $preferredStore }}
 {{- $scimStore := ternary "postgresql" $preferredStore (eq $preferredStore "migration-to-postgresql") }}
 scimTokensStore: {{ $scimStore }}
 scimExternalIdsStore: {{ $scimStore }}
+samlUsersStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

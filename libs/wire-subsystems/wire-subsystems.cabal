@@ -464,6 +464,10 @@ library
     Wire.SAMLEmailSubsystem.Interpreter
     Wire.SamlProtocolSettings
     Wire.SamlProtocolSettings.Servant
+    Wire.SAMLUserStore
+    Wire.SAMLUserStore.Cassandra
+    Wire.SAMLUserStore.Mem
+    Wire.SAMLUserStore.Postgres
     Wire.ScimExternalIdStore
     Wire.ScimExternalIdStore.Cassandra
     Wire.ScimExternalIdStore.Mem

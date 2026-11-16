@@ -58,6 +58,7 @@ postgresMigration:
   sessions: cassandra
   scimTokens: postgresql
   scimExternalIds: postgresql
+  samlUsers: postgresql
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"

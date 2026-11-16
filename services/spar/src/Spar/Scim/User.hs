@@ -84,8 +84,6 @@ import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
-import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -119,6 +117,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import qualified Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.SAMLUserStore (SAMLUserStore)
+import qualified Wire.SAMLUserStore as SAMLUserStore
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import Wire.ScimUserMetaStore (ScimUserMetaStore)

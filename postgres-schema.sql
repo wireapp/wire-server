@@ -1763,6 +1763,20 @@ CREATE TABLE public.scim_token (
 ALTER TABLE public.scim_token OWNER TO "wire-server";
 
 --
+-- Name: spar_user; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.spar_user (
+    issuer text NOT NULL,
+    normalized_uname_id text NOT NULL,
+    sso_id text NOT NULL,
+    uid uuid NOT NULL
+);
+
+
+ALTER TABLE public.spar_user OWNER TO "wire-server";
+
+--
 -- Name: subconversation; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2282,6 +2296,14 @@ ALTER TABLE ONLY public.scim_external
 
 ALTER TABLE ONLY public.scim_token
     ADD CONSTRAINT scim_token_pkey PRIMARY KEY (token);
+
+
+--
+-- Name: spar_user spar_user_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.spar_user
+    ADD CONSTRAINT spar_user_pkey PRIMARY KEY (issuer, normalized_uname_id);
 
 
 --
