@@ -17,17 +17,6 @@
 
 module Wire.TeamStore.Postgres
   ( interpretTeamStoreMetadataToPostgres,
-    routeCassandra,
-    insertTeamPg,
-    insertTeamRowIfAbsentPg,
-    updateTeamPg,
-    updateTeamNamePg,
-    updateTeamIconPg,
-    updateTeamIconKeyPg,
-    updateTeamSplashScreenPg,
-    updateTeamStatusPg,
-    updateTeamSearchVisibilityPg,
-    deleteTeamWithCassandra,
   )
 where
 
@@ -53,9 +42,11 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.SearchVisibility
 import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationStore qualified as ConversationStore
 import Wire.Postgres
 import Wire.TeamStore
 import Wire.TeamStore.Cassandra qualified as Cassandra
+import Wire.Util (embedClientInput)
 
 -- | Interprets the team-metadata constructors of 'TeamStore' against the
 -- Postgres @team@ table.  All other constructors (team members) are routed
@@ -74,7 +65,7 @@ interpretTeamStoreMetadataToPostgres = interpret $ \case
   GetTeamsBindings tids -> getTeamsBindingsPg tids
   GetTeamBinding tid -> getTeamBindingPg tid
   GetTeamCreationTime tid -> getTeamCreationTimePg tid
-  DeleteTeam tid -> deleteTeamWithCassandra tid
+  DeleteTeam tid -> deleteTeamPg tid
   SetTeamData tid upd -> do
     stamp <- Writetime <$> embed @IO getCurrentTime
     updateTeamPg tid upd (writetimeToUTC stamp)
@@ -134,12 +125,8 @@ createTeamPg mtid uid (fromRange -> n) i k b = do
   insertTeamPg t stamp
   pure t
 
--- | Insert a fully specified team row guarded by the given writetime.
--- Shared by the direct-create path ('createTeamPg') and the DualWrite path
--- (which must reuse the Cassandra-generated team id); the migration copy
--- loop uses 'insertTeamRowIfAbsentPg' directly.  The row is inserted only
--- if absent and then reconciled with
--- per-column guards (@*col*_time is null or *col*_time <= stamp@), mirroring
+-- | Insert a fully specified team row guarded by the given writetime.  The
+-- row is inserted only if absent and then reconciled with per-column guards (@*col*_time is null or *col*_time <= stamp@), mirroring
 -- Cassandra's last-write-wins semantics: a concurrent or later write with a
 -- newer stamp always wins over this one, and vice versa.
 insertTeamPg :: (PGConstraints r) => Team -> UTCTime -> Sem r ()
@@ -173,8 +160,7 @@ initialTeamStatus Binding = PendingActive
 initialTeamStatus NonBinding = Active
 
 -- | Insert-if-absent primitive over the full team row; the writetime columns
--- are passed through verbatim (@Nothing@ when the Cassandra column has no
--- writetime).  Shared with the migration copy loop.
+-- are passed through verbatim (@Nothing@ when the column has no writetime).
 insertTeamRowIfAbsentPg ::
   (PGConstraints r) =>
   TeamId ->
@@ -235,8 +221,7 @@ getTeamPg tid = runStatement (toUUID tid) selectTeamStatement
 -- | Mirrors the row decoding of the Cassandra implementation: a deleted row
 -- reports @PendingDelete@, missing status/splash-screen fields fall back to
 -- their defaults, and the status time comes from the maintained
--- @status_time@ column (Cassandra's @writetime(status)@ carried over by the
--- copy loop).
+-- @status_time@ column (the equivalent of Cassandra's @writetime(status)@).
 selectTeamStatement :: Hasql.Statement UUID (Maybe TeamData)
 selectTeamStatement =
   Hasql.refineResult
@@ -319,7 +304,8 @@ toCreationTime :: UTCTime -> TeamCreationTime
 toCreationTime t =
   TeamCreationTime (floor ((1e6 :: Double) * realToFrac (utcTimeToPOSIXSeconds t)))
 
--- | The @binding_time@ column carries over Cassandra's @writetime(binding)@;
+-- | The @binding_time@ column is the equivalent of Cassandra's
+-- @writetime(binding)@;
 -- like Cassandra's @checkCreation@, it is 'Nothing' both for a missing team
 -- row and for a row whose binding column has no writetime.
 selectTeamCreationTimeStatement :: Hasql.Statement UUID (Maybe (Maybe UTCTime))
@@ -354,28 +340,28 @@ toSearchVisibility mv = maybe (Right SearchVisibilityStandard) postgresUnmarshal
 teamDeleteWritetime :: UTCTime
 teamDeleteWritetime = posixSecondsToUTCTime 32503680000
 
--- | Team deletion with the Postgres metadata leg and the Cassandra member/
--- conversation cleanup: the team is first parked in @PendingDelete@ (the
--- requeue scan in Galley.API.Teams.lookupTeam only picks up
--- @PendingDelete@ teams), then the Cassandra cleanup runs, then the
--- Postgres row is finalized with the terminal Cassandra delete writetime.
--- If the cleanup is interrupted, the @PendingDelete@ status makes the next
--- requeue pass retry the whole deletion.
-deleteTeamWithCassandra ::
+-- | Team deletion: the team is first parked in @PendingDelete@ (the requeue
+-- scan in Galley.API.Teams.lookupTeam only picks up @PendingDelete@ teams),
+-- then the team members (still stored in Cassandra) and the team
+-- conversations are removed, then the Postgres row is finalized with the
+-- terminal delete writetime.  If the cleanup is interrupted, the
+-- @PendingDelete@ status makes the next requeue pass retry the whole deletion.
+-- The Cassandra @team@ table is never written.
+deleteTeamPg ::
   ( PGConstraints r,
     Member (Input ClientState) r,
-    Member TinyLog r,
     Member ConversationStore r
   ) =>
   TeamId ->
   Sem r ()
-deleteTeamWithCassandra tid = do
+deleteTeamPg tid = do
   -- The park uses the terminal delete writetime (not now()) so that no
-  -- guarded write can overwrite the PendingDelete marker while the Cassandra
-  -- cleanup runs; the guard passes unconditionally at this stamp, making
-  -- retries of this function idempotent.
+  -- guarded write can overwrite the PendingDelete marker while the cleanup
+  -- runs; the guard passes unconditionally at this stamp, making retries of
+  -- this function idempotent.
   updateTeamStatusPg tid PendingDelete teamDeleteWritetime
-  routeCassandra (deleteTeam tid)
+  embedClientInput (Cassandra.removeAllTeamMembers tid)
+  ConversationStore.deleteTeamConversations tid
   runStatement
     (postgresMarshall Deleted, teamDeleteWritetime, teamDeleteWritetime, teamDeleteWritetime, toUUID tid)
     finalizeTeamDeletionStatement
