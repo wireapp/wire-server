@@ -318,6 +318,8 @@ galley:
       budget: {{ .Values.budgetStore }}
       nonce: {{ .Values.nonceStore }}
       connections: {{ .Values.connectionsStore }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -614,6 +616,8 @@ spar:
       budget: {{ .Values.budgetStore }}
       nonce: {{ .Values.nonceStore }}
       connections: {{ .Values.connectionsStore }}
+      scimTokens: {{ .Values.scimTokensStore }}
+      scimExternalIds: {{ .Values.scimExternalIdsStore }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
