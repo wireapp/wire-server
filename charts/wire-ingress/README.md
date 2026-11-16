@@ -4,109 +4,43 @@ A Helm chart for Wire server ingress using the **Kubernetes Gateway API**.
 
 The chart targets **Envoy Gateway** as the Gateway API controller.
 
-## Regression tests
+## TLS regression tests
 
-Two independent runners exercise this chart on a real cluster: Python (standard
-library) and Haskell (the `integration:exe:ingress-regression` component). Python uses
-Helm, kubectl and OpenSSL 3. Haskell uses `tls` and `crypton` for TLS and certificate
-generation, and a native Kubernetes API client built on `http-client-tls` and
-`websockets` for resource lifecycle and port-forwarding. Its only subprocess is
-`helm template`, to render the chart. Both use the synthetic upstreams in
-[`tests/backend.yaml`](tests/backend.yaml). They require the controller and CRDs
-described below, including Lua and EnvoyPatchPolicy. No Wire services, database,
-cert-manager issuer, public DNS or external load balancer is needed.
+`make kube-ingress-test` deploys this chart once per profile in
+[`integration/ingress`](../../integration/ingress), then checks each deployment
+with [SSLyze](https://github.com/nabla-c0d3/sslyze)'s native custom TLS policy:
 
-From the repository root, with the development environment loaded:
+| Profile | TLS versions | Ciphers | Key exchange curves |
+| --- | --- | --- | --- |
+| default | 1.3 | AES-GCM, ChaCha20 | Chart defaults |
+| fips | 1.2, 1.3 | ECDHE + AES-GCM | P-256, P-384 |
 
-```sh
-KUBECONFIG="$PWD/tmp/kubeconfig" WIRE_INGRESS_TEST_NAMESPACE=test-wpb-29100-p make p-kube-ingress-test
-KUBECONFIG="$PWD/tmp/kubeconfig" WIRE_INGRESS_TEST_NAMESPACE=test-wpb-29100-h make h-kube-ingress-test
-```
-
-Each runner tests chart-created and externally created Gateways with these
-profiles, on the normal API, federation API, enabled webapp, and extra HTTPS
-listener:
-
-| Profile | Must work | Must be rejected |
-| --- | --- | --- |
-| Default | TLS 1.3, AES-GCM | TLS 1.2 |
-| Custom TLS 1.2 | ECDHE-ECDSA-AES128-GCM-SHA256 | AES256-GCM and TLS 1.3 |
-| FIPS | TLS 1.2 and 1.3, AES-GCM, permitted EC groups | TLS 1.3 ChaCha20 and X25519 |
-
-FIPS additionally tests a cross-namespace companion ListenerSet without its own
-ClientTrafficPolicy: the Gateway patch must cover every TLS filter chain. Every
-positive probe verifies the server certificate and hostname and asserts the
-expected upstream response. Negative probes require a TLS alert; connection
-failures do not count as successful rejection. Federation probes check removal
-of spoofed `X-SSL-Certificate`, forwarding of the actual client certificate, and
-trailing-dot Host routing. The backend fixture deploys three distinct small HTTP
-servers; it tests chart routing, not the Wire API or webapp application's logic.
-
-Both runners repeat the complete Gateway/TLS matrix for multi-ingress: two
-unrelated domains, distinct certificates and Secrets, API and webapp routes on
-each domain, and a custom secondary listener-section name. Each probe trusts
-only its domain's certificate, catching incorrect certificate selection as well
-as routing failures. Federation is disabled for this mode, as required by the
-chart. This gives twelve live scenarios per implementation. FIPS multi-ingress
-also includes the cross-namespace companion listener.
-
-The Python runner also runs local Helm checks for invalid FIPS configurations,
-both xDS naming schemes, all-filter-chain patching, and HA/PDB defaults and
-overrides. The Haskell runner uses closed scenario types, declarative probe
-expectations, and `withModifiedIngress` to scope cluster resources; its unit
-checks verify alert classification, port-forward framing and certificate serialization
-before deploying resources. The Haskell client accepts a single kubeconfig file
-(default `~/.kube/config`) with CA-verified HTTPS and client-certificate or bearer-token
-authentication. Embedded credentials and relative certificate/key paths are supported;
-exec/auth-provider plugins, proxy-url and tls-server-name overrides are rejected explicitly.
-The Haskell build requires `tls >= 2.4.4` (pinned in the Nix environment), which
-fixes interrupted TLS 1.3 client-authentication reads. Reload the development
-environment after updating this dependency.
-Additional render checks reject multi-ingress with federation or a missing
-secondary TLS Secret reference, and verify per-domain team-settings CSP behavior,
-the CSP opt-out, and absence of injected CSP on webapp routes.
-
-After `WIRE_INGRESS_MODE=envoy make kube-integration-setup`, the normal
-`make kube-integration-test` detects the installed wire-ingress release and runs the Python chart suite
-before the application suites and fails if it fails. Select the implementation
-explicitly with `make p-kube-integration-test` or `make h-kube-integration-test`.
-The standalone `p-kube-ingress-test` and `h-kube-ingress-test` targets run only
-chart regressions, so no temporary changes to application test configuration are
-needed. An explicit `WIRE_INGRESS_MODE` overrides detection. Nginx-mode integration runs do not invoke these Envoy-specific tests.
-
-Configuration shared by both runners:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `KUBECONFIG` | kubectl's default | Cluster credentials; never inferred from `tmp/` automatically |
-| `WIRE_INGRESS_TEST_NAMESPACE` | `test-wire-ingress` (Python), `test-wire-ingress-h` (Haskell); `${NAMESPACE}-ingress` in integration flow | Namespace prefix, DNS label up to 28 characters; use a unique prefix for concurrent runs |
-| `WIRE_INGRESS_GATEWAY_CLASS` | `envoy` | Existing dedicated-Gateway class; must not merge Gateways |
-| `ENVOY_GATEWAY_NAMESPACE` | `envoy-gateway-system` | Namespace of generated proxy Services |
-| `WIRE_INGRESS_XDS_NAME_SCHEME_V2` | `false` | Must match controller runtime flags; set `true` for V2 naming (default from Envoy Gateway 1.10) |
-| `WIRE_INGRESS_TEST_IMPLEMENTATION` | `python` | `python` or `haskell` in the normal integration flow |
-
-The runners create fresh namespaces, ClusterIP proxies and temporary test
-certificates, and port-forward through the Kubernetes API. Python uses a loopback
-listener; Haskell feeds the WebSocket stream directly into the TLS backend. They refuse existing namespaces
-and request deletion of only namespaces created by the run, including on test
-failure. Namespace deletion is asynchronous; wait for deletion before reusing
-the same prefix. Cleanup is requested after each scenario so completed proxies
-do not accumulate across the matrix. Controller configuration and existing
-Gateways are untouched.
-Failures print resource status before cleanup. Both naming schemes are checked
-at render time; a live run tests the configured controller's naming scheme.
-
-Local checks without a cluster:
+Load the Nix development environment, select a cluster with the controller and
+CRDs described below, and specify its xDS naming scheme:
 
 ```sh
-python3 -m unittest discover -s hack/bin/tests -v
-cabal test integration:ingress-unit --test-show-details=direct 2>&1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'
+KUBECONFIG="$PWD/tmp/kubeconfig" WIRE_INGRESS_XDS_NAME_SCHEME_V2=true make kube-ingress-test
 ```
 
-For a shorter Python live run, pass `--profile default`, `--profile tls12`, or
-`--profile fips` to `python3 hack/bin/wire-ingress-test.py`; both Gateway ownership
-variants and single/multi-domain modes still run. The full matrix is the default
-in both implementations.
+Use `false` for controllers using legacy xDS names. Optional overrides are
+`WIRE_INGRESS_GATEWAY_CLASS` (default `envoy`, must not merge Gateways) and
+`ENVOY_GATEWAY_NAMESPACE` (default `envoy-gateway-system`).
+
+The runner uses fresh namespaces, one ClusterIP proxy at a time, a temporary
+test CA explicitly trusted by SSLyze, and loopback port-forwarding.
+It deletes its namespaces and temporary files on exit. No Wire backend, public DNS,
+load balancer or cert-manager is needed. Scan errors, unexpected TLS settings and
+missing expected protocol versions fail the run.
+
+To add a case, add a directory containing `values.yaml` (chart overrides) and
+`tls.json` (SSLyze policy). Shared deployment settings are in `values.yaml` in the
+parent directory; TLS defaults remain in the chart.
+
+These checks cover the HTTPS listener's TLS configuration, not application routing,
+federation mTLS, or FIPS certification. SSLyze checks the curves it can probe; it
+does not establish support for every allowed curve or cipher, including hybrid PQ
+key exchanges. The Nix package uses upstream nassl wheels for Linux x86_64/ARM64
+and macOS ARM64, which bundle the legacy TLS implementations needed by the scanner.
 
 ---
 

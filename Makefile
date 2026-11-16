@@ -494,21 +494,8 @@ kube-integration-test:
 	./hack/bin/integration-test.sh
 
 .PHONY: kube-ingress-test
-kube-ingress-test: p-kube-ingress-test
-
-.PHONY: p-kube-ingress-test h-kube-ingress-test
-p-kube-ingress-test:
-	WIRE_INGRESS_TEST_IMPLEMENTATION=python ./hack/bin/run-wire-ingress-tests.sh
-
-h-kube-ingress-test:
-	WIRE_INGRESS_TEST_IMPLEMENTATION=haskell ./hack/bin/run-wire-ingress-tests.sh
-
-.PHONY: p-kube-integration-test h-kube-integration-test
-p-kube-integration-test:
-	$(MAKE) kube-integration-test WIRE_INGRESS_MODE=envoy WIRE_INGRESS_TEST_IMPLEMENTATION=python
-
-h-kube-integration-test:
-	$(MAKE) kube-integration-test WIRE_INGRESS_MODE=envoy WIRE_INGRESS_TEST_IMPLEMENTATION=haskell
+kube-ingress-test:
+	./hack/bin/run-wire-ingress-tests.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:

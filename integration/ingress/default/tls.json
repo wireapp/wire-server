@@ -1,0 +1,17 @@
+{
+  "tls_versions": ["TLSv1.3"],
+  "ciphersuites": ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"],
+  "ciphers": {"iana": [], "openssl": [], "caddy": [], "go": []},
+  "tls_curves": ["X25519MLKEM768", "X25519", "prime256v1", "secp384r1", "secp521r1"],
+  "certificate_types": ["ecdsa", "rsa"],
+  "certificate_curves": ["prime256v1", "secp384r1", "secp521r1"],
+  "certificate_signatures": ["ecdsa-with-SHA256", "ecdsa-with-SHA384", "ecdsa-with-SHA512", "sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"],
+  "rsa_key_size": 2048,
+  "dh_param_size": null,
+  "ecdh_param_size": 256,
+  "hsts_min_age": 0,
+  "maximum_certificate_lifespan": 90,
+  "recommended_certificate_lifespan": 90,
+  "ocsp_staple": false,
+  "server_preferred_order": false
+}

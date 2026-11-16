@@ -1,0 +1,22 @@
+gateway:
+  name: tls-test
+  className: envoy
+  serviceType: ClusterIP
+  envoyProxy:
+    replicas: 1
+  listeners:
+    https:
+      hostname: ingress.example.test
+config:
+  dns:
+    https: ingress.example.test
+tls:
+  secret:
+    create: false
+    nameOverride: server-tls
+websockets:
+  enabled: false
+webapp:
+  enabled: false
+fakeS3:
+  enabled: false
