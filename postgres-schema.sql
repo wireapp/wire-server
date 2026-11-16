@@ -2777,17 +2777,17 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 
 
 --
--- Name: user_cookies_expires_idx; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX user_cookies_expires_idx ON public.user_cookies USING btree (user_id, expires_at);
-
-
---
 -- Name: user_cookies_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
 CREATE INDEX user_cookies_expires_at_idx ON public.user_cookies USING btree (expires_at);
+
+
+--
+-- Name: user_cookies_expires_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_cookies_expires_idx ON public.user_cookies USING btree (user_id, expires_at);
 
 
 --
