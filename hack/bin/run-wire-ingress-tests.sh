@@ -2,14 +2,25 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-# Require an explicit choice: this must match the Envoy Gateway controller.
-: "${WIRE_INGRESS_XDS_NAME_SCHEME_V2:?Set to true or false to match the controller}"
+if [[ -z "${KUBECONFIG:-}" && -f tmp/kubeconfig ]]; then export KUBECONFIG="$PWD/tmp/kubeconfig"; fi
+WIRE_INGRESS_XDS_NAME_SCHEME_V2=${WIRE_INGRESS_XDS_NAME_SCHEME_V2:-true}
+profiles=(integration/ingress/*/values.yaml)
+if [[ -n "${1:-}" ]]; then
+    [[ "$1" =~ ^[a-z0-9-]+$ && -f "integration/ingress/$1/values.yaml" ]] || { echo "Unknown TLS profile: $1" >&2; exit 2; }
+    profiles=("integration/ingress/$1/values.yaml")
+fi
+mkdir -p tmp/ingress-tests
+results=$(mktemp -d "$PWD/tmp/ingress-tests/run.XXXXXX")
+echo "TLS test results: $results"
 work=$(mktemp -d)
 namespace=
 cleanup() {
     if [[ $? != 0 && -n "$namespace" ]]; then
-        kubectl -n "$namespace" logs job/tls-scan >&2 || true
-        kubectl -n "$namespace" get pods >&2 || true
+        kubectl -n "$namespace" logs job/tls-scan > "$results/${profile##*/}.log" 2>&1 || true
+        cat "$results/${profile##*/}.log" >&2
+        kubectl -n "$namespace" get gateway,listenerset,envoypatchpolicy,job,pod -o yaml > "$results/${profile##*/}-resources.yaml" 2>&1 || true
+        kubectl -n "$namespace" get events --sort-by=.lastTimestamp > "$results/${profile##*/}-events.log" 2>&1 || true
+        echo "Failure diagnostics: $results" >&2
     fi
     if [[ -n "$namespace" ]]; then
         kubectl delete namespace "$namespace" --wait=false || true
@@ -31,7 +42,7 @@ openssl x509 -req -in "$work/server.csr" -CA "$work/cert.pem" -CAkey "$work/key.
         "basicConstraints=critical,CA:false" "keyUsage=critical,digitalSignature" \
         "extendedKeyUsage=serverAuth" "subjectAltName=DNS:ingress.example.test")
 
-for profile in integration/ingress/*/values.yaml; do
+for profile in "${profiles[@]}"; do
     profile=${profile%/values.yaml}
     echo "Testing ${profile##*/} TLS profile"
     # generateName avoids collisions and cleanup only deletes namespaces we created.
@@ -42,6 +53,7 @@ metadata:
   generateName: wire-ingress-tls-
 YAML
     )
+    echo "${profile##*/}: namespace $namespace"
     kubectl -n "$namespace" create secret tls server-tls \
         --cert="$work/server.pem" --key="$work/server.key"
     helm install tls-test charts/wire-ingress -n "$namespace" \
@@ -66,7 +78,7 @@ YAML
         if [[ "$state" == Running ]]; then sleep 2; fi
     done
     [[ "$state" == Complete ]] || { echo "TLS scan job: $state" >&2; exit 1; }
-    kubectl -n "$namespace" logs job/tls-scan > "$work/scan.json"
+    kubectl -n "$namespace" logs job/tls-scan > "$results/${profile##*/}.json"
     # SSLyze allowlists forbid extras; also require a completed scan and every expected TLS version.
     jq -e --slurpfile policy "$profile/tls.json" '
         .server_scan_results | length == 1 and all(.[];
@@ -75,7 +87,7 @@ YAML
               select(.value.result.accepted_cipher_suites | length > 0) |
               .value.result.tls_version_used] | sort) ==
             ([$policy[0].tls_versions[] | gsub("v|\\."; "_")] | sort))
-    ' "$work/scan.json"
+    ' "$results/${profile##*/}.json" > /dev/null
     echo "${profile##*/} TLS profile passed"
     kubectl delete namespace "$namespace" --wait=false
     namespace=

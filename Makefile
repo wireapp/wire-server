@@ -495,7 +495,7 @@ kube-integration-test:
 
 .PHONY: kube-ingress-test
 kube-ingress-test:
-	./hack/bin/run-wire-ingress-tests.sh
+	./hack/bin/run-wire-ingress-tests.sh "$(profile)"
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:

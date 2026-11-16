@@ -15,14 +15,18 @@ with [SSLyze](https://github.com/nabla-c0d3/sslyze)'s native custom TLS policy:
 | default | 1.3 | AES-GCM, ChaCha20 | Chart defaults |
 | fips | 1.2, 1.3 | ECDHE + AES-GCM | P-256, P-384 |
 
-Load the Nix development environment, select a cluster with the controller and
-CRDs described below, and specify its xDS naming scheme:
+Load the Nix development environment and use a cluster with the controller and
+CRDs described below:
 
 ```sh
-KUBECONFIG="$PWD/tmp/kubeconfig" WIRE_INGRESS_XDS_NAME_SCHEME_V2=true make kube-ingress-test
+make kube-ingress-test
+make kube-ingress-test profile=fips  # run just one profile
 ```
 
-Use `false` for controllers using legacy xDS names. Optional overrides are
+The runner uses `tmp/kubeconfig` when present unless `KUBECONFIG` is already set;
+otherwise it uses kubectl's normal context. V2 xDS naming is assumed; set
+`WIRE_INGRESS_XDS_NAME_SCHEME_V2=false` for a controller using legacy names.
+Optional overrides are
 `WIRE_INGRESS_GATEWAY_CLASS` (default `envoy`, must not merge Gateways) and
 `ENVOY_GATEWAY_NAMESPACE` (default `envoy-gateway-system`).
 
@@ -34,10 +38,15 @@ It deletes its namespaces and temporary files on exit. No Wire backend, public D
 load balancer or cert-manager is needed. Scan errors, unexpected TLS settings and
 missing expected protocol versions fail the run.
 
+Repeat or run commands concurrently: every invocation has unique namespaces and
+a separate results directory under `tmp/ingress-tests/run.*`. Successful scans
+leave JSON results; failures also save scanner logs, resource status and events.
+Temporary certificates and private keys are removed on exit.
+
 CI uses the same command with cluster credentials. The runner needs Helm, kubectl,
 OpenSSL and jq; SSLyze runs from a pinned upstream image inside the cluster.
-Each Job has a five-minute deadline and no retries. Failures print the scanner logs
-and pod status before cleanup, and return a nonzero exit code to CI. The cluster
+Each Job has a five-minute deadline and no retries. Failures print the scanner logs,
+save resource status before cleanup, and return a nonzero exit code to CI. The cluster
 must be able to pull the scanner image and allow it to reach the proxy Service.
 
 To add a case, add a directory containing `values.yaml` (chart overrides) and
