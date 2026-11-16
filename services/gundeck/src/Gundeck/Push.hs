@@ -151,6 +151,7 @@ runWithBudget'' budget fallback action = do
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class (Monad m) => MonadNativeTargets m where
   mntgtLogErr :: SomeException -> m ()
+
   -- | All addresses of the given users (any order), in one bulk lookup.
   mntgtLookupAddresses :: [UserId] -> m [Address]
 

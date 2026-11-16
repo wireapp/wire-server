@@ -56,10 +56,12 @@ interpretPushTokenStoreToPostgres = interpret $ \case
       (toUUID u, postgresMarshall t, appNameText a, tokenText p, Just arn, postgresMarshall conn, Just (postgresMarshall client))
       insertStatement
   UpdatePushTokenArn u t a p arn ->
-    runStatement (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn)
+    runStatement
+      (toUUID u, postgresMarshall t, appNameText a, tokenText p, arn)
       updateArnStatement
   DeletePushToken u t a p ->
-    runStatement (toUUID u, postgresMarshall t, appNameText a, tokenText p)
+    runStatement
+      (toUUID u, postgresMarshall t, appNameText a, tokenText p)
       deleteStatement
   ErasePushTokens u ->
     runStatement (toUUID u) eraseStatement
