@@ -88,6 +88,7 @@
 , polysemy-time
 , polysemy-wire-zoo
 , postie
+, pqi-ffi
 , process
 , prometheus-client
 , proto-lens
@@ -224,6 +225,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    pqi-ffi
     prometheus-client
     proto-lens
     QuickCheck
