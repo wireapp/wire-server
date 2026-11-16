@@ -18,8 +18,6 @@
 module Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem) where
 
 import Control.Concurrent qualified as C
-import Control.Error (atMay)
-import Control.Monad.Random (randomRIO)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -93,20 +91,19 @@ claimMlsKeyPackage maxLifetime lock u c s =
   bracket (embed $ C.takeMVar lock) (embed . C.putMVar lock) (const claim)
   where
     claim :: (Member Store.MlsKeyPackageStore r, Member (Embed IO) r) => Sem r (Maybe (KeyPackageRef, KeyPackageData))
-    claim = do
+    claim = claimWithRetries (3 :: Int)
+
+    -- The store claims atomically among the usable candidates. If all of them
+    -- were taken by concurrent claims in the meantime, look again.
+    claimWithRetries :: (Member Store.MlsKeyPackageStore r, Member (Embed IO) r) => Int -> Sem r (Maybe (KeyPackageRef, KeyPackageData))
+    claimWithRetries retries = do
       candidates <- getNonClaimedKeyPackages maxLifetime u c s
       case candidates of
         [] -> pure Nothing
-        _ -> do
-          mk <- embed (pick candidates)
-          for mk $ \candidate -> do
-            Store.deleteKeyPackage u c s (fst candidate)
-            pure candidate
-    pick :: [a] -> IO (Maybe a)
-    pick [] = pure Nothing
-    pick xs = do
-      i <- randomRIO (0, length xs - 1)
-      pure (atMay xs i)
+        _ ->
+          Store.claimKeyPackage u c s (map fst candidates) >>= \case
+            Nothing | retries > 0 -> claimWithRetries (retries - 1)
+            claimed -> pure claimed
 
 countMlsKeyPackages ::
   ( Member Store.MlsKeyPackageStore r,
@@ -139,7 +136,8 @@ getNonClaimedKeyPackages maxLifetime u c s = do
   now <- embed getPOSIXTime
   let decoded = mapMaybe decode rows
       (expired, usable) = partition (isExpired now maxLifetime) decoded
-  Store.deleteKeyPackages u c s (map (fst . snd) expired)
+  unless (null expired) $
+    Store.deleteKeyPackages u c s (map (fst . snd) expired)
   pure (map snd usable)
   where
     decode :: (KeyPackageRef, KeyPackageData) -> Maybe (KeyPackage, (KeyPackageRef, KeyPackageData))

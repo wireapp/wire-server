@@ -18,6 +18,8 @@
 module Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra) where
 
 import Cassandra as C hiding (Client)
+import Control.Error (atMay)
+import Control.Monad.Random (randomRIO)
 import Data.Id
 import Data.List.Extra (chunksOf)
 import Data.Map qualified as Map
@@ -39,7 +41,7 @@ interpretMlsKeyPackageStoreToCassandra cas =
       LookupKeyPackagesBulk requests -> embed $ lookupKeyPackagesBulk requests
       DeleteKeyPackages u c s rs -> embed $ deleteKeyPackages u c s rs
       DeleteAllKeyPackages u c ss -> embed $ deleteAllKeyPackages u c ss
-      DeleteKeyPackage u c s r -> embed $ deleteKeyPackage u c s r
+      ClaimKeyPackage u c s candidates -> embed $ claimKeyPackage u c s candidates
 
 insertKeyPackages :: (MonadClient m) => UserId -> ClientId -> [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] -> m ()
 insertKeyPackages u c ps = retry x5 . batch $ do
@@ -68,9 +70,21 @@ deleteKeyPackages u c s rs = retry x5 $ write deleteQuery (params LocalQuorum (u
 deleteAllKeyPackages :: (MonadClient m, MonadUnliftIO m, Foldable f) => UserId -> ClientId -> f CipherSuiteTag -> m ()
 deleteAllKeyPackages u c ss = pooledForConcurrentlyN_ 16 ss $ \s -> retry x5 $ write deleteAllQuery (params LocalQuorum (u, c, s))
 
-deleteKeyPackage :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> KeyPackageRef -> m ()
-deleteKeyPackage u c s r = do
-  retry x5 $ write deleteKeyPackageQuery (params LocalQuorum (u, c, s, r))
+-- | Not atomic: Cassandra offers no cheap way to delete-and-return a row, so
+-- concurrent claims on different brig instances may return the same key
+-- package (callers serialise claims within one instance).
+claimKeyPackage :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m (Maybe (KeyPackageRef, KeyPackageData))
+claimKeyPackage u c s candidates = do
+  stored <- filter ((`elem` candidates) . fst) <$> lookupKeyPackages u c s
+  mk <- pick stored
+  for mk $ \kp@(r, _) -> do
+    retry x5 $ write deleteKeyPackageQuery (params LocalQuorum (u, c, s, r))
+    pure kp
+  where
+    pick [] = pure Nothing
+    pick xs = do
+      i <- liftIO $ randomRIO (0, length xs - 1)
+      pure (atMay xs i)
 
 insertQuery :: PrepQuery W (UserId, ClientId, CipherSuiteTag, KeyPackageData, KeyPackageRef) ()
 insertQuery = "INSERT INTO mls_key_packages (user, client, cipher_suite, data, ref) VALUES (?, ?, ?, ?, ?)"
