@@ -105,9 +105,6 @@ import Wire.ParseException
 import Wire.PostgresMigrationOpts
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
-import Wire.ProviderServiceStore (ProviderServiceStore)
-import Wire.ProviderServiceStore.Cassandra (interpretProviderServiceStoreToCassandra)
-import Wire.ProviderServiceStore.Postgres (interpretProviderServiceStoreToPostgres)
 import Wire.RateLimit (RateLimit, RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
@@ -227,7 +224,6 @@ type BackgroundWorkerEffects =
      UserClientIndexStore,
      TeamFeatureStore,
      UserGroupStore,
-     ProviderServiceStore,
      ProposalStore,
      MLSCommitLockStore,
      Input FanoutLimit,
@@ -328,7 +324,6 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
     . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
     . interpretProposalStoreToCassandra
-    . providerServiceStoreInterpreter
     . interpretUserGroupStoreToPostgres
     . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
@@ -381,12 +376,6 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretCodeStoreToCassandra
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
-    providerServiceStoreInterpreter = case env.postgresMigration.providerService of
-      CassandraStorage -> interpretProviderServiceStoreToCassandra env.cassandraBrig
-      -- The dual-write machinery is gone; the legacy
-      -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
-      MigrationToPostgresql -> interpretProviderServiceStoreToCassandra env.cassandraBrig
-      PostgresqlStorage -> interpretProviderServiceStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
