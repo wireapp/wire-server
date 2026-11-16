@@ -58,8 +58,6 @@ insertPropertyImpl u k v =
                          SET value = ($3 :: bytea)
                         |]
 
--- | Copy-only insert used by the Cassandra→Postgres backfill: never
--- overwrites a row that dual-write already put in Postgres.
 lookupPropertyImpl ::
   (PGConstraints r) =>
   UserId ->
@@ -115,6 +113,7 @@ getPropertyKeysImpl u =
     [vectorStatement|SELECT key :: text
                      FROM properties
                      WHERE user_id = ($1 :: uuid)
+                     ORDER BY key COLLATE "C"
                     |]
 
 getAllPropertiesImpl ::
@@ -126,4 +125,5 @@ getAllPropertiesImpl u =
     [vectorStatement|SELECT key :: text, value :: bytea
                      FROM properties
                      WHERE user_id = ($1 :: uuid)
+                     ORDER BY key COLLATE "C"
                     |]
