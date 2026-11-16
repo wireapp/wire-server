@@ -3006,10 +3006,6 @@ ALTER TABLE ONLY public.subconversation
 
 
 --
-
---
-
---
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: wire-server
 --
 
