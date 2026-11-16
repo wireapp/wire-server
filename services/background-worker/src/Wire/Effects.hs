@@ -95,6 +95,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.LegalHoldStore.Postgres (interpretLegalHoldStoreWithPostgresTeamMembers)
 import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.MeetingNotifier.NoOpInterpreter (discardMeetingNotifier)
 import Wire.MigrationLock (MigrationLockError)
@@ -337,7 +338,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamCollaboratorsStoreToPostgres
     . runInputConst @RequestId requestId
     . interpretJobSubsystem jobSubsystemConfig
-    . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
+    . interpretLegalHoldStore
     . interpretTeamJournal Nothing
     . nowToIO
     . randomToIO
@@ -387,6 +388,12 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretTeamStoreToCassandra
       PostgresqlStorage -> interpretTeamStoreMetadataToPostgres
       MigrationToPostgresql -> interpretTeamStoreMetadataToPostgres
+    -- Team members (including their legal hold status) are stored together
+    -- with the team metadata.
+    interpretLegalHoldStore = case env.postgresMigration.team of
+      CassandraStorage -> interpretLegalHoldStoreToCassandra env.conversationSubsystemConfig.legalholdDefaults
+      PostgresqlStorage -> interpretLegalHoldStoreWithPostgresTeamMembers env.conversationSubsystemConfig.legalholdDefaults
+      MigrationToPostgresql -> interpretLegalHoldStoreWithPostgresTeamMembers env.conversationSubsystemConfig.legalholdDefaults
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb

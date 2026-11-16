@@ -134,6 +134,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.LegalHoldStore.Postgres (interpretLegalHoldStoreWithPostgresTeamMembers)
 import Wire.Licensing.Effect (Licensing)
 import Wire.Licensing.Interpreter (runLicense)
 import Wire.Licensing.License qualified as Licensing
@@ -459,6 +460,13 @@ evalGalley e =
           CassandraStorage -> interpretTeamStoreToCassandra
           PostgresqlStorage -> interpretTeamStoreMetadataToPostgres
           MigrationToPostgresql -> interpretTeamStoreMetadataToPostgres
+      -- Team members (including their legal hold status) are stored together
+      -- with the team metadata.
+      legalHoldStoreInterpreter =
+        case (e ^. options . postgresMigration).team of
+          CassandraStorage -> interpretLegalHoldStoreToCassandra lh
+          PostgresqlStorage -> interpretLegalHoldStoreWithPostgresTeamMembers lh
+          MigrationToPostgresql -> interpretLegalHoldStoreWithPostgresTeamMembers lh
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -572,7 +580,7 @@ evalGalley e =
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
-        . interpretLegalHoldStoreToCassandra lh
+        . legalHoldStoreInterpreter
         . interpretTeamJournal (e ^. aEnv)
         . teamStoreInterpreter
         . customBackendStoreInterpreter
