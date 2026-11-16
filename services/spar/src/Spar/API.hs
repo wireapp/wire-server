@@ -56,7 +56,6 @@ module Spar.API
   )
 where
 
-import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
@@ -98,8 +97,6 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
-import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
@@ -125,6 +122,8 @@ import qualified Wire.IdPRawMetadataStore as IdPRawMetadataStore
 import Wire.IdPSubsystem (IdPSubsystem)
 import qualified Wire.IdPSubsystem as IdPSubsystem
 import Wire.Reporter (Reporter)
+import Wire.SAMLUserStore (SAMLUserStore)
+import qualified Wire.SAMLUserStore as SAMLUserStore
 import Wire.SamlProtocolSettings (SamlProtocolSettings)
 import qualified Wire.SamlProtocolSettings as SamlProtocolSettings
 import Wire.ScimExternalIdStore (ScimExternalIdStore)
@@ -627,7 +626,7 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
   (zusr, teamId) <- authorizeIdP mbzusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   whenM (idpDoesAuthSelf idp zusr) $ throwSparSem SparIdPCannotDeleteOwnIdp
-  SAMLUserStore.getAllByIssuerPaginated issuer >>= assertEmptyOrPurge teamId
+  SAMLUserStore.getAllByIssuer issuer >>= assertEmptyOrPurge teamId
   updateOldIssuers idp
   updateReplacingIdP idp
   -- Delete tokens associated with given IdP (we rely on the fact that
@@ -650,21 +649,17 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     id
   pure NoContent
   where
-    assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
-    assertEmptyOrPurge teamId page = do
-      forM_ (Cas.result page) $ \(uref, uid) -> do
-        mAccount <- BrigAPIAccess.getAccount NoPendingInvitations uid
-        let mUserTeam = userTeam =<< mAccount
-        when (mUserTeam == Just teamId) $ do
-          if purge
-            then do
-              SAMLUserStore.delete uid uref
-              void $ BrigAPIAccess.deleteUser uid
-            else do
-              throwSparSem SparIdPHasBoundUsers
-      when (Cas.hasMore page) $
-        SAMLUserStore.nextPage page
-          >>= assertEmptyOrPurge teamId
+    assertEmptyOrPurge :: TeamId -> [(SAML.UserRef, UserId)] -> Sem r ()
+    assertEmptyOrPurge teamId = traverse_ $ \(uref, uid) -> do
+      mAccount <- BrigAPIAccess.getAccount NoPendingInvitations uid
+      let mUserTeam = userTeam =<< mAccount
+      when (mUserTeam == Just teamId) $ do
+        if purge
+          then do
+            SAMLUserStore.delete uid uref
+            void $ BrigAPIAccess.deleteUser uid
+          else do
+            throwSparSem SparIdPHasBoundUsers
 
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
