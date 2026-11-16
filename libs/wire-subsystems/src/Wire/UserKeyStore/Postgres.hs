@@ -17,7 +17,6 @@
 
 module Wire.UserKeyStore.Postgres
   ( interpretUserKeyStoreToPostgres,
-    upsertUserKey,
   )
 where
 
@@ -36,7 +35,7 @@ interpretUserKeyStoreToPostgres ::
   InterpreterFor UserKeyStore r
 interpretUserKeyStoreToPostgres = interpret $ \case
   LookupKey key -> lookupKeyImpl key
-  InsertKey uid key -> upsertUserKey (emailKeyUniq key) uid
+  InsertKey uid key -> insertKeyImpl key uid
   DeleteKey key -> deleteKeyImpl key
   DeleteKeyForUser uid key -> deleteKeyForUserImpl uid key
   ClaimKey key uid -> claimKeyImpl key uid
@@ -44,14 +43,33 @@ interpretUserKeyStoreToPostgres = interpret $ \case
 
 -- | Claim an 'EmailKey' for a user.
 --
--- Faithful port of the Cassandra implementation: a read-then-write sequence
--- (no guarded insert). 'ClaimKey' is only available if the key is unclaimed or
--- already owned by the claiming user's (deactivated) account.
+-- The key is claimable if it is unclaimed, already owned by the claiming user,
+-- or owned by a user that is not activated (see 'keyAvailableImpl'). Whether
+-- the owner is activated lives in the 'UserStore', so it cannot be checked in
+-- the same SQL statement. Instead, the write is a compare-and-swap on the owner
+-- that was observed when checking availability: it only succeeds if the key is
+-- still unclaimed, still owned by that same (non-activated) user, or already
+-- owned by the claiming user. If a concurrent claim won in between, the
+-- statement affects no row and the claim fails, instead of silently taking
+-- the key over.
 claimKeyImpl :: (PGConstraints r, Member UserStore r) => EmailKey -> UserId -> Sem r Bool
 claimKeyImpl k u = do
-  free <- keyAvailableImpl k (Just u)
-  when free (upsertUserKey (emailKeyUniq k) u)
-  pure free
+  owner <- lookupKeyImpl k
+  free <- isFree owner (Just u)
+  if free
+    then runStatement (emailKeyUniq k, u, owner) claimStatement
+    else pure False
+  where
+    claimStatement :: Hasql.Statement (Text, UserId, Maybe UserId) Bool
+    claimStatement =
+      isJust
+        <$> lmapPG
+          [maybeStatement|INSERT INTO user_keys (key, user_id)
+                        VALUES ($1 :: text, $2 :: uuid)
+                        ON CONFLICT (key) DO UPDATE SET user_id = EXCLUDED.user_id
+                        WHERE user_keys.user_id = EXCLUDED.user_id
+                           OR user_keys.user_id = $3 :: uuid?
+                        RETURNING (user_id :: uuid)|]
 
 -- | Check whether an 'EmailKey' is available.
 -- A key is available if it is not already activated for another user or
@@ -59,6 +77,10 @@ claimKeyImpl k u = do
 keyAvailableImpl :: (PGConstraints r, Member UserStore r) => EmailKey -> Maybe UserId -> Sem r Bool
 keyAvailableImpl k u = do
   o <- lookupKeyImpl k
+  isFree o u
+
+isFree :: (Member UserStore r) => Maybe UserId -> Maybe UserId -> Sem r Bool
+isFree o u =
   case (o, u) of
     (Nothing, _) -> pure True
     (Just x, Just y) | x == y -> pure True
@@ -75,9 +97,11 @@ lookupKeyImpl k =
                         FROM user_keys
                         WHERE key = $1 :: text|]
 
-upsertUserKey :: (PGConstraints r) => Text -> UserId -> Sem r ()
-upsertUserKey key uid =
-  runStatement (key, uid) upsertStatement
+-- | Insert (or overwrite) an 'EmailKey' for a user, like the Cassandra
+-- implementation does.
+insertKeyImpl :: (PGConstraints r) => EmailKey -> UserId -> Sem r ()
+insertKeyImpl k uid =
+  runStatement (emailKeyUniq k, uid) upsertStatement
   where
     upsertStatement :: Hasql.Statement (Text, UserId) ()
     upsertStatement =
@@ -86,13 +110,6 @@ upsertUserKey key uid =
                              VALUES ($1 :: text, $2 :: uuid)
                              ON CONFLICT (key) DO UPDATE SET user_id = EXCLUDED.user_id|]
 
--- | Insert a user key only if the key is not yet present in Postgres.
---
--- Used exclusively by the migration copy loop: a stale Cassandra snapshot must
--- never overwrite (clobber) a newer Postgres row, e.g. one written by a key
--- reclaim after the row was copied.  The dual-write mirror ('upsertUserKey')
--- deliberately does overwrite, because it mirrors the unconditional Cassandra
--- overwrite of 'insertKeyImpl'.
 deleteKeyImpl :: (PGConstraints r) => EmailKey -> Sem r ()
 deleteKeyImpl k =
   runStatement (emailKeyUniq k) deleteStatement
