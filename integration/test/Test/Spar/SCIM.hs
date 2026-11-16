@@ -54,6 +54,7 @@ module Test.Spar.SCIM where
 import API.Brig
 import API.BrigInternal (getUsersByEmail)
 import API.Common (defPassword, randomEmail)
+import API.Galley qualified as Galley
 import API.Spar
 import SetupHelpers
 import Testlib.Prelude
@@ -151,8 +152,58 @@ testScimManagedEmailIsLockedForTeamAdmin = do
   otherEmail <- randomEmail
   putUserEmail owner wireUser otherEmail >>= assertStatus 200
 
--- | Fields that SCIM does not manage must stay writable by the user, even if she is
--- @managed_by == scim@.
+-- | A team owner must not overwrite a SCIM-provisioned role.
+testScimManagedRoleIsLockedForTeamAdmin :: (HasCallStack) => App ()
+testScimManagedRoleIsLockedForTeamAdmin = do
+  (owner, scimUser, wireUser) <- setupScimTeam
+  tid <- scimUser %. "team" >>= asString
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  uid <- scimUser %. "id" >>= asString
+  before <- getScimUser OwnDomain tok uid >>= getJSON 200 >>= (%. "roles")
+  Galley.updateTeamMember tid owner scimUser Galley.Admin >>= assertStatus 403
+  after <- getScimUser OwnDomain tok uid >>= getJSON 200 >>= (%. "roles")
+  after `shouldMatch` before
+  Galley.updateTeamMember tid owner wireUser Galley.Admin >>= assertSuccess
+
+-- | Each route gets its own test so one missing guard cannot hide the others.
+-- The actor is deliberately wire-managed: ownership belongs to the target group.
+checkScimGroupIsLocked :: (HasCallStack) => (Value -> String -> String -> String -> App Response) -> App ()
+checkScimGroupIsLocked mutate = do
+  (owner, scimUser, wireUser) <- setupScimTeam
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  uid <- scimUser %. "id" >>= asString
+  other <- wireUser %. "id" >>= asString
+  let group = object ["schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group" :: String], "displayName" .= ("original" :: String), "members" .= [object ["value" .= uid]]]
+  gid <- createScimUserGroup OwnDomain tok group >>= getJSON 201 >>= (%. "id") >>= asString
+  before <- getScimUserGroup OwnDomain tok gid >>= getJSON 200
+  mutate owner gid uid other >>= assertStatus 403
+  after <- getScimUserGroup OwnDomain tok gid >>= getJSON 200
+  after `shouldMatch` before
+
+  -- Control: the identical operation remains available on a wire-managed group.
+  wireGid <- createUserGroup owner (object ["name" .= ("wire group" :: String), "members" .= [uid]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  mutate owner wireGid uid other >>= assertSuccess
+
+-- These regressions intentionally fail until public group writes check managedBy.
+testScimGroupCannotBeRenamed :: (HasCallStack) => App ()
+testScimGroupCannotBeRenamed = checkScimGroupIsLocked $ \owner gid _ _ -> updateUserGroup owner gid (object ["name" .= ("changed" :: String)])
+
+testScimGroupCannotBeDeleted :: (HasCallStack) => App ()
+testScimGroupCannotBeDeleted = checkScimGroupIsLocked $ \owner gid _ _ -> deleteUserGroup owner gid
+
+testScimGroupMemberCannotBeAdded :: (HasCallStack) => App ()
+testScimGroupMemberCannotBeAdded = checkScimGroupIsLocked $ \owner gid _ other -> addUserToGroup owner gid other
+
+testScimGroupMembersCannotBeAdded :: (HasCallStack) => App ()
+testScimGroupMembersCannotBeAdded = checkScimGroupIsLocked $ \owner gid _ other -> addUsersToGroup owner gid [other]
+
+testScimGroupMemberCannotBeRemoved :: (HasCallStack) => App ()
+testScimGroupMemberCannotBeRemoved = checkScimGroupIsLocked $ \owner gid uid _ -> removeUserFromGroup owner gid uid
+
+testScimGroupMembersCannotBeReplaced :: (HasCallStack) => App ()
+testScimGroupMembersCannotBeReplaced = checkScimGroupIsLocked $ \owner gid _ other -> updateUserGroupUsers owner gid [other]
+
+-- | Non-provisioned profile fields must not acquire a blanket SCIM lock.
 testNonScimManagedFieldsStayWritable :: (HasCallStack) => App ()
 testNonScimManagedFieldsStayWritable = do
   (_owner, scimUser, _wireUser) <- setupScimTeam
