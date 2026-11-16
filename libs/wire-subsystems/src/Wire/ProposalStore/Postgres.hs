@@ -20,6 +20,7 @@ module Wire.ProposalStore.Postgres
   )
 where
 
+import Data.Map qualified as Map
 import Data.Vector qualified as V
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -76,8 +77,15 @@ insertProposals ::
   [StoredProposal] ->
   Sem r ()
 insertProposals groupId epoch sps =
-  runStatement (groupId, epoch, map (.ref) sps, map (.origin) sps, map (.proposal) sps) insert
+  unless (null deduped) $
+    runStatement (groupId, epoch, map (.ref) deduped, map (.origin) deduped, map (.proposal) deduped) insert
   where
+    -- @INSERT ... ON CONFLICT DO UPDATE@ fails if the same conflict key occurs
+    -- twice in one statement, so keep only the last proposal per ref (the same
+    -- outcome as upserting them one after another).
+    deduped :: [StoredProposal]
+    deduped = Map.elems (Map.fromList [(sp.ref, sp) | sp <- sps])
+
     insert ::
       Hasql.Statement (GroupId, Epoch, [ProposalRef], [Maybe ProposalOrigin], [RawMLS Proposal]) ()
     insert =
