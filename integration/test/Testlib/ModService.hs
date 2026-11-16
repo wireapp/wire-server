@@ -27,6 +27,8 @@ module Testlib.ModService
     readAndUpdateConfig,
     logToConsole,
     warmupFederation,
+    checkFederationIngress,
+    retryRequestUntil,
   )
 where
 
