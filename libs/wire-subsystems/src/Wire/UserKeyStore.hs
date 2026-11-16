@@ -65,6 +65,8 @@ mkEmailKey orig =
 
 data UserKeyStore m a where
   LookupKey :: EmailKey -> UserKeyStore m (Maybe UserId)
+  -- | Bulk version of 'LookupKey': only keys that are claimed are in the result.
+  LookupKeys :: [EmailKey] -> UserKeyStore m (Map EmailKey UserId)
   InsertKey :: UserId -> EmailKey -> UserKeyStore m ()
   DeleteKey :: EmailKey -> UserKeyStore m ()
   DeleteKeyForUser :: UserId -> EmailKey -> UserKeyStore m ()

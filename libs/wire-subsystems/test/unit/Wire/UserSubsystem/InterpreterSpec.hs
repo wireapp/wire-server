@@ -672,6 +672,26 @@ spec = describe "UserSubsystem.Interpreter" do
                   getAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
            in result === [mkUserFromStored localDomain locale alice]
 
+      prop "GetBy email returns each user found for several emails exactly once" $
+        \(alice' :: StoredUser) (bob' :: StoredUser) aliceEmail bobEmail unknownEmail localDomain visibility locale ->
+          let config = def {emailVisibilityConfig = visibility, defaultLocale = locale}
+              alice = alice' {email = Just aliceEmail} :: StoredUser
+              bob = bob' {email = Just bobEmail} :: StoredUser
+              knownKeys = [mkEmailKey aliceEmail, mkEmailKey bobEmail]
+              localBackend =
+                def
+                  { users = [alice, bob],
+                    userKeys = Map.fromList (zip knownKeys [alice.id, bob.id])
+                  }
+              result =
+                runNoFederationStack localBackend mempty config $
+                  getAccountsByEmailNoFilter (toLocalUnsafe localDomain [aliceEmail, unknownEmail, bobEmail, aliceEmail])
+              expected = map (mkUserFromStored localDomain locale) [alice, bob]
+           in alice.id /= bob.id
+                && mkEmailKey aliceEmail /= mkEmailKey bobEmail
+                && mkEmailKey unknownEmail `notElem` knownKeys
+                ==> sort result === sort expected
+
       prop "GetBy userId does not return missing identity users, pending invitation off" $
         \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
           let config = def {emailVisibilityConfig = visibility, defaultLocale = locale}

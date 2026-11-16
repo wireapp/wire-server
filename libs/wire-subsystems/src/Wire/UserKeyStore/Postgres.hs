@@ -21,6 +21,8 @@ module Wire.UserKeyStore.Postgres
 where
 
 import Data.Id (UserId)
+import Data.Map qualified as Map
+import Data.Vector (Vector)
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -35,6 +37,7 @@ interpretUserKeyStoreToPostgres ::
   InterpreterFor UserKeyStore r
 interpretUserKeyStoreToPostgres = interpret $ \case
   LookupKey key -> lookupKeyImpl key
+  LookupKeys keys -> lookupKeysImpl keys
   InsertKey uid key -> insertKeyImpl key uid
   DeleteKey key -> deleteKeyImpl key
   DeleteKeyForUser uid key -> deleteKeyForUserImpl uid key
@@ -96,6 +99,20 @@ lookupKeyImpl k =
         [maybeStatement|SELECT (user_id :: uuid)
                         FROM user_keys
                         WHERE key = $1 :: text|]
+
+lookupKeysImpl :: (PGConstraints r) => [EmailKey] -> Sem r (Map EmailKey UserId)
+lookupKeysImpl [] = pure mempty
+lookupKeysImpl ks = do
+  let byUniq = Map.fromList [(emailKeyUniq k, k) | k <- ks]
+  rows <- runStatement (Map.keys byUniq) lookupStatement
+  pure $ Map.fromList [(k, uid) | (key, uid) <- rows, k <- maybeToList (Map.lookup key byUniq)]
+  where
+    lookupStatement :: Hasql.Statement [Text] [(Text, UserId)]
+    lookupStatement =
+      dimapPG @(Vector _) @[_]
+        [vectorStatement|SELECT (key :: text), (user_id :: uuid)
+                         FROM user_keys
+                         WHERE key = ANY($1 :: text[])|]
 
 -- | Insert (or overwrite) an 'EmailKey' for a user, like the Cassandra
 -- implementation does.

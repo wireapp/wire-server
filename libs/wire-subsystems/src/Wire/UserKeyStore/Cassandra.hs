@@ -18,10 +18,13 @@
 module Wire.UserKeyStore.Cassandra (interpretUserKeyStoreCassandra) where
 
 import Cassandra
+import Data.Containers.ListUtils (nubOrd)
 import Data.Id
+import Data.Map qualified as Map
 import Imports
 import Polysemy
 import Polysemy.Embed
+import UnliftIO (pooledMapConcurrentlyN)
 import Wire.UserKeyStore
 import Wire.UserStore
 
@@ -30,6 +33,7 @@ interpretUserKeyStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       LookupKey key -> embed $ lookupKeyImpl key
+      LookupKeys keys -> embed $ lookupKeysImpl keys
       InsertKey uid key -> embed $ insertKeyImpl uid key
       DeleteKey key -> embed $ deleteKeyImpl key
       DeleteKeyForUser uid key -> embed $ deleteKeyForUserImpl uid key
@@ -72,6 +76,11 @@ lookupKeyImpl :: (MonadClient m) => EmailKey -> m (Maybe UserId)
 lookupKeyImpl k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ emailKeyUniq k)))
+
+lookupKeysImpl :: [EmailKey] -> Client (Map EmailKey UserId)
+lookupKeysImpl ks =
+  Map.fromList . mapMaybe sequence
+    <$> pooledMapConcurrentlyN 16 (\k -> (k,) <$> lookupKeyImpl k) (nubOrd ks)
 
 insertKeyImpl :: UserId -> EmailKey -> Client ()
 insertKeyImpl u k = do
