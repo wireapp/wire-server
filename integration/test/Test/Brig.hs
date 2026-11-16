@@ -389,5 +389,5 @@ testDeleteEmail = do
   deleteSelfEmail usr >>= assertStatus 403
   searchShouldBe "non-empty"
   associateUsrWithSSO
-  deleteSelfEmail usr >>= assertSuccess
+  deleteSelfEmail usr >>= assertStatus 403
   searchShouldBe "empty"
