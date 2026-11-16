@@ -1859,7 +1859,8 @@ CREATE TABLE public.wire_user (
     text_status text,
     rich_info jsonb,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    name_normalized text
 );
 
 
@@ -2777,6 +2778,20 @@ CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btr
 
 
 --
+-- Name: wire_user_lower_handle_pattern_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_lower_handle_pattern_idx ON public.wire_user USING btree (lower(handle) text_pattern_ops);
+
+
+--
+-- Name: wire_user_name_normalized_pattern_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_name_normalized_pattern_idx ON public.wire_user USING btree (name_normalized text_pattern_ops);
+
+
+--
 -- Name: wire_user_pending_scim_users_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2795,6 +2810,13 @@ CREATE INDEX wire_user_scim_users_idx ON public.wire_user USING btree (team, id)
 --
 
 CREATE INDEX wire_user_service_idx ON public.wire_user USING btree (provider, service);
+
+
+--
+-- Name: wire_user_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX wire_user_team_idx ON public.wire_user USING btree (team);
 
 
 --
