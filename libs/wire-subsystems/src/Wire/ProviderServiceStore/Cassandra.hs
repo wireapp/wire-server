@@ -20,13 +20,6 @@
 -- the Cassandra interpreter of the 'Wire.ProviderServiceStore' effect.
 module Wire.ProviderServiceStore.Cassandra
   ( interpretProviderServiceStoreToCassandra,
-
-    -- * Row-level helpers used by "Wire.ProviderServiceStore.Migration"
-    selectAllProviderServices,
-    selectAllProviderServiceTags,
-    selectAllProviderServicePrefixes,
-    selectAllProviderServiceWhitelist,
-    selectAllProviderServiceWhitelistRev,
   )
 where
 
@@ -725,66 +718,3 @@ instance (Cql a) => Cql (CqlNonEmpty a) where
   fromCql (CqlList []) = Left "At least 1 element in list required."
   fromCql (CqlList l) = CqlNonEmpty . NonEmpty.fromList <$> mapM fromCql l
   fromCql _ = Left "Expected CqlList."
-
---------------------------------------------------------------------------------
--- Full-scan queries for the backfill loops
--- (Wire.ProviderServiceStore.Migration)
-
--- | Full scan of the @service@ table with per-column writetimes. Brig's
--- service writes are field-granular across @updateService@ /
--- @updateServiceConn@, so no single column is written by every path; the
--- backfill uses the maximum of these writetimes as the row timestamp.
---
--- Only scalar columns can carry @writetime()@: Cassandra rejects selection
--- functions on non-frozen collections (CASSANDRA-14533), so the collection
--- columns (@auth_tokens@, @pubkeys@, @fingerprints@, @assets@, @tags@) are
--- excluded. An underestimated row timestamp for a collection-only mutation
--- just means the backfill replay loses to that mutation's own newer
--- dual-write mirror write, which is the intended guard semantics.
---
--- @summary@ and @descr@ are nullable (added post-launch), so their
--- writetimes decode as 'Maybe' (cf. "Wire.UserStore.IndexUser").
-selectAllProviderServices ::
-  PrepQuery
-    R
-    ()
-    ( ProviderId,
-      ServiceId,
-      Maybe Name,
-      Maybe Text,
-      Maybe Text,
-      HttpsUrl,
-      [ServiceToken],
-      [ServiceKey],
-      [Fingerprint Rsa],
-      [Asset],
-      C.Set ServiceTag,
-      Bool,
-      Int64,
-      Maybe Int64,
-      Maybe Int64,
-      Int64,
-      Int64
-    )
-selectAllProviderServices =
-  "SELECT provider, id, name, summary, descr, base_url, auth_tokens, pubkeys, \
-  \fingerprints, assets, tags, enabled, \
-  \writetime(name), writetime(summary), writetime(descr), writetime(base_url), \
-  \writetime(enabled) \
-  \FROM service"
-
-selectAllProviderServiceTags :: PrepQuery R () (Bucket, Int64, Name, ServiceId, ProviderId)
-selectAllProviderServiceTags =
-  "SELECT bucket, tag, name, service, provider FROM service_tag"
-
-selectAllProviderServicePrefixes :: PrepQuery R () (Text, Name, ServiceId, ProviderId)
-selectAllProviderServicePrefixes =
-  "SELECT prefix, name, service, provider FROM service_prefix"
-
-selectAllProviderServiceWhitelist :: PrepQuery R () (TeamId, ProviderId, ServiceId)
-selectAllProviderServiceWhitelist =
-  "SELECT team, provider, service FROM service_whitelist"
-
-selectAllProviderServiceWhitelistRev :: PrepQuery R () (TeamId, ProviderId, ServiceId)
-selectAllProviderServiceWhitelistRev =
-  "SELECT team, provider, service FROM service_whitelist_rev"
