@@ -10,3 +10,7 @@ primary:
     limits: {}
   extendedConfiguration: |
     max_connections = 1500
+    shared_preload_libraries = 'pg_partman_bgw'
+    pg_partman_bgw.dbname = 'wire_fan_in'
+    pg_partman_bgw.role = 'partman_maintainer'
+    pg_partman_bgw.interval = 60
