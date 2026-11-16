@@ -38,10 +38,10 @@ module Wire.ActivationCodeStore
     lookupActivationCode,
     newActivationCode,
     deleteActivationCode,
-    lookupActivationKey,
-    decrementActivationRetries,
+    checkActivationCode,
     deleteActivationKey,
     ActivationKeyRow (..),
+    ActivationCodeCheck (..),
     mkActivationKey,
     genActivationCode,
     maxAttempts,
@@ -61,15 +61,27 @@ import Util.Timeout
 import Wire.API.User.Activation
 import Wire.UserKeyStore
 
--- | Persisted state of one activation key row (no TTL/expiry exposure;
--- expiry handling is a storage-internal concern).
+-- | What an activation key row is about: the activation target (as stored
+-- key type and text) and the associated user, if any.
 data ActivationKeyRow = ActivationKeyRow
   { keyType :: Text,
     keyText :: Text,
-    code :: ActivationCode,
-    user :: Maybe UserId,
-    retries :: Int32
+    user :: Maybe UserId
   }
+  deriving (Eq, Show)
+
+-- | Outcome of 'CheckActivationCode'.
+data ActivationCodeCheck
+  = -- | There is no (unexpired) row for the key.
+    ActivationKeyNotFound
+  | -- | The code matches; the row is left unchanged.
+    ActivationCodeMatches ActivationKeyRow
+  | -- | The code does not match; one retry has been consumed.
+    ActivationCodeMismatch
+  | -- | The code does not match and no retries were left; the row should be
+    -- deleted with 'DeleteActivationKey'.
+    ActivationRetriesExhausted
+  deriving (Eq, Show)
 
 data ActivationCodeStore :: Effect where
   LookupActivationCode ::
@@ -89,15 +101,18 @@ data ActivationCodeStore :: Effect where
   DeleteActivationCode ::
     EmailKey ->
     ActivationCodeStore m ()
-  -- | Read the full row for an opaque 'ActivationKey' (unexpired only).
-  LookupActivationKey ::
+  -- | Check a code against the (unexpired) row of an opaque 'ActivationKey'.
+  -- A mismatch consumes one retry, preserving the expiry; a mismatch with no
+  -- retries left yields 'ActivationRetriesExhausted'.
+  --
+  -- The Postgres interpreter compares and consumes the retry in a single
+  -- statement, so concurrent attempts cannot exceed the retry limit. The
+  -- Cassandra interpreter reads, then writes, so concurrent attempts may be
+  -- checked against the same retry count.
+  CheckActivationCode ::
     ActivationKey ->
-    ActivationCodeStore m (Maybe ActivationKeyRow)
-  -- | Decrement the retry counter by one, preserving expiry.
-  -- No-op when the row is absent or already at 0.
-  DecrementActivationRetries ::
-    ActivationKey ->
-    ActivationCodeStore m ()
+    ActivationCode ->
+    ActivationCodeStore m ActivationCodeCheck
   -- | Delete the row for an opaque 'ActivationKey' (brute-force exhaustion).
   DeleteActivationKey ::
     ActivationKey ->
@@ -106,11 +121,10 @@ data ActivationCodeStore :: Effect where
 makeSem ''ActivationCodeStore
 
 --------------------------------------------------------------------------------
--- Shared utilities (used by Cassandra, Postgres, DualWrite interpreters)
+-- Shared utilities (used by the Cassandra and Postgres interpreters)
 
 -- | Compute the opaque 'ActivationKey' (SHA-256 hash, base64url-encoded) for
--- a given 'EmailKey'.  Moved here from the Cassandra interpreter so that all
--- interpreters share a single definition.
+-- a given 'EmailKey'.
 mkActivationKey :: EmailKey -> IO ActivationKey
 mkActivationKey k = do
   d <- getDigestByName "SHA256"

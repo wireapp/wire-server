@@ -39,7 +39,7 @@ spec = do
     prop "a code can be looked up" $ \emailKey config ->
       let c = emailKeyToCode emailKey
           localBackend =
-            def {activationCodes = Map.singleton emailKey (Nothing, c)}
+            def {activationCodes = Map.singleton emailKey (Nothing, c, maxAttempts)}
           result =
             runNoFederationStack localBackend mempty config $
               lookupActivationCode emailKey
@@ -76,8 +76,33 @@ spec = do
                 a <- newActivationCode key undefined Nothing
                 verifyActivationCode (a.activationKey) (bumpCode (a.activationCode))
        in result === Nothing
+    prop "the correct code verifies after maxAttempts wrong codes" $ \email config ->
+      let key = mkEmailKey email
+          (wrongResults, result, stored) =
+            runNoFederationStack def mempty config $
+              interpretActivationCodeVerificationStore $ do
+                a <- newActivationCode key undefined Nothing
+                ws <-
+                  replicateM (fromIntegral maxAttempts) $
+                    verifyActivationCode a.activationKey (bumpCode a.activationCode)
+                r <- verifyActivationCode a.activationKey a.activationCode
+                (ws,r,) <$> lookupActivationCode key
+       in wrongResults === replicate (fromIntegral maxAttempts) Nothing
+            .&&. result === Just (key, Nothing)
+            .&&. isJust stored === True
+    prop "one more wrong code than maxAttempts deletes the key" $ \email config ->
+      let key = mkEmailKey email
+          (result, stored) =
+            runNoFederationStack def mempty config $
+              interpretActivationCodeVerificationStore $ do
+                a <- newActivationCode key undefined Nothing
+                replicateM_ (fromIntegral maxAttempts + 1) $
+                  verifyActivationCode a.activationKey (bumpCode a.activationCode)
+                r <- verifyActivationCode a.activationKey a.activationCode
+                (r,) <$> lookupActivationCode key
+       in result === Nothing .&&. stored === Nothing
   where
-    -- a code that is (almost surely) different from the given one
+    -- a code that is different from the given one
     bumpCode :: ActivationCode -> ActivationCode
     bumpCode c =
       ActivationCode . Ascii.unsafeFromText . Text.pack . printf "%06d" $

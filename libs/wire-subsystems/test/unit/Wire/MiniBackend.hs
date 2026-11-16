@@ -96,7 +96,6 @@ import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
-import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.API.VersionInfo (VersionedMonad (..))
@@ -401,7 +400,7 @@ type StateEffects =
      State (Map (TeamId, InvitationId) StoredInvitation),
      State (Map InvitationCode StoredInvitation),
      State (Map (TeamId, EmailAddress) [UserId]),
-     State (Map EmailKey (Maybe UserId, ActivationCode)),
+     State (MockActivationCodes),
      State [EmailKey],
      State [StoredUser],
      State (Map UserId Password),
@@ -522,7 +521,7 @@ data MiniBackend = MkMiniBackend
     userKeys :: Map EmailKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
     blockList :: [EmailKey],
-    activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
+    activationCodes :: MockActivationCodes,
     invitationInfos :: Map InvitationCode StoredInvitation,
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
     pendingScimUsers :: Map (TeamId, EmailAddress) [UserId],
@@ -864,7 +863,7 @@ liftPushNotificationsState = interpret \case
   Polysemy.State.Get -> gets (.pushNotifications)
   Put pushes -> modify $ \b -> b {pushNotifications = pushes}
 
-liftActivationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey (Maybe UserId, ActivationCode)) : r) a -> Sem r a
+liftActivationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (MockActivationCodes) : r) a -> Sem r a
 liftActivationCodeStoreState = interpret \case
   Polysemy.State.Get -> gets (.activationCodes)
   Put newAcs -> modify $ \b -> b {activationCodes = newAcs}
