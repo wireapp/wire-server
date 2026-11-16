@@ -7,7 +7,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 0bfdefbfbf668c2f830346aaeb145f39102cb40511a96ac2aafcdfee817a748
+\restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
 -- Dumped from database version 17.11
 -- Dumped by pg_dump version 17.11
@@ -1677,6 +1677,13 @@ CREATE TABLE public.nonce (
     user_id uuid NOT NULL,
     key text NOT NULL,
     nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.nonce OWNER TO "wire-server";
+
+--
 -- Name: notification_payload; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1688,7 +1695,6 @@ CREATE TABLE public.notification_payload (
 );
 
 
-ALTER TABLE public.nonce OWNER TO "wire-server";
 ALTER TABLE public.notification_payload OWNER TO "wire-server";
 
 --
@@ -2245,6 +2251,9 @@ ALTER TABLE ONLY public.mls_history_client
 
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
+
+
+--
 -- Name: notification_payload notification_payload_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -3056,4 +3065,4 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 0bfdefbfbf668c2f830346aaeb145f39102cb40511a96ac2aafcdfee817a748
+\unrestrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
