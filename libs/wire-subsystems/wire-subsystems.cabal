@@ -503,6 +503,7 @@ library
     Wire.TeamJournal.Aws
     Wire.TeamMemberStore
     Wire.TeamMemberStore.Cassandra
+    Wire.TeamMemberStore.Postgres
     Wire.TeamNotificationStore
     Wire.TeamNotificationStore.Cassandra
     Wire.TeamStore
