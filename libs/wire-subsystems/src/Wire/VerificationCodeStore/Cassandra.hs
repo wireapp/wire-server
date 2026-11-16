@@ -34,6 +34,7 @@ interpretVerificationCodeStoreCassandra casClient =
       InsertCode code -> embed $ insertCodeImpl code
       LookupCode key scope -> embed $ lookupCodeImpl key scope
       DeleteCode key scope -> embed $ deleteCodeImpl key scope
+      DecrementCodeRetries key scope -> embed $ decrementCodeRetriesImpl key scope
       InsertThrottle key scope ttl -> embed $ insertThrottleImpl key scope ttl
       LookupThrottle key scope -> embed $ lookupThrottleImpl key scope
 
@@ -80,6 +81,14 @@ deleteCodeImpl k s = retry x5 $ write cql (params LocalQuorum (k, s))
   where
     cql :: PrepQuery W (Key, Scope) ()
     cql = "DELETE FROM vcodes WHERE key = ? AND scope = ?"
+
+-- | Not atomic: Cassandra has no conditional decrement, so this re-inserts the
+-- code with one retry less and its remaining TTL.
+decrementCodeRetriesImpl :: (MonadClient m) => Key -> Scope -> m ()
+decrementCodeRetriesImpl k s =
+  lookupCodeImpl k s >>= \case
+    Just c | codeRetries c > 0 -> insertCodeImpl (c {codeRetries = codeRetries c - 1})
+    _ -> pure ()
 
 lookupThrottleImpl :: (MonadClient m) => Key -> Scope -> m (Maybe RetryAfter)
 lookupThrottleImpl k s = do

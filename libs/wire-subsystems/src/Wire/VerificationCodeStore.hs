@@ -28,6 +28,8 @@ data VerificationCodeStore m a where
   InsertCode :: Code -> VerificationCodeStore m ()
   LookupCode :: Key -> Scope -> VerificationCodeStore m (Maybe Code)
   DeleteCode :: Key -> Scope -> VerificationCodeStore m ()
+  -- | Consume one retry of a live code with retries left; a no-op otherwise.
+  DecrementCodeRetries :: Key -> Scope -> VerificationCodeStore m ()
   InsertThrottle :: Key -> Scope -> Word -> VerificationCodeStore m ()
   LookupThrottle :: Key -> Scope -> VerificationCodeStore m (Maybe RetryAfter)
 
