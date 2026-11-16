@@ -71,7 +71,6 @@ import Wire.TeamSubsystem (TeamSubsystem)
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-
     Member Async r,
     Member Random r,
     Member MLSCommitLockStore r,

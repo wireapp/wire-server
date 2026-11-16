@@ -85,6 +85,7 @@ run opts galleyOpts = do
           withNamedLogger "migrate-users" $
             Migrations.users opts.migrationOptions
       else pure $ pure ()
+
   cleanupBlockListMigration <-
     if opts.migrateBlockList
       then
