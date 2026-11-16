@@ -26,6 +26,7 @@ module Gundeck.Push.Data
     updateArn,
     delete,
     lookup,
+    lookupForUsers,
     erase,
     Consistency (..),
   )
@@ -60,6 +61,16 @@ import Wire.PushTokenStore.Postgres (interpretPushTokenStoreToPostgres)
 lookup :: (MonadReader Env m, MonadIO m) => UserId -> Consistency -> m [Address]
 lookup u c = do
   rows <- runPushTokenStore $ Store.lookupPushTokens u c
+  foldM mk [] rows
+  where
+    mk as r = maybe as (: as) <$> mkAddr r
+
+-- | Bulk variant of 'lookup': the addresses of all given users, in no
+-- particular order, fetched with as few store round trips as possible.
+lookupForUsers :: (MonadReader Env m, MonadIO m) => [UserId] -> Consistency -> m [Address]
+lookupForUsers [] _ = pure []
+lookupForUsers us c = do
+  rows <- runPushTokenStore $ Store.lookupPushTokensForUsers us c
   foldM mk [] rows
   where
     mk as r = maybe as (: as) <$> mkAddr r

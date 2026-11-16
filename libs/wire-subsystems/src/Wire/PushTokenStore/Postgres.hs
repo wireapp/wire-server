@@ -51,6 +51,7 @@ interpretPushTokenStoreToPostgres = interpret $ \case
   -- The read consistency is a Cassandra concept; Postgres reads are
   -- always consistent.
   LookupPushTokens u _c -> pgLookup u
+  LookupPushTokensForUsers us _c -> pgLookupForUsers us
   InsertPushToken u t a p arn conn client ->
     insertPushTokenRow u t a p (Just arn) conn (Just client)
   UpdatePushTokenArn u t a p arn ->
@@ -87,18 +88,31 @@ pgLookup ::
 pgLookup u = do
   rows <- runStatement (toUUID u) lookupStatement
   traverse decodeRow (Vector.toList rows)
-  where
-    decodeRow (usr, trp, app, tok, arn, conn, client) = do
-      transport <- decodeTransport usr trp
-      pure
-        ( Id usr,
-          transport,
-          AppName app,
-          Token tok,
-          arn,
-          either (error . Text.unpack) id (postgresUnmarshall conn),
-          client >>= fromByteString . encodeUtf8
-        )
+
+pgLookupForUsers ::
+  (PGConstraints r) =>
+  [UserId] ->
+  Sem r [PushTokenRow]
+pgLookupForUsers [] = pure []
+pgLookupForUsers us = do
+  rows <- runStatement (Vector.fromList (map toUUID us)) lookupForUsersStatement
+  traverse decodeRow (Vector.toList rows)
+
+decodeRow ::
+  (PGConstraints r) =>
+  (UUID, Int32, Text, Text, Maybe Text, Text, Maybe Text) ->
+  Sem r PushTokenRow
+decodeRow (usr, trp, app, tok, arn, conn, client) = do
+  transport <- decodeTransport usr trp
+  pure
+    ( Id usr,
+      transport,
+      AppName app,
+      Token tok,
+      arn,
+      either (error . Text.unpack) id (postgresUnmarshall conn),
+      client >>= fromByteString . encodeUtf8
+    )
 
 -- | Transports are written only by this store (0-4), so an undecodable
 -- value is a data integrity bug: fail loudly instead of dropping rows.
@@ -123,6 +137,14 @@ lookupStatement =
       FROM user_push
       WHERE usr = ($1 :: uuid)
       ORDER BY ptoken ASC, app ASC, transport ASC
+    |]
+
+lookupForUsersStatement :: Hasql.Statement (Vector UUID) (Vector (UUID, Int32, Text, Text, Maybe Text, Text, Maybe Text))
+lookupForUsersStatement =
+  [vectorStatement|
+      SELECT usr :: uuid, transport :: int4, app :: text, ptoken :: text, arn :: text?, connection :: text, client :: text?
+      FROM user_push
+      WHERE usr = ANY ($1 :: uuid[])
     |]
 
 insertStatement :: Hasql.Statement (UUID, Int32, Text, Text, Maybe Text, Text, Maybe Text) ()

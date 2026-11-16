@@ -26,6 +26,7 @@
 module Wire.PushTokenStore
   ( PushTokenStore (..),
     lookupPushTokens,
+    lookupPushTokensForUsers,
     insertPushToken,
     updatePushTokenArn,
     deletePushToken,
@@ -54,6 +55,9 @@ type PushTokenRow =
 
 data PushTokenStore m a where
   LookupPushTokens :: UserId -> Consistency -> PushTokenStore m [PushTokenRow]
+  -- | Bulk variant of 'LookupPushTokens': all rows of all given users, in
+  -- no particular order.
+  LookupPushTokensForUsers :: [UserId] -> Consistency -> PushTokenStore m [PushTokenRow]
   InsertPushToken :: UserId -> Transport -> AppName -> Token -> Text -> ConnId -> ClientId -> PushTokenStore m ()
   UpdatePushTokenArn :: UserId -> Transport -> AppName -> Token -> Text -> PushTokenStore m ()
   DeletePushToken :: UserId -> Transport -> AppName -> Token -> PushTokenStore m ()
