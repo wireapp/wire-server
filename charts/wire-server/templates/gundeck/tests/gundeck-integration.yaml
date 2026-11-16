@@ -1,4 +1,3 @@
-{{- if ne (include "gundeck.presenceStore" .) "postgresql" }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -19,10 +18,17 @@ spec:
       secret:
         secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
     {{- end }}
+    {{- if ne (include "gundeck.presenceStore" .) "postgresql" }}
     {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
     - name: "redis-ca"
       secret:
         secretName: {{ include "gundeck.redisTlsSecretName" .Values.gundeck.config }}
+    {{- end }}
+    {{- end }}
+    {{- if hasKey .Values.gundeck.secrets "pgPassword" }}
+    - name: "gundeck-secrets"
+      secret:
+        secretName: "gundeck"
     {{- end }}
     {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
@@ -74,9 +80,15 @@ spec:
     - name: "gundeck-cassandra"
       mountPath: "/etc/wire/gundeck/cassandra"
     {{- end }}
+    {{- if ne (include "gundeck.presenceStore" .) "postgresql" }}
     {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
     - name: "redis-ca"
       mountPath: "/etc/wire/gundeck/redis-ca/"
+    {{- end }}
+    {{- end }}
+    {{- if hasKey .Values.gundeck.secrets "pgPassword" }}
+    - name: "gundeck-secrets"
+      mountPath: "/etc/wire/gundeck/secrets"
     {{- end }}
     {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
@@ -92,6 +104,9 @@ spec:
       value: "eu-west-1"
     - name: TEST_XML
       value: /tmp/result.xml
+    # selects the presence store specific tests (and the store of in-process gundecks)
+    - name: GUNDECK_PRESENCE_STORE
+      value: {{ include "gundeck.presenceStore" . | quote }}
     # RabbitMQ needs dummy credentials for the tests to run
     - name: RABBITMQ_USERNAME
       value: "guest"
@@ -142,4 +157,3 @@ spec:
     {{- end }}
     {{- end }}
   restartPolicy: Never
-{{- end }}

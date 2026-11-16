@@ -41,6 +41,12 @@ spec:
       configMap:
         name: "gundeck"
 
+    # only needed for gundeck's pgPassword (if presences are stored in postgresql)
+    - name: "gundeck-secrets"
+      secret:
+        secretName: "gundeck"
+        optional: true
+
     - name: "cargohold-config"
       configMap:
         name: "cargohold"
@@ -236,6 +242,9 @@ spec:
 
     - name: gundeck-config
       mountPath: /etc/wire/gundeck/conf
+
+    - name: gundeck-secrets
+      mountPath: /etc/wire/gundeck/secrets
 
     - name: cargohold-config
       mountPath: /etc/wire/cargohold/conf
