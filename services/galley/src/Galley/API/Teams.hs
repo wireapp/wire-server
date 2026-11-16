@@ -646,6 +646,7 @@ updateTeamMember ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
+    Member (ErrorS 'RoleManagedByScim) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member NotificationSubsystem r,
@@ -673,6 +674,12 @@ updateTeamMember lzusr zcon tid newMem = do
   user <-
     TeamSubsystem.internalGetTeamMember zusr tid
       >>= TeamSubsystem.permissionCheck SetMemberPermissions
+
+  -- the role of a SCIM-provisioned user is owned by SCIM, so it may only be changed there
+  -- (even by an admin who is allowed to change roles otherwise)
+  targetUser <- listToMaybe <$> E.getUsers [targetId]
+  when (((.userManagedBy) <$> targetUser) == Just U.ManagedByScim) $
+    throwS @'RoleManagedByScim
 
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
