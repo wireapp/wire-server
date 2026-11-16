@@ -436,8 +436,8 @@ runBrigToIO e (AppT ma) = do
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
       activationCodeStoreInterpreter = case e.postgresMigration.activationKeys of
         CassandraStorage -> interpretActivationCodeStoreToCassandra e.casClient
-        -- The copy loop is gone; the legacy migration setting degrades to
-        -- Cassandra-only reads/writes.
+        -- There is no data migration for activation keys:
+        -- 'MigrationToPostgresql' keeps using Cassandra only.
         MigrationToPostgresql -> interpretActivationCodeStoreToCassandra e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
