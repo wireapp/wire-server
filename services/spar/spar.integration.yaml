@@ -56,6 +56,8 @@ postgresMigration:
   nonce: cassandra
   connections: cassandra
   sessions: cassandra
+  scimTokens: postgresql
+  scimExternalIds: postgresql
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"

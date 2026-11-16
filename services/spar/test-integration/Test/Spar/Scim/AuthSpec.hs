@@ -45,6 +45,7 @@ import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
+import Spar.Options (Opts (postgresMigration))
 import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
@@ -55,6 +56,7 @@ import Wire.API.Team.Role
 import Wire.API.User (userEmail)
 import qualified Wire.API.User as Public
 import Wire.API.User.Identity
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
 spec :: SpecWith TestEnv
@@ -311,6 +313,11 @@ testListTokens = do
 testPlaintextTokensAreConverted :: TestSpar ()
 testPlaintextTokensAreConverted = do
   env <- ask
+  -- Legacy plaintext-keyed tokens only ever existed in Cassandra; this test
+  -- writes and counts them there directly, so it only applies to that store.
+  case (env ^. teOpts).postgresMigration.scimTokens of
+    CassandraStorage -> pure ()
+    _ -> pendingWith "legacy plaintext SCIM tokens only exist in the Cassandra store"
   (owner, teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
 

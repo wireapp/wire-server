@@ -59,7 +59,9 @@ testEnv = do
             budget = CassandraStorage,
             nonce = CassandraStorage,
             connections = CassandraStorage,
-            sessions = CassandraStorage
+            sessions = CassandraStorage,
+            scimTokens = CassandraStorage,
+            scimExternalIds = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics

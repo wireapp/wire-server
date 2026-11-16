@@ -63,7 +63,9 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     budget :: StorageLocation,
     nonce :: StorageLocation,
     connections :: StorageLocation,
-    sessions :: StorageLocation
+    sessions :: StorageLocation,
+    scimTokens :: StorageLocation,
+    scimExternalIds :: StorageLocation
   }
   deriving (Show)
 
@@ -82,3 +84,5 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "nonce"
       <*> o .: "connections"
       <*> o .: "sessions"
+      <*> o .: "scimTokens"
+      <*> o .: "scimExternalIds"

@@ -2437,6 +2437,8 @@ galley:
       nonce: postgresql
       connections: postgresql
       sessions: postgresql
+      scimTokens: postgresql
+      scimExternalIds: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2453,7 +2455,29 @@ background-worker:
 `spar` additionally exposes its own `spar.config.postgresMigration` block, using the
 same shared storage-location type. Spar-owned stores (e.g. SAML users, SCIM tokens,
 external ids) are added to it by their respective migration tasks; until then the
-block mirrors the shared defaults and stays on Cassandra.
+block mirrors the shared defaults and stays on Cassandra. For installations that
+use the SCIM token / external-id stores (i.e. any deployment with SCIM
+provisioning), configure them explicitly:
+
+```yaml
+spar:
+  config:
+    postgresMigration:
+      conversation: postgresql
+      conversationCodes: postgresql
+      teamFeatures: postgresql
+      domainRegistration: postgresql
+      user: postgresql
+      blockList: postgresql
+      passwordReset: postgresql
+      customBackend: postgresql
+      budget: postgresql
+      nonce: postgresql
+      connections: postgresql
+      sessions: postgresql
+      scimTokens: postgresql
+      scimExternalIds: postgresql
+```
 
 #### Migration for existing installations
 
@@ -2597,6 +2621,13 @@ The current settings and their background-worker flags are:
          nonce: postgresql
          connections: postgresql
          sessions: postgresql
+         scimTokens: postgresql
+         scimExternalIds: postgresql
+   spar:
+     config:
+       postgresMigration:
+         scimTokens: postgresql
+         scimExternalIds: postgresql
    background-worker:
      config:
        migrateConversations: false
