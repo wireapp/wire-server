@@ -1748,7 +1748,7 @@ ALTER TABLE public.provider_service OWNER TO "wire-server";
 
 CREATE TABLE public.provider_service_prefix (
     prefix text NOT NULL,
-    name text NOT NULL,
+    name text COLLATE pg_catalog."C" NOT NULL,
     service uuid NOT NULL,
     provider uuid NOT NULL
 );
@@ -1763,7 +1763,7 @@ ALTER TABLE public.provider_service_prefix OWNER TO "wire-server";
 CREATE TABLE public.provider_service_tag (
     bucket integer NOT NULL,
     tag bigint NOT NULL,
-    name text NOT NULL,
+    name text COLLATE pg_catalog."C" NOT NULL,
     service uuid NOT NULL,
     provider uuid NOT NULL
 );
@@ -2899,6 +2899,13 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: provider_service_prefix_name_service_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX provider_service_prefix_name_service_idx ON public.provider_service_prefix USING btree (name, service);
 
 
 --
