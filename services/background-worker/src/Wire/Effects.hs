@@ -105,6 +105,7 @@ import Wire.ParseException
 import Wire.PostgresMigrationOpts
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
+import Wire.ProposalStore.Postgres (interpretProposalStoreToPostgres)
 import Wire.RateLimit (RateLimit, RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
@@ -326,7 +327,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds
     . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
     . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
-    . interpretProposalStoreToCassandra
+    . proposalStoreInterpreter
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
     . interpretTeamFeatureStore
@@ -379,6 +380,12 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretCodeStoreToCassandra
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
+    -- Same selection as galley: there is no copy loop, so the legacy
+    -- migration setting degrades to Cassandra-only reads/writes.
+    proposalStoreInterpreter = case env.postgresMigration.proposals of
+      CassandraStorage -> interpretProposalStoreToCassandra
+      MigrationToPostgresql -> interpretProposalStoreToCassandra
+      PostgresqlStorage -> interpretProposalStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
