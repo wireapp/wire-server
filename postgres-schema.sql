@@ -1357,15 +1357,19 @@ CREATE TABLE public.asset (
 
 ALTER TABLE public.asset OWNER TO "wire-server";
 
+--
 -- Name: billing_team_member; Type: TABLE; Schema: public; Owner: wire-server
+--
 
 CREATE TABLE public.billing_team_member (
     team uuid NOT NULL,
     user_id uuid NOT NULL
 );
 
+
 ALTER TABLE public.billing_team_member OWNER TO "wire-server";
 
+--
 -- Name: bot_conv; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1589,6 +1593,17 @@ CREATE TABLE public.domain_registration_challenge (
 
 
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
+
+--
+-- Name: email_blocklist; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.email_blocklist (
+    email text NOT NULL
+);
+
+
+ALTER TABLE public.email_blocklist OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -2245,6 +2260,14 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: email_blocklist email_blocklist_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.email_blocklist
+    ADD CONSTRAINT email_blocklist_pkey PRIMARY KEY (email);
 
 
 --
@@ -2906,17 +2929,17 @@ CREATE INDEX user_cookies_invalid_after_idx ON public.user_cookies USING btree (
 
 
 --
--- Name: user_team_team_idx; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX user_team_team_idx ON public.user_team USING btree (team);
-
-
---
 -- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
 CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
+-- Name: user_team_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_team_team_idx ON public.user_team USING btree (team);
 
 
 --
