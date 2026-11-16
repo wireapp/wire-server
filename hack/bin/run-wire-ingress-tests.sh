@@ -2,6 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+command -v sslyze >/dev/null || {
+    echo "sslyze is missing; rebuild the development environment with direnv reload." >&2
+    exit 1
+}
+
 # Require an explicit choice: this must match the Envoy Gateway controller.
 : "${WIRE_INGRESS_XDS_NAME_SCHEME_V2:?Set to true or false to match the controller}"
 work=$(mktemp -d)
