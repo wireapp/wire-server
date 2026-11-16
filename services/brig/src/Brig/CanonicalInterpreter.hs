@@ -440,8 +440,8 @@ runBrigToIO e (AppT ma) = do
 
       providerServiceStore = case e.postgresMigration.providerService of
         CassandraStorage -> interpretProviderServiceStoreToCassandra e.casClient
-        -- The dual-write machinery is gone; the legacy
-        -- @migration-to-postgresql@ value falls back to Cassandra-only storage.
+        -- There is no data migration for provider services:
+        -- @migration-to-postgresql@ behaves like Cassandra-only storage.
         MigrationToPostgresql -> interpretProviderServiceStoreToCassandra e.casClient
         PostgresqlStorage ->
           runInputConst e.hasqlPool
