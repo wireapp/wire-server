@@ -1068,9 +1068,6 @@ background-worker:
     # It's important to set `settings.postgresMigration.connections` to `migration-to-postgresql`
     # before starting the migration.
     migrateConnections: false
-    # This will start the migration of team notifications.
-    # It's important to set `settings.postgresMigration.teamNotifications` to `migration-to-postgresql`
-    # before starting the migration.
 
     # This will start the migration of custom backends. It's important to set
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
