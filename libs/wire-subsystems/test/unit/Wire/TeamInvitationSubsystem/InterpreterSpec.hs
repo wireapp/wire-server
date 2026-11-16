@@ -76,11 +76,8 @@ type AllEffects =
     State StdGen,
     InvitationStore,
     UserKeyStore,
-    State (Map (TeamId, InvitationId) StoredInvitation),
     State (Map (InvitationCode) StoredInvitation),
     State (Map (TeamId, EmailAddress) [UserId]),
-    Now,
-    State UTCTime,
     Error TeamInvitationSubsystemError,
     ErrorS 'TeamMemberNotFound,
     ErrorS 'TeamNotFound,
@@ -89,7 +86,12 @@ type AllEffects =
     UserSubsystem,
     UserStore,
     State [UserId],
-    UserKeyStore
+    UserKeyStore,
+    -- shared by the mock InvitationStore and the mock UserStore
+    State (Map (TeamId, InvitationId) StoredInvitation),
+    State InvitationExpiries,
+    Now,
+    State UTCTime
   ]
 
 data RunAllEffectsArgs = RunAllEffectsArgs
@@ -128,22 +130,21 @@ runAllEffects args = runAllEffectsWithUserKeys args.initialUsers args
 runAllEffectsWithUserKeys :: [StoredUser] -> RunAllEffectsArgs -> Sem AllEffects a -> Either LocalErrors a
 runAllEffectsWithUserKeys initialUsers args =
   run
+    . evalState defaultTime
+    . interpretNowAsState
+    . evalState mempty
+    . evalState mempty
     . runInMemoryUserKeyStoreIntepreterWithStoredUsers initialUsers
     . evalState ([] :: [UserId])
     . evalState mempty
     . evalState args.initialUsers
-    . evalState @(Map (TeamId, InvitationId) StoredInvitation) mempty
     . inMemoryUserStoreInterpreterWithDeleteHook (\uid -> modify @[UserId] (uid :))
-    . raiseUnder @(State (Map (TeamId, InvitationId) StoredInvitation))
     . raiseUnder @(State [StoredUser])
     . raiseUnder @(State (Map UserId Password))
     . inMemoryUserSubsystemInterpreter
     . evalState mempty
     . noopEmailSubsystemInterpreter
     . runLocalErrors
-    . evalState defaultTime
-    . interpretNowAsState
-    . evalState mempty
     . evalState mempty
     . evalState mempty
     . (evalState mempty . inMemoryUserKeyStoreInterpreter . raiseUnder)

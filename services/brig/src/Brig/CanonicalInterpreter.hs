@@ -351,7 +351,12 @@ runBrigToIO e (AppT ma) = do
             maxTeamSize = e.settings.maxTeamSize,
             activationCodeTimeout = e.settings.activationTimeout,
             blockedDomains = blockedDomains,
-            mlsEnabled = fromMaybe False e.settings.enableMLS
+            mlsEnabled = fromMaybe False e.settings.enableMLS,
+            invitationsInUserStore =
+              case (e.postgresMigration.user, e.postgresMigration.invitations) of
+                (PostgresqlStorage, PostgresqlStorage) -> True
+                (PostgresqlStorage, MigrationToPostgresql) -> True
+                _ -> False
           }
       appSubsystemConfig = AppSubsystemConfig {defaultLocale = userSubsystemConfig.defaultLocale}
       teamInvitationSubsystemConfig =
