@@ -272,8 +272,12 @@ newAccount ip new = do
       newPass <- genPassword
       safePass <- lift . liftSem $ HashPassword.hashPassword8 (RateLimitIp ip) newPass
       pure (safePass, Just newPass)
-  pid <- wrapClientE $ DB.insertAccount name safePass url descr
+  pid <- randomId
+  -- The password is written before the account: if creating the account
+  -- fails afterwards, only an unreachable password row for a random, unused
+  -- provider id is left behind, rather than a provider without a password.
   lift . liftSem $ insertHashedProviderPassword pid safePass
+  wrapClientE $ DB.insertAccount pid name url descr
   let gen = mkVerificationCodeGen email
   code <-
     lift . liftSem $
@@ -390,7 +394,6 @@ completePasswordReset (Public.CompletePasswordReset key value newpwd) = do
       whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd)) do
         throwStd (errorToWai @E.ResetPasswordMustDiffer)
       hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) newpwd
-      wrapClientE $ DB.updateAccountPassword pid hashedPwd
       lift . liftSem $ insertHashedProviderPassword pid hashedPwd
       lift . liftSem $ deleteCode key VerificationCode.PasswordReset
 
@@ -453,7 +456,6 @@ updateAccountPassword pid upd = do
   whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword)) do
     throwStd (errorToWai @E.ResetPasswordMustDiffer)
   hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) upd.newPassword
-  wrapClientE $ DB.updateAccountPassword pid hashedPwd
   lift . liftSem $ insertHashedProviderPassword pid hashedPwd
 
 addService ::
