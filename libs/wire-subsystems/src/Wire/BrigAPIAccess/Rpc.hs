@@ -400,8 +400,10 @@ getUserExportData uid = do
     else decodeBodyOrThrow "brig" resp
 
 -- | Calls the @get-service-conn@ internal endpoint. Brig encodes an unknown
--- (provider, service) pair as 200 with a @null@ body; the 404 arm is kept for
--- robustness. Either way the caller sees 'Nothing' for a missing connection.
+-- (provider, service) pair as 200 with a @null@ body, which is the only way
+-- to get 'Nothing'. Any other status, including 404, is an error: during a
+-- rolling deploy an older brig without this endpoint answers 404, and
+-- treating that as "service gone" would make callers delete the bots.
 getServiceConn ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   ProviderId ->
@@ -410,12 +412,10 @@ getServiceConn ::
 getServiceConn pid sid = do
   resp <-
     brigRequest $
-      check [status200, status404]
+      check [status200]
         . method GET
         . paths ["i", "provider", toByteString' pid, "services", toByteString' sid, "connection"]
-  if statusCode resp == 404
-    then pure Nothing
-    else decodeBodyOrThrow "brig" resp
+  decodeBodyOrThrow "brig" resp
 
 getAccountConferenceCallingConfigClient ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
