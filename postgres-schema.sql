@@ -1687,7 +1687,7 @@ ALTER TABLE public.nonce OWNER TO "wire-server";
 CREATE TABLE public.oauth_auth_code (
     code text NOT NULL,
     client uuid NOT NULL,
-    "user" uuid NOT NULL,
+    user_id uuid NOT NULL,
     scope text[] NOT NULL,
     redirect_uri bytea NOT NULL,
     code_challenge text,
@@ -2216,12 +2216,14 @@ ALTER TABLE ONLY public.mls_history_client
 ALTER TABLE ONLY public.nonce
     ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
+
 --
 -- Name: oauth_auth_code oauth_auth_code_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.oauth_auth_code
     ADD CONSTRAINT oauth_auth_code_pkey PRIMARY KEY (code);
+
 
 --
 -- Name: password_reset password_reset_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server

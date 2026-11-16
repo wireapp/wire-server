@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS oauth_auth_code (
   code TEXT PRIMARY KEY,
   client UUID NOT NULL,
-  "user" UUID NOT NULL,
+  user_id UUID NOT NULL,
   scope TEXT[] NOT NULL,
   redirect_uri BYTEA NOT NULL,
   code_challenge TEXT,
