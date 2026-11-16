@@ -25,20 +25,21 @@ import Testlib.Prelude
 
 -- | Login with a totp_code field succeeds: the mock parses the field and
 -- ignores it.
-testA0LoginWithValidTotpCode :: (HasCallStack) => App ()
-testA0LoginWithValidTotpCode = do
+testLoginWithValidTotpCode :: (HasCallStack) => App ()
+testLoginWithValidTotpCode = do
   alice <- randomUser OwnDomain def
   email <- asString (alice %. "email")
   Brig.loginWithTotp alice email defPassword mockLoginTotpCode >>= assertStatus 200
 
 -- | Login with a malformed totp_code value (not a valid SecondFactorCode
 -- format) returns 400 — parsing is real even though enforcement is not.
-testA0LoginWithInvalidTotpCode :: (HasCallStack) => App ()
-testA0LoginWithInvalidTotpCode = do
+testLoginWithInvalidTotpCode :: (HasCallStack) => App ()
+testLoginWithInvalidTotpCode = do
   alice <- randomUser OwnDomain def
   email <- asString (alice %. "email")
   req <- baseRequest alice Brig Versioned "login"
-  submit "POST"
+  submit
+    "POST"
     ( req
         & addJSONObject ["email" .= email, "password" .= defPassword, "totp_code" .= ("not-a-valid-totp-code" :: String)]
         & addQueryParams [("persist", "true")]
