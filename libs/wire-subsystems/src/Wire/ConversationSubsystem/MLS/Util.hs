@@ -155,21 +155,6 @@ withCommitLock lConvOrSubId gid epoch = Codensity $ \k -> do
     pure
     committed
 
-logCommitLockFailure ::
-  (Member TinyLog r) =>
-  ByteString ->
-  Local ConvOrSubConvId ->
-  GroupId ->
-  Epoch ->
-  Sem r ()
-logCommitLockFailure phase lConvOrSubId gid epoch =
-  TinyLog.warn $
-    Log.msg ("MLS commit lock operation failed" :: ByteString)
-      . Log.field "phase" phase
-      . Log.field "groupId" ("0x" <> hex (unGroupId gid))
-      . Log.field "epoch" (epochNumber epoch)
-      . Log.field "convOrSubConvId" (toByteString' (show (tUnqualified lConvOrSubId)))
-
 logStaleCommitLock ::
   (Member TinyLog r) =>
   ByteString ->

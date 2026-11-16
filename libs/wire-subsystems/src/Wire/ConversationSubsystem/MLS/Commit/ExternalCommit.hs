@@ -129,7 +129,6 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 processExternalCommit ::
   forall r.
   ( Member (Error FederationError) r,
-
     HasProposalActionEffects r,
     Member MLSCommitLockStore r
   ) =>
