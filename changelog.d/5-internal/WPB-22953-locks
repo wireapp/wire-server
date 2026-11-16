@@ -1,1 +1,1 @@
-Connections migration now copies per user under an exclusive migration lock and deletes the copied Cassandra partitions in the same locked section.
+Connections migration now copies per user under an exclusive migration lock, records finished users in a new `connection_migrated_users` Postgres table, and deletes the copied Cassandra partitions in the same locked section. Dual-mode reads are routed by that marker, and writes for migrated users no longer touch Cassandra.
