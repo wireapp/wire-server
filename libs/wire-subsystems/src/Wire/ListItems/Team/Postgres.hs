@@ -15,18 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | PostgreSQL interpreters for the team instantiation of the 'ListItems'
--- effect (user -> teams pagination), reading the @user_team@ table created by
--- @postgres-migrations/20261021175638-team-store.sql@.
+-- | PostgreSQL interpreter for the team instantiation of the 'ListItems'
+-- effect (user -> teams pagination), reading the @user_team@ table written by
+-- "Wire.TeamStore.Postgres". It must be used whenever the team store is on
+-- Postgres.
 --
--- Both the Cassandra and Postgres interpreters serve the 'LegacyPaging'
--- instantiation as keyset paging on the ordered @team@ column, so the
--- semantics (stable ordering, truncation detection via an extra fetched row,
--- exclusive TeamId cursors) are preserved exactly across the cutover. The
--- 'InternalPaging' instantiation is Cassandra-only (its continuation token
--- existentially hides a Cassandra @Client@ closure and cannot be replayed
--- against Postgres); its sole consumer, 'Galley.API.Internal.rmUser', was
--- switched to the 'LegacyPaging' instantiation for exactly this reason.
+-- Like the Cassandra interpreter, it serves the 'LegacyPaging' instantiation
+-- as keyset paging on the ordered @team@ column (stable ordering, truncation
+-- detection via an extra fetched row, exclusive TeamId cursors).
 module Wire.ListItems.Team.Postgres
   ( interpretTeamListToPostgres,
   )

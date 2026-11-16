@@ -505,8 +505,7 @@ spec = do
                 nonce = CassandraStorage,
                 connections = CassandraStorage,
                 sessions = CassandraStorage,
-                teamStore = CassandraStorage,
-                listItems = CassandraStorage
+                teamStore = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -580,8 +579,7 @@ spec = do
                 nonce = CassandraStorage,
                 connections = CassandraStorage,
                 sessions = CassandraStorage,
-                teamStore = CassandraStorage,
-                listItems = CassandraStorage
+                teamStore = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
