@@ -25,6 +25,7 @@ import Data.Aeson as A
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Range
 import Data.Set qualified as Set
@@ -82,13 +83,13 @@ interpretProviderServiceStoreToPostgres = interpret $ \case
   UpdateProviderServiceConn pid sid url tokens keys enabled ->
     updateProviderServiceConnRow pid sid url tokens keys enabled
   InsertProviderServiceIndexes pid sid name tags -> do
-    runTransaction Tx.Serializable Tx.Write $ do
+    runTransactionWithRetry Tx.Serializable Tx.Write $ do
       for_ (nonEmptyTags tags) $ \t ->
         for_ (unfoldTagsInto t []) $ \tag ->
           Transaction.statement (defBucket, tag, toLowerName name, sid, pid) insertProviderServiceTagRow
       Transaction.statement (mkPrefixIndex name, toLowerName name, sid, pid) insertProviderServicePrefixRow
   DeleteProviderServiceIndexes _pid sid name tags -> do
-    runTransaction Tx.Serializable Tx.Write $ do
+    runTransactionWithRetry Tx.Serializable Tx.Write $ do
       for_ (unfoldTags tags) $ \tag ->
         Transaction.statement (defBucket, tag, toLowerName name, sid) deleteProviderServiceTagRow
       Transaction.statement (mkPrefixIndex name, toLowerName name, sid) deleteProviderServicePrefixRow
@@ -97,10 +98,12 @@ interpretProviderServiceStoreToPostgres = interpret $ \case
   PaginateProviderServiceNames mbPrefix size providerFilter ->
     paginateProviderServiceNames mbPrefix size providerFilter
   InsertProviderServiceWhitelist tid pid sid ->
-    runTransaction Tx.Serializable Tx.Write $ do
+    runTransactionWithRetry Tx.Serializable Tx.Write $ do
       Transaction.statement (tid, pid, sid) insertProviderServiceWhitelist
       Transaction.statement (tid, pid, sid) insertProviderServiceWhitelistRev
-  DeleteProviderServiceWhitelist mbTid pid sid -> deleteProviderServiceWhitelistRows mbTid pid sid
+  DeleteProviderServiceWhitelist mbTid pid sid ->
+    runTransactionWithRetry Tx.Serializable Tx.Write $
+      deleteProviderServiceWhitelistRowsTx mbTid pid sid
   PaginateProviderServiceWhitelist tid mbPrefix filterDisabled size ->
     paginateProviderServiceWhitelist tid mbPrefix filterDisabled size
   GetProviderServiceWhitelistStatus tid pid sid ->
@@ -235,7 +238,7 @@ updateProviderServiceRow ::
   Bool ->
   Sem r ()
 updateProviderServiceRow pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = do
-  runTransaction Tx.Serializable Tx.Write $ do
+  runTransactionWithRetry Tx.Serializable Tx.Write $ do
     Transaction.statement (snd <$> nameChange, summary, descr, assets, pid, sid) updateRowStmt
     -- Mirror DB.updateService: a tag change always writes the tags column.
     for_ tagsChange $ \(_oldTags, newTags) ->
@@ -325,10 +328,10 @@ updateProviderServiceTagsTx pid sid (oldName, oldTags) (newName, newTags)
 
 deleteProviderServiceRow :: (PGConstraints r) => ProviderId -> ServiceId -> Name -> RangedServiceTags -> Sem r ()
 deleteProviderServiceRow pid sid name tags = do
-  -- NB: mirrors DB.deleteService: whitelist cleanup first, then the row
-  -- itself (so API consumers can retry a half-done delete).
-  deleteProviderServiceWhitelistRows Nothing pid sid
-  runTransaction Tx.Serializable Tx.Write $ do
+  -- Whitelist cleanup and row deletion happen in one transaction, so a
+  -- failed delete leaves no half-deleted state behind.
+  runTransactionWithRetry Tx.Serializable Tx.Write $ do
+    deleteProviderServiceWhitelistRowsTx Nothing pid sid
     Transaction.statement (pid, sid) deleteRow
     Transaction.statement (mkPrefixIndex name, toLowerName name, sid) deleteProviderServicePrefixRow
     for_ (unfoldTags tags) $ \tag ->
@@ -548,19 +551,19 @@ insertProviderServiceWhitelistRev =
                          ON CONFLICT (team, provider, service) DO NOTHING
         |]
 
-deleteProviderServiceWhitelistRows :: (PGConstraints r) => Maybe TeamId -> ProviderId -> ServiceId -> Sem r ()
-deleteProviderServiceWhitelistRows mbTid pid sid = case mbTid of
+-- | Deletes the whitelist entries of a service, either for one team or (with
+-- 'Nothing') for all teams. The reverse-index read and the deletes are part of
+-- the caller's transaction, so concurrent whitelisting cannot slip in between.
+deleteProviderServiceWhitelistRowsTx :: Maybe TeamId -> ProviderId -> ServiceId -> Transaction.Transaction ()
+deleteProviderServiceWhitelistRowsTx mbTid pid sid = case mbTid of
   Nothing -> do
-    teams <- runStatement (pid, sid) lookupRev
-    runTransaction Tx.Serializable Tx.Write $ do
-      for_ (V.toList teams) $ \tid -> do
-        Transaction.statement (tid, pid, sid) deleteWhitelist1
-        Transaction.statement (tid, pid, sid) deleteWhitelist1Rev
-      Transaction.statement (pid, sid) deleteAllRev
-  Just tid ->
-    runTransaction Tx.Serializable Tx.Write $ do
+    teams <- Transaction.statement (pid, sid) lookupRev
+    for_ (V.toList teams) $ \tid ->
       Transaction.statement (tid, pid, sid) deleteWhitelist1
-      Transaction.statement (tid, pid, sid) deleteWhitelist1Rev
+    Transaction.statement (pid, sid) deleteAllRev
+  Just tid -> do
+    Transaction.statement (tid, pid, sid) deleteWhitelist1
+    Transaction.statement (tid, pid, sid) deleteWhitelist1Rev
   where
     lookupRev :: Hasql.Statement (ProviderId, ServiceId) (Vector TeamId)
     lookupRev =
@@ -626,9 +629,9 @@ paginateProviderServiceTags tags start size providerFilter = do
       let more = any hasMore ps || length rows > fromIntegral size
       pure $! emptyPage {hasMore = more, result = trim size rows}
   let p = filterResults providerFilter start' p0
-  r <- traverse (resolveRowPG . thd) (result p)
+  r <- resolveRowsPG (map thd (result p))
   -- See Note [buggy pagination]
-  pure $! ServiceProfilePage (hasMore p) (catMaybes r)
+  pure $! ServiceProfilePage (hasMore p) r
   where
     queryTag :: (PGConstraints r) => Text -> Int32 -> QueryAllTags 1 3 -> Sem r (Page IndexRow)
     queryTag s l t = do
@@ -649,8 +652,41 @@ paginateProviderServiceTags tags start size providerFilter = do
         |]
     thd (_, pid, sid) = (pid, sid)
 
-resolveRowPG :: (PGConstraints r) => (ProviderId, ServiceId) -> Sem r (Maybe ServiceProfile)
-resolveRowPG (pid, sid) = lookupProviderServiceProfileRow pid sid
+-- | Fetches the profiles of the given services with a single query, in the
+-- order of the input; services that no longer exist are skipped.
+resolveRowsPG :: (PGConstraints r) => [(ProviderId, ServiceId)] -> Sem r [ServiceProfile]
+resolveRowsPG [] = pure []
+resolveRowsPG keys = do
+  rows <- runStatement (map fst keys, map snd keys) selectProfilesByKeys
+  let profiles =
+        Map.fromList
+          [ ((pid, sid), serviceProfileFromRow sid pid (name, summary, descr, assets, tags, enabled))
+          | (sid, pid, name, summary, descr, assets, tags, enabled) <- V.toList rows
+          ]
+  pure (mapMaybe (`Map.lookup` profiles) keys)
+  where
+    -- Over-approximates the requested (provider, id) pairs via the primary
+    -- key; the exact pairs are picked in Haskell.
+    selectProfilesByKeys ::
+      Hasql.Statement
+        ([ProviderId], [ServiceId])
+        (Vector (ServiceId, ProviderId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool))
+    selectProfilesByKeys =
+      dimapPG
+        @(Vector UUID, Vector UUID)
+        @([ProviderId], [ServiceId])
+        @(Vector (UUID, UUID, Text, Maybe Text, Text, A.Value, Vector Int64, Bool))
+        [vectorStatement|SELECT (id :: uuid),
+                                (provider :: uuid),
+                                (name :: text),
+                                (summary :: text?),
+                                (descr :: text),
+                                (assets :: jsonb),
+                                (tags :: bigint[]),
+                                (enabled :: boolean)
+                         FROM provider_service
+                         WHERE provider = ANY ($1 :: uuid[]) AND id = ANY ($2 :: uuid[])
+        |]
 
 -- | The merge/trim logic of @Brig.Provider.DB.paginateServiceNames@ (see
 -- Note [buggy pagination] there); the Cassandra @queryAll@/@queryPrefixes@
@@ -668,9 +704,9 @@ paginateProviderServiceNames mbPrefix size providerFilter = do
     Just prefix ->
       let prefix' = Text.toLower (fromRange prefix)
        in filterResults providerFilter prefix' <$> queryPrefixes prefix' size'
-  r <- traverse (resolveRowPG . thd) (result p)
+  r <- resolveRowsPG (map thd (result p))
   -- See Note [buggy pagination]
-  pure $! ServiceProfilePage (hasMore p) (catMaybes r)
+  pure $! ServiceProfilePage (hasMore p) r
   where
     queryAll :: (PGConstraints r) => Int32 -> Sem r (Page IndexRow)
     queryAll len = do
@@ -713,8 +749,11 @@ paginateProviderServiceWhitelist ::
   Int32 ->
   Sem r ServiceProfilePage
 paginateProviderServiceWhitelist tid mbPrefix filterDisabled size = do
-  pids <- runStatement tid selectWhitelist
-  profiles <- catMaybes <$> traverse (uncurry lookupProviderServiceProfileRow) (V.toList pids)
+  rows <- runStatement tid selectWhitelistedProfiles
+  let profiles =
+        [ serviceProfileFromRow sid pid (name, summary, descr, assets, tags, enabled)
+        | (sid, pid, name, summary, descr, assets, tags, enabled) <- V.toList rows
+        ]
   let r =
         maybeFilterPrefix
           . sortOn (Text.toLower . fromName . serviceProfileName)
@@ -725,12 +764,27 @@ paginateProviderServiceWhitelist tid mbPrefix filterDisabled size = do
       (length r > fromIntegral size)
       (trim size r)
   where
-    selectWhitelist :: Hasql.Statement TeamId (Vector (ProviderId, ServiceId))
-    selectWhitelist =
+    selectWhitelistedProfiles ::
+      Hasql.Statement
+        TeamId
+        (Vector (ServiceId, ProviderId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool))
+    selectWhitelistedProfiles =
       dimapPG
-        [vectorStatement|SELECT (provider :: uuid), (service :: uuid)
-                         FROM provider_service_whitelist
-                         WHERE team = ($1 :: uuid)
+        @UUID
+        @TeamId
+        @(Vector (UUID, UUID, Text, Maybe Text, Text, A.Value, Vector Int64, Bool))
+        [vectorStatement|SELECT (s.id :: uuid),
+                                (s.provider :: uuid),
+                                (s.name :: text),
+                                (s.summary :: text?),
+                                (s.descr :: text),
+                                (s.assets :: jsonb),
+                                (s.tags :: bigint[]),
+                                (s.enabled :: boolean)
+                         FROM provider_service_whitelist AS w
+                         JOIN provider_service AS s
+                           ON s.provider = w.provider AND s.id = w.service
+                         WHERE w.team = ($1 :: uuid)
         |]
     maybeFilterDisabled
       | filterDisabled = filter serviceProfileEnabled
