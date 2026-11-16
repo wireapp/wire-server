@@ -1067,10 +1067,6 @@ background-worker:
     # galley's postgresMigration.customBackend to migration-to-postgresql first.
     migrateCustomBackend: false
 
-    # This will start the migration of mls key packages data.
-    # It's important to set `settings.postgresMigration.mlsKeyPackages` to `migration-to-postgresql`
-    # before starting the migration.
-
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms
       pushBackoffMaxWait: 300000000 # microseconds, so 300s

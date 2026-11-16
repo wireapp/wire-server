@@ -23,7 +23,6 @@ module Wire.API.MLS.CipherSuite
     legacyCipherSuite,
     CipherSuiteTag (..),
     cipherSuiteTag,
-    cipherSuiteTagFromInt32,
     tagCipherSuite,
 
     -- * MLS signature schemes
