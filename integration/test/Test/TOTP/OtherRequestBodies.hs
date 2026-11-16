@@ -30,21 +30,28 @@ import Testlib.Prelude
 -- neither chokes on the new field nor lets it replace the password.
 
 testMockTotpChangePassword :: (HasCallStack) => App ()
-testMockTotpChangePassword = do
-  alice <- randomUser OwnDomain def
-  email <- asString (alice %. "email")
-  let newPassword = "new-test-password"
-      body =
-        object
-          [ "old_password" .= defPassword,
-            "new_password" .= newPassword,
-            "totp_code" .= mockLoginTotpCode
-          ]
-      request = Brig.putPasswordWithBody alice
-  -- Do not accept a 4xx from business logic as proof that parsing worked:
-  -- these must all fail with 400 before a valid request can mutate the state.
-  for_ [toJSON ("123456" :: String), toJSON ("totp:abc" :: String), toJSON ("recovery:invalid" :: String), Number 123456, Bool True] $ \code ->
-    setField "totp_code" code body >>= request >>= assertStatus 400
-  setField "old_password" ("wrong-password" :: String) body >>= request >>= assertStatus 403
-  request body >>= assertStatus 200
-  Brig.login alice email newPassword >>= assertStatus 200
+testMockTotpChangePassword =
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Password changes and the final login share the password-hashing rate limit.
+          setField "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" (0 :: Int)
+      }
+    $ \domain -> do
+      alice <- randomUser domain def
+      email <- asString (alice %. "email")
+      let newPassword = "new-test-password"
+          body =
+            object
+              [ "old_password" .= defPassword,
+                "new_password" .= newPassword,
+                "totp_code" .= mockLoginTotpCode
+              ]
+          request = Brig.putPasswordWithBody alice
+      -- Do not accept a 4xx from business logic as proof that parsing worked:
+      -- these must all fail with 400 before a valid request can mutate the state.
+      for_ [toJSON ("123456" :: String), toJSON ("totp:abc" :: String), toJSON ("recovery:invalid" :: String), Number 123456, Bool True] $ \code ->
+        setField "totp_code" code body >>= request >>= assertStatus 400
+      setField "old_password" ("wrong-password" :: String) body >>= request >>= assertStatus 403
+      request body >>= assertStatus 200
+      Brig.login alice email newPassword >>= assertStatus 200
