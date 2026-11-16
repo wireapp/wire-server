@@ -110,7 +110,6 @@ run opts = withTracer \tracer -> do
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
-    forM_ wtbs Async.cancel
     forM_ rThreads Async.cancel
     case env ^. presenceBackend of
       PresenceBackendRedis r mAdd -> do
@@ -187,4 +186,3 @@ collectAuthMetrics env = do
       mbRemaining <- readAuthExpiration env
       gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000
-
