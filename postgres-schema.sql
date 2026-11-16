@@ -1412,6 +1412,17 @@ CREATE TABLE public.connection (
 ALTER TABLE public.connection OWNER TO "wire-server";
 
 --
+-- Name: connection_migrated_users; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.connection_migrated_users (
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.connection_migrated_users OWNER TO "wire-server";
+
+--
 -- Name: connection_remote; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2091,6 +2102,14 @@ ALTER TABLE ONLY public.collaborators
 
 ALTER TABLE ONLY public.connection
     ADD CONSTRAINT connection_pkey PRIMARY KEY ("left", "right");
+
+
+--
+-- Name: connection_migrated_users connection_migrated_users_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.connection_migrated_users
+    ADD CONSTRAINT connection_migrated_users_pkey PRIMARY KEY (user_id);
 
 
 --

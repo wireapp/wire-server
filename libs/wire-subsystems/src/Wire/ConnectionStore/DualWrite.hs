@@ -47,26 +47,32 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 -- | During the connections migration, reads and deletes are routed per @left@
 -- user under shared migration locks while writes are mirrored to both stores:
 --
--- * Reads: the dual interpreter takes the shared per-user migration lock, asks
---   Postgres which of the involved @left@ users have already been migrated
---   (row presence in @connection@ / @connection_remote@), and serves each
+-- * Migration state: a @left@ user is migrated iff it has a row in
+--   @connection_migrated_users@. Only the copier writes that marker, under the
+--   exclusive per-user lock, after both partitions were copied cleanly and
+--   before they are cleared from Cassandra. Row presence in @connection@ /
+--   @connection_remote@ is NOT a migration signal: dual writes create
+--   Postgres rows for users the copier has not reached yet.
+-- * Reads: the dual interpreter takes the shared per-user migration lock,
+--   looks up the markers of the involved @left@ users, and serves each
 --   user's partition from Postgres or Cassandra accordingly. This serializes
---   reads against the background copier, which copies a user's partitions and
---   deletes them from Cassandra under the exclusive lock.
+--   reads against the background copier.
 -- * Deletes: dual deletes take the shared lock for every touched @left@
 --   partition. Without it, the copier's timestamp-guarded upsert could
 --   re-insert a row that a concurrent dual delete had just removed from both
 --   stores — a deleted connection reappearing is privacy-relevant.
---   Inserts and status updates are lock-free: they cannot resurrect deleted
---   data because the copier's guarded upsert loses to newer dual-write
---   timestamps.
+-- * Inserts and status updates take the shared lock on @self@ (the
+--   partition they write) and always write Postgres. They write Cassandra
+--   only while @self@ is unmigrated: a plain Cassandra @UPDATE@ on a cleared
+--   partition would recreate a partial row (no @conv@), and the copier must
+--   never re-copy such leftovers (it only clears partitions of marked users).
 --
 -- Residual window (accepted, analogous to the pagination edge below): a
 -- contact created between the contact-list enumeration and the locked delete
--- is unlocked while its reverse row is deleted; the copier can re-insert that
--- one row into Postgres, and in the migrated case the Cassandra row becomes
--- an orphan until the contact's own migration re-copies it. Fully closing
--- this would need tombstones, which the migration does not have.
+-- is unlocked while its reverse row is deleted; if the copier is copying that
+-- contact at the same time, it can re-insert that one row into Postgres.
+-- Fully closing this would need tombstones, which the migration does not
+-- have.
 --
 -- Accepted edge case: a multi-request pagination that straddles the moment a
 -- user becomes migrated may continue on the other store for its remaining
@@ -74,8 +80,8 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 -- ('RemoteConnectedUsersPaginated''s continuation is store-bound the same
 -- way). No token tagging or sticky routing is added for this. Related and
 -- equally accepted: a user whose copy is incomplete (a failed row delays the
--- clear until the next copier pass) is routed to Postgres by row presence
--- and may see a truncated view until the retry completes.
+-- clear until the next copier pass) stays unmarked and keeps being served
+-- from Cassandra until the retry completes.
 interpretConnectionStoreToCassandraAndPostgres ::
   forall r.
   ( Member (Embed Cas.Client) r,
@@ -88,14 +94,16 @@ interpretConnectionStoreToCassandraAndPostgres ::
   ) =>
   InterpreterFor (ConnectionStore InternalPaging) r
 interpretConnectionStoreToCassandraAndPostgres = interpret $ \case
-  InsertConnection self target rel qcnv -> do
-    res <- connectionStoreToCassandra $ insertConnection self target rel qcnv
-    _ <- Postgres.interpretConnectionStoreToPostgres $ insertConnection self target rel qcnv
-    pure res
-  UpdateConnectionStatus self target status -> do
-    res <- connectionStoreToCassandra $ updateConnectionStatus self target status
-    _ <- Postgres.interpretConnectionStoreToPostgres $ updateConnectionStatus self target status
-    pure res
+  InsertConnection self target rel qcnv ->
+    dualWrite
+      (tUnqualified self)
+      (Postgres.interpretConnectionStoreToPostgres $ insertConnection self target rel qcnv)
+      (connectionStoreToCassandra $ insertConnection self target rel qcnv)
+  UpdateConnectionStatus self target status ->
+    dualWrite
+      (tUnqualified self)
+      (Postgres.interpretConnectionStoreToPostgres $ updateConnectionStatus self target status)
+      (connectionStoreToCassandra $ updateConnectionStatus self target status)
   DeleteConnections u ->
     -- Reverse rows (@left = contact, right = u@) live in the contacts'
     -- partitions, so every touched partition must be locked. The contact list
@@ -189,6 +197,32 @@ interpretConnectionStoreToCassandraAndPostgres = interpret $ \case
       (\_ -> Postgres.interpretConnectionStoreToPostgres $ countConnections u r)
       (\_ -> connectionStoreToCassandra $ countConnections u r)
 
+-- | Mirror a write to the @left@ partition of @self@: under the shared lock,
+-- always write Postgres, and write Cassandra only if @self@ is not migrated
+-- yet. Returns the Cassandra result while unmigrated (unchanged behaviour),
+-- the Postgres result afterwards.
+dualWrite ::
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member (Error MigrationLockError) r,
+    Member Async r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  UserId ->
+  Sem r a ->
+  Sem r a ->
+  Sem r a
+dualWrite self pgAction cassAction =
+  withMigrationLocks LockShared (MilliSeconds 500) [self] $ do
+    migrated <- filterMigrated [self]
+    if null migrated
+      then do
+        res <- cassAction
+        _ <- pgAction
+        pure res
+      else pgAction
+
 -- | Serve a read whose partitions are keyed by a single @left@ user: under
 -- the shared lock, the whole read goes to Postgres if the user is migrated,
 -- else to Cassandra.
@@ -254,8 +288,7 @@ routeRead maxWait leftUsers pgPart cassPart =
     cassRes <- if null cassOnly then pure mempty else cassPart cassOnly
     pure (pgRes <> cassRes)
 
--- | Users from the given list whose @connection@/@connection_remote@ rows are
--- present in Postgres. Presence is a statement local to this module.
+-- | Users from the given list that the copier has marked as migrated.
 filterMigrated :: (PGConstraints r) => [UserId] -> Sem r [UserId]
 filterMigrated leftUsers = do
   migrated <- runStatement (Vector.map toUUID (Vector.fromList leftUsers)) selectMigratedUsers
@@ -263,7 +296,4 @@ filterMigrated leftUsers = do
 
 selectMigratedUsers :: Hasql.Statement (Vector UUID) (Vector UUID)
 selectMigratedUsers =
-  [vectorStatement|SELECT DISTINCT ("left" :: uuid) FROM connection WHERE "left" = ANY ($1 :: uuid[])
-                      UNION
-                      SELECT DISTINCT ("left" :: uuid) FROM connection_remote WHERE "left" = ANY ($1 :: uuid[])
-                     |]
+  [vectorStatement|SELECT (user_id :: uuid) FROM connection_migrated_users WHERE user_id = ANY ($1 :: uuid[])|]

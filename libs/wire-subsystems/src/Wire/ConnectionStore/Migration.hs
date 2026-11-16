@@ -179,9 +179,58 @@ migrateConnectionsForUser ::
   Sem r ()
 migrateConnectionsForUser migOpts migCounter migDuration left =
   withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [left] $ do
-    localCopied <- copyPartition migOpts migCounter migDuration connectionsSelect upsertConnection left
-    remoteCopied <- copyPartition migOpts migCounter migDuration remoteConnectionSelect upsertRemoteConnection left
-    when (localCopied && remoteCopied) $ clearCassandraPartitions left
+    alreadyMigrated <- isMigrated left
+    -- For a marked user Postgres is authoritative; anything left in Cassandra
+    -- is a leftover of a failed clear and must not be re-copied.
+    if alreadyMigrated
+      then clearCassandraPartitions left
+      else do
+        localCopied <- copyPartition migOpts migCounter migDuration connectionsSelect upsertConnection left
+        remoteCopied <- copyPartition migOpts migCounter migDuration remoteConnectionSelect upsertRemoteConnection left
+        when (localCopied && remoteCopied) $ do
+          marked <- markMigrated left
+          when marked $ clearCassandraPartitions left
+
+-- | Whether the copier already finished this user (see 'markMigrated').
+isMigrated :: (PGConstraints r) => UserId -> Sem r Bool
+isMigrated left = runStatement left stmt
+  where
+    stmt :: Hasql.Statement UserId Bool
+    stmt =
+      lmapPG
+        [singletonStatement|SELECT EXISTS (SELECT 1 FROM connection_migrated_users WHERE user_id = ($1 :: uuid)) :: bool|]
+
+-- | Record that every Cassandra row of this user is in Postgres. From now on
+-- the dual-write interpreter serves the user from Postgres and stops writing
+-- the user's Cassandra partitions. Must run under the exclusive lock, after a
+-- clean copy and before the Cassandra partitions are cleared (clearing first
+-- would route readers to an empty Cassandra partition if marking failed).
+-- Returns whether the marker was written; on failure the atomic count is
+-- bumped so the loop retries the user.
+markMigrated ::
+  ( Member (Input HasqlPoolExt.Pool) r,
+    Member (Embed IO) r,
+    Member TinyLog r,
+    Member (AtomicState Int) r
+  ) =>
+  UserId ->
+  Sem r Bool
+markMigrated left = do
+  result <- runError @Hasql.UsageError $ runStatement left stmt
+  case result of
+    Right () -> pure True
+    Left e -> do
+      warn $
+        Log.msg (Log.val "failed to mark user as migrated")
+          . Log.field "left" (show left)
+          . Log.field "error" (show e)
+      atomicModify (+ 1)
+      pure False
+  where
+    stmt :: Hasql.Statement UserId ()
+    stmt =
+      lmapPG
+        [resultlessStatement|INSERT INTO connection_migrated_users (user_id) VALUES ($1 :: uuid) ON CONFLICT DO NOTHING|]
 
 -- | Page all rows of one partition out of Cassandra and upsert them into
 -- Postgres, preserving the original @last_update@. Returns whether every row
@@ -291,7 +340,8 @@ selectRemoteConnectionLefts = "SELECT DISTINCT left FROM connection_remote"
 -- Upserts preserving the original Cassandra timestamps. On conflict, an
 -- existing row is only overwritten when the Cassandra row is at least as new
 -- (ties go to Cassandra), so a replayed stale row cannot clobber a newer row
--- that dual-write already put in Postgres.
+-- that dual-write already put in Postgres. A NULL Cassandra @conv@ (a partial
+-- row created by a plain @UPDATE@) never overwrites a known Postgres @conv@.
 
 upsertConnection ::
   ( Member (Input HasqlPoolExt.Pool) r,
@@ -309,7 +359,7 @@ upsertConnection _left (l, r, rel, ts, mconv) =
         [resultlessStatement|INSERT INTO connection ("left", "right", status, last_update, conv)
                            VALUES ($1 :: uuid, $2 :: uuid, $3 :: int4, $4 :: timestamptz, $5 :: uuid?)
                            ON CONFLICT ("left", "right") DO UPDATE
-                           SET status = ($3 :: int4), last_update = ($4 :: timestamptz), conv = ($5 :: uuid?)
+                           SET status = ($3 :: int4), last_update = ($4 :: timestamptz), conv = COALESCE(($5 :: uuid?), connection.conv)
                            WHERE connection.last_update <= ($4 :: timestamptz)
                           |]
 
