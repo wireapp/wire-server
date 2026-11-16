@@ -123,15 +123,15 @@ import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
 import Wire.MlsKeyPackageStore.Cassandra (interpretMlsKeyPackageStoreToCassandra)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.MlsKeyPackageSubsystem.Interpreter (interpretMlsKeyPackageSubsystem)
-import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
-import Wire.OAuthAuthCodeStore.Cassandra (oauthAuthCodeStoreToCassandra)
-import Wire.OAuthAuthCodeStore.Postgres (interpretOAuthAuthCodeStoreToPostgres)
 import Wire.NonceStore
 import Wire.NonceStore.Cassandra
 import Wire.NonceStore.DualWrite
 import Wire.NonceStore.Postgres
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
+import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
+import Wire.OAuthAuthCodeStore.Cassandra (oauthAuthCodeStoreToCassandra)
+import Wire.OAuthAuthCodeStore.Postgres (interpretOAuthAuthCodeStoreToPostgres)
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
@@ -286,8 +286,8 @@ type BrigLowerLevelEffects =
      Now,
      Delay,
      Random,
-    PasswordResetCodeStore,
-    OAuthAuthCodeStore,
+     PasswordResetCodeStore,
+     OAuthAuthCodeStore,
      GalleyAPIAccess,
      SparAPIAccess,
      EmailSending,
@@ -471,17 +471,15 @@ runBrigToIO e (AppT ma) = do
 
       -- OAuthAuthCodeStore is peeled at the same slot as PasswordResetCodeStore:
       -- it precedes the global runInputConst e.hasqlPool / mapError
-      -- postgresUsageErrorToHttpError providers, so the Postgres-backed branches
-      -- supply Input Pool and Error UsageError locally.
+      -- postgresUsageErrorToHttpError providers, so the Postgres-backed branch
+      -- supplies Input Pool and Error UsageError locally.
+      --
+      -- Authorization codes live for minutes, so their data is not migrated:
+      -- 'MigrationToPostgresql' behaves exactly like 'PostgresqlStorage'.
       oauthAuthCodeStoreInterpreter =
         case e.postgresMigration.oauthAuthCode of
           CassandraStorage -> oauthAuthCodeStoreToCassandra @Cas.Client
-          MigrationToPostgresql ->
-            runInputConst e.hasqlPool
-              . mapError postgresUsageErrorToHttpError
-              . interpretOAuthAuthCodeStoreToPostgres
-              . raiseUnder2
-          PostgresqlStorage ->
+          _postgresqlOrMigration ->
             runInputConst e.hasqlPool
               . mapError postgresUsageErrorToHttpError
               . interpretOAuthAuthCodeStoreToPostgres
