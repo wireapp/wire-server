@@ -434,9 +434,11 @@ To migrate an existing installation:
 4. After verifying that search works as expected, ElasticSearch can be
    decommissioned.
 
-   Note: the `team_search_visibility` table starts out empty.  Teams that
-   currently have the inbound search-visibility feature enabled should
-   toggle it off and on again after cutover; otherwise inbound search
+   Note: the `team_search_visibility` table starts out empty.  From this
+   upgrade on, brig records changes of the inbound search-visibility team
+   feature there with either search backend, but settings made before the
+   upgrade are not copied.  Teams that had the feature enabled before the
+   upgrade should toggle it off and on again; otherwise inbound search
    silently falls back to own-team-only for those teams.
 
 To roll back, set `searchBackend: elasticsearch` again: the index is only kept

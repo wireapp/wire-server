@@ -39,8 +39,12 @@ import Wire.UserSearchStore
 
 interpretUserSearchStoreElasticSearch ::
   (Member IndexedUserStore r) =>
+  -- | Additionally persists team search visibility changes (to Postgres in
+  -- production, see 'Wire.UserSearchStore.Postgres.setTeamSearchVisibilityInboundPostgres'),
+  -- so that the setting is available when search is switched to Postgres.
+  (TeamId -> SearchVisibilityInbound -> Sem r ()) ->
   InterpreterFor UserSearchStore r
-interpretUserSearchStoreElasticSearch = interpret \case
+interpretUserSearchStoreElasticSearch persistTeamSearchVisibility = interpret \case
   SearchUsers luid mtid info q n mtypes ->
     fmap (fmap (docToContact luid)) (IndexedUserStore.searchUsers (tUnqualified luid) mtid info q n mtypes)
   PaginateTeamMembers filters maxResults paging ->
@@ -48,7 +52,8 @@ interpretUserSearchStoreElasticSearch = interpret \case
   GetTeamSize tid -> IndexedUserStore.getTeamSize tid
   SearchUsersFederated {} ->
     error "Wire.UserSearchStore.ElasticSearch: federated search goes through Brig.User.Search.SearchIndex when searchBackend=elasticsearch"
-  SetTeamSearchVisibilityInbound tid vis ->
+  SetTeamSearchVisibilityInbound tid vis -> do
+    persistTeamSearchVisibility tid vis
     IndexedUserStore.updateTeamSearchVisibilityInbound tid vis
 
 docToContact :: Local UserId -> UserDoc -> Contact
