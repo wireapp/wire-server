@@ -1670,20 +1670,6 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
--- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.nonce (
-    user_id uuid NOT NULL,
-    key text NOT NULL,
-    nonce uuid NOT NULL,
-    expires_at timestamp with time zone NOT NULL
-);
-
-
-ALTER TABLE public.nonce OWNER TO "wire-server";
-
---
 -- Name: mls_key_packages; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -1699,15 +1685,18 @@ CREATE TABLE public.mls_key_packages (
 ALTER TABLE public.mls_key_packages OWNER TO "wire-server";
 
 --
--- Name: mls_key_packages_migrated_users; Type: TABLE; Schema: public; Owner: wire-server
+-- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
 --
 
-CREATE TABLE public.mls_key_packages_migrated_users (
-    user_id uuid NOT NULL
+CREATE TABLE public.nonce (
+    user_id uuid NOT NULL,
+    key text NOT NULL,
+    nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL
 );
 
 
-ALTER TABLE public.mls_key_packages_migrated_users OWNER TO "wire-server";
+ALTER TABLE public.nonce OWNER TO "wire-server";
 
 --
 -- Name: password_reset; Type: TABLE; Schema: public; Owner: wire-server
@@ -2240,26 +2229,19 @@ ALTER TABLE ONLY public.mls_history_client
 
 
 --
--- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.nonce
-    ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
-
---
--- Name: mls_key_packages_migrated_users mls_key_packages_migrated_users_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.mls_key_packages_migrated_users
-    ADD CONSTRAINT mls_key_packages_migrated_users_pkey PRIMARY KEY (user_id);
-
-
---
 -- Name: mls_key_packages mls_key_packages_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.mls_key_packages
     ADD CONSTRAINT mls_key_packages_pkey PRIMARY KEY (user_id, client, cipher_suite, ref);
+
+
+--
+-- Name: nonce nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.nonce
+    ADD CONSTRAINT nonce_pkey PRIMARY KEY (user_id, key);
 
 
 --
