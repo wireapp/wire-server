@@ -444,10 +444,13 @@ evalGalley e =
           CassandraStorage -> interpretCodeStoreToCassandra
           MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCodeStoreToPostgres
+      -- There is no dual-write interpreter for the user client index:
+      -- 'MigrationToPostgresql' is treated as 'PostgresqlStorage'.
       userClientIndexStoreInterpreter =
         case (e ^. options . postgresMigration).userClientIndex of
           CassandraStorage -> interpretUserClientIndexStoreToCassandra (e ^. cstate)
           PostgresqlStorage -> interpretUserClientIndexStoreToPostgres
+          MigrationToPostgresql -> interpretUserClientIndexStoreToPostgres
       teamFeatureStoreInterpreter =
         case (e ^. options . postgresMigration).teamFeatures of
           CassandraStorage -> interpretTeamFeatureStoreToCassandra

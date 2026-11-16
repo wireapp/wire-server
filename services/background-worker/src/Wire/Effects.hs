@@ -381,11 +381,12 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
 
-    -- The worker's own job stack consumes the user-client index store; without
-    -- this the worker would stay on Cassandra after cutover.
+    -- There is no dual-write interpreter for the user client index:
+    -- 'MigrationToPostgresql' is treated as 'PostgresqlStorage'.
     userClientIndexStoreInterpreter = case env.postgresMigration.userClientIndex of
       CassandraStorage -> interpretUserClientIndexStoreToCassandra env.cassandraGalley
       PostgresqlStorage -> interpretUserClientIndexStoreToPostgres
+      MigrationToPostgresql -> interpretUserClientIndexStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
