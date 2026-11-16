@@ -59,7 +59,6 @@ import Data.Misc
   ( Fingerprint (Fingerprint),
     FutureWork (FutureWork),
     IpAddr,
-    PlainTextPassword6,
     Rsa,
   )
 import Data.Qualified
@@ -82,7 +81,7 @@ import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Servant (NoContent (..), ServerT, (:<|>) (..))
+import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
@@ -235,45 +234,12 @@ providerAPI =
 
 internalProviderAPI ::
   ( Member GalleyAPIAccess r,
-    Member VerificationCodeSubsystem r,
-    Member PasswordStore r,
-    Member HashPassword r,
-    Member RateLimit r
+    Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.ProviderAPI (Handler r)
 internalProviderAPI =
   Named @"get-provider-activation-code" getActivationCode
     :<|> Named @"get-provider-password-reset-code" getPasswordResetCode
-    :<|> Named @"put-provider-password" putProviderPassword
-    :<|> Named @"check-provider-password" checkProviderPassword
-
-putProviderPassword ::
-  ( Member PasswordStore r,
-    Member HashPassword r,
-    Member RateLimit r
-  ) =>
-  ProviderId ->
-  PlainTextPassword6 ->
-  (Handler r) NoContent
-putProviderPassword pid plain = do
-  hashed <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) plain
-  lift . liftSem $ insertHashedProviderPassword pid hashed
-  pure NoContent
-
-checkProviderPassword ::
-  ( Member PasswordStore r,
-    Member HashPassword r,
-    Member RateLimit r
-  ) =>
-  ProviderId ->
-  PlainTextPassword6 ->
-  (Handler r) BrigIRoutes.CheckProviderPasswordResponse
-checkProviderPassword pid plain = lift . liftSem $ do
-  lookupHashedProviderPassword pid >>= \case
-    Nothing -> pure BrigIRoutes.WrongProviderPassword
-    Just hashed -> do
-      ok <- HashPassword.verifyPassword (RateLimitProvider pid) plain hashed
-      pure $ if ok then BrigIRoutes.CorrectProviderPassword else BrigIRoutes.WrongProviderPassword
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
