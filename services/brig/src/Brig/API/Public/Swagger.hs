@@ -23,8 +23,6 @@ module Brig.API.Public.Swagger
     ServiceSwaggerDocsAPIBase,
     DocsAPI,
     FederationSwaggerDocsAPI,
-    pregenSwagger,
-    swaggerPregenUIServer,
     eventNotificationSchemas,
     adjustSwaggerForInternalEndpoint,
     adjustSwaggerForFederationEndpoints,
@@ -33,18 +31,14 @@ module Brig.API.Public.Swagger
 where
 
 import Control.Lens
-import Data.Aeson qualified as A
-import Data.FileEmbed
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.HashSet.InsOrd qualified as InsOrdSet
 import Data.Kind qualified as Kind
 import Data.OpenApi qualified as S
 import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as T
-import FileEmbedLzma
 import GHC.TypeLits
 import Imports hiding (head)
-import Language.Haskell.TH
 import Network.Socket
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
@@ -89,18 +83,6 @@ type DocsAPI =
     :<|> NotificationSchemasAPI
     :<|> InternalEndpointsSwaggerDocsAPI
     :<|> FederationSwaggerDocsAPI
-
-pregenSwagger :: Version -> Q Exp
-pregenSwagger v =
-  (unTypeCode . embedLazyByteString)
-    =<< makeRelativeToProject
-      ("docs/swagger-v" <> T.unpack (toUrlPiece (VersionNumber v)) <> ".json")
-
-swaggerPregenUIServer :: LByteString -> Server SwaggerDocsAPIBase
-swaggerPregenUIServer =
-  swaggerSchemaUIServer
-    . fromMaybe A.Null
-    . A.decode
 
 adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.OpenApi -> S.OpenApi
 adjustSwaggerForInternalEndpoint service examplePort swagger =

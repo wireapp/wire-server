@@ -1,0 +1,17 @@
+[
+    "add-bot",
+    "add-members-to-conversation",
+    "create-conversation-code-unqualified",
+    "join-conversation-by-code-unqualified",
+    "register",
+    "remove-bot",
+    "remove-code-unqualified",
+    "remove-member",
+    "update-channel-add-permission",
+    "update-conversation-access",
+    "update-conversation-history",
+    "update-conversation-message-timer",
+    "update-conversation-name",
+    "update-conversation-protocol",
+    "update-conversation-receipt-mode"
+]

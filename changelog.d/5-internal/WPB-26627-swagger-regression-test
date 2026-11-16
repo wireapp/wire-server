@@ -1,0 +1,1 @@
+wire-api test suite now enforces the frozen OpenAPI baselines (v5-v18) against the live-rendered spec; per-version ignore files under libs/wire-api/test/unit/ignore/ record already-accepted drift

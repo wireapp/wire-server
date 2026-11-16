@@ -62,6 +62,7 @@ packages:
   , tools/mlsstats/
   , tools/test-stats/
   , tools/entreprise-provisioning/
+  , tools/lint-openapi-regression/
 
 tests: True
 benchmarks: True

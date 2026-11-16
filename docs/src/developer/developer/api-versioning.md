@@ -145,7 +145,9 @@ the version. In these example we assume that version `V6` should be finalized an
   new version to the end.
 - In the same `Version` module update the `isDevelopmentVersion` to your taste.
 - In `services/brig/src/Brig/API/Public.hs`
-  - update `versionedSwaggerDocsAPI` so that the finalized version points to the pregenerated swagger, and the dynamically generated swagger spits out swagger for the new `V7`.
+  - update `versionedSwaggerDocsAPI` so that the finalized version is
+    live-rendered via `liveSwagger (Proxy @'V7) (VersionNumber V7)`, and add a
+    new branch for the development version (`V8`) using `devVersionSwagger`.
 - Set the version for `gDefaultAPIVersion` in `integration/test/Testlib/Env.hs` to 7.
 - Consider updating the `backendApiVersion` value in Stern, which is
   unit-tested by checking if it is listed as supported in the response to `GET /api-version`.
