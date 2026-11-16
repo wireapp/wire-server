@@ -1,10 +1,10 @@
--- Migration of team notifications from Cassandra to PostgreSQL (WPB-22958).
--- payload is a JSON blob (Cassandra blob column type mirrored as bytea);
--- the copy loop re-serializes the decoded payload through the shared
--- insert path, so bytes are aeson-normalized, semantically equivalent.
+-- PostgreSQL storage for team notifications (WPB-22958).
+-- No data is copied from Cassandra: switching galley's
+-- postgresMigration.teamNotifications to postgresql starts with an empty table.
+-- payload is the JSON-encoded notification payload (mirrors the Cassandra
+-- blob column as bytea).
 -- occurred_at is the RFC 4122 v1 timestamp of the notification id;
--- expires_at is anchored at the occurrence so rows copied late keep their
--- original 28-day TTL.
+-- expires_at is occurred_at + 28 days (the Cassandra TTL).
 
 CREATE TABLE team_notifications (
   team uuid NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE team_notifications (
 
 -- read path: WHERE team = ? AND expires_at > now() ORDER BY occurred_at, id
 CREATE INDEX team_notifications_team_occurred_at_idx
-  ON team_notifications (team, occurred_at);
+  ON team_notifications (team, occurred_at, id);
 
 -- TTL garbage collection per ADR-0005: DELETE FROM team_notifications WHERE expires_at < now()
 CREATE INDEX team_notifications_expires_at_idx
