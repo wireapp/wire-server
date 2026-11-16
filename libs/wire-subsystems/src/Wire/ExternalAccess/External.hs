@@ -25,11 +25,13 @@ where
 import Bilge.Request
 import Bilge.Retry
 import Control.Concurrent.Async
-import Control.Exception (try)
+import Control.Exception (ErrorCall (..), try)
 import Control.Lens
 import Control.Retry
 import Data.ByteString.Conversion.To
+import Data.Containers.ListUtils (nubOrd)
 import Data.Id
+import Data.Map qualified as Map
 import Data.Misc
 import Imports
 import Network.HTTP.Client qualified as Http
@@ -40,13 +42,14 @@ import OpenSSL.EVP.Digest
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async qualified as Async
+import Polysemy.Final
 import Polysemy.TinyLog
 import Ssl.Util
 import System.Logger.Message
 import URI.ByteString
 import Wire.API.Bot.Service
 import Wire.API.Event.Conversation
-import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
+import Wire.API.Provider.Service (ServiceRef, serviceRefId, serviceRefProvider)
 import Wire.BrigAPIAccess
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FireAndForget
@@ -144,15 +147,24 @@ deliver ::
   ExtEnv ->
   [(BotMember, Event)] ->
   Sem r [BotMember]
-deliver env pp = mapM (Async.async . exec) pp >>= foldM evaluate [] . zip (map fst pp)
+deliver env pp = do
+  -- Look up every distinct service connection once, concurrently. A failed
+  -- lookup only fails the delivery to the bots of that service.
+  let refs = nubOrd (map (botMemService . fst) pp)
+  lookups <- mapM (Async.async . trySem . lookupConn) refs
+  conns <- Map.fromList . zip refs <$> mapM Async.await lookups
+  mapM (Async.async . exec conns) pp >>= foldM evaluate [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> Sem r (Either SomeException Bool)
-    exec (b, e) =
-      let s = botMemService b
-       in send (GetServiceConn (s ^. serviceRefProvider) (s ^. serviceRefId)) >>= \case
-            Nothing -> pure $ Right False
-            Just conn ->
-              embedFinal $ try $ (deliver1 env conn b e $> True)
+    lookupConn :: ServiceRef -> Sem r (Maybe Service)
+    lookupConn s = send (GetServiceConn (s ^. serviceRefProvider) (s ^. serviceRefId))
+    exec :: Map ServiceRef (Maybe (Either SomeException (Maybe Service))) -> (BotMember, Event) -> Sem r (Either SomeException Bool)
+    exec conns (b, e) =
+      case join (Map.lookup (botMemService b) conns) of
+        Just (Right Nothing) -> pure $ Right False
+        Just (Right (Just conn)) ->
+          embedFinal $ try $ (deliver1 env conn b e $> True)
+        Just (Left ex) -> pure $ Left ex
+        Nothing -> pure . Left . toException $ ErrorCall "service connection lookup failed"
     evaluate :: [BotMember] -> (BotMember, Async (Maybe (Either SomeException Bool))) -> Sem r [BotMember]
     evaluate gone (b, a) = do
       let s = botMemService b
@@ -198,6 +210,14 @@ deliver env pp = mapM (Async.async . exec) pp >>= foldM evaluate [] . zip (map f
           pure gone
 
 -- Internal -------------------------------------------------------------------
+
+-- | Runs an action, returning IO exceptions (e.g. from an RPC) as 'Left'
+-- instead of propagating them.
+trySem :: (Member (Final IO) r) => Sem r a -> Sem r (Either SomeException a)
+trySem action = withStrategicToFinal @IO $ do
+  action' <- runS action
+  st <- getInitialStateS
+  pure $ either (\ex -> Left ex <$ st) (fmap Right) <$> try action'
 
 deliver1 :: ExtEnv -> Service -> BotMember -> Event -> IO ()
 deliver1 env s bm e
