@@ -578,6 +578,8 @@ proxy:
 spar:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
+  secrets:
+    pgPassword: posty-the-gres
   resources:
     requests: {}
     limits:
