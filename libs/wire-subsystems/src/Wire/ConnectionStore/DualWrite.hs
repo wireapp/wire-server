@@ -38,7 +38,7 @@ import Polysemy.Resource (Resource)
 import Polysemy.Time.Data.TimeUnit (MilliSeconds (..), Seconds (..), TimeUnit)
 import Polysemy.TinyLog (TinyLog)
 import Wire.ConnectionStore
-import Wire.ConnectionStore.Cassandra (connectionStoreToCassandra, deleteIncomingConnections)
+import Wire.ConnectionStore.Cassandra (connectionStoreToCassandra, deleteConnectionsWithContacts)
 import Wire.ConnectionStore.Postgres qualified as Postgres
 import Wire.MigrationLock
 import Wire.Postgres (PGConstraints, runStatement)
@@ -114,18 +114,21 @@ interpretConnectionStoreToCassandraAndPostgres = interpret $ \case
     -- complete in every state, and the shared [u] lock pins both stores'
     -- views while enumerating (the copier holds the exclusive lock while
     -- copying a partition, so views cannot change under us).
+    --
+    -- The inner lock set excludes u: u's shared lock is already held by the
+    -- outer section, and requesting it again from the inner section's
+    -- separate session would queue behind a waiting exclusive (copier)
+    -- request that itself waits for the outer lock — a self-deadlock that
+    -- only ends at the lock timeout.
     withMigrationLocks LockShared (MilliSeconds 500) [u] $ do
       pgContacts <- Postgres.interpretConnectionStoreToPostgres $ lookupContactListWithRelation u
       cassContacts <- connectionStoreToCassandra $ lookupContactListWithRelation u
-      withMigrationLocks LockShared (MilliSeconds 500) (u : map fst (pgContacts <> cassContacts)) $ do
-        -- Cassandra leg: 'deleteConnections' re-enumerates contacts from
-        -- Cassandra itself, so it deletes every reverse row still in
-        -- Cassandra plus u's own partitions (both no-ops once u is migrated).
-        connectionStoreToCassandra $ deleteConnections u
-        -- Postgres-side contacts may include contacts whose Cassandra rows
-        -- are already cleared (u migrated); their reverse rows must still be
-        -- deleted from Cassandra.
-        embed @Cas.Client $ deleteIncomingConnections u (map fst pgContacts)
+      let contacts = filter (/= u) . nub $ map fst (pgContacts <> cassContacts)
+      withMigrationLocks LockShared (MilliSeconds 500) contacts $ do
+        -- One pass over the union deletes every reverse row from Cassandra
+        -- (including those of contacts only Postgres still knows once u's
+        -- partitions are cleared) and clears u's own partitions.
+        embed @Cas.Client $ deleteConnectionsWithContacts u contacts
         Postgres.interpretConnectionStoreToPostgres $ deleteConnections u
   DeleteRemoteConnections u rs ->
     withMigrationLocks LockShared (MilliSeconds 500) (fromRange rs) $ do
