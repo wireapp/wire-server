@@ -104,6 +104,7 @@ decodeRow ::
   Sem r PushTokenRow
 decodeRow (usr, trp, app, tok, arn, conn, client) = do
   transport <- decodeTransport usr trp
+  client' <- traverse (decodeClient usr) client
   pure
     ( Id usr,
       transport,
@@ -111,8 +112,20 @@ decodeRow (usr, trp, app, tok, arn, conn, client) = do
       Token tok,
       arn,
       either (error . Text.unpack) id (postgresUnmarshall conn),
-      client >>= fromByteString . encodeUtf8
+      client'
     )
+
+-- | Client ids are written only by this store, so an unparseable value is a
+-- data integrity bug: fail loudly (like the Cassandra decoder) instead of
+-- treating the row as client-less, which would make read repair delete it.
+decodeClient :: (PGConstraints r) => UUID -> Text -> Sem r ClientId
+decodeClient usr client =
+  case fromByteString (encodeUtf8 client) of
+    Just c -> pure c
+    Nothing ->
+      embed . ioError . userError $
+        "push token store: undecodable client id for user "
+          <> show usr
 
 -- | Transports are written only by this store (0-4), so an undecodable
 -- value is a data integrity bug: fail loudly instead of dropping rows.

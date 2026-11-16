@@ -33,7 +33,6 @@ module Gundeck.Push.Data
 where
 
 import Cassandra
-import Control.Error (hush)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Conversion (toByteString)
@@ -92,22 +91,36 @@ erase u =
   runPushTokenStore $ Store.erasePushTokens u
 
 -- | Builds an 'Address' from a stored row. Rows missing the client or the
--- ARN (or carrying an unparseable ARN) are logged and deleted: read repair,
--- preserved from the original implementation.
+-- ARN are logged and deleted: read repair, preserved from the original
+-- implementation. An ARN that does not parse is a data integrity bug and is
+-- raised as an error (as the original Cassandra decoder did) instead of
+-- deleting the token.
 mkAddr :: (MonadReader Env m, MonadIO m) => Store.PushTokenRow -> m (Maybe Address)
-mkAddr (usr, trp, app, tok, arn, conn, clt) = case (clt, arn >>= hush . fromText) of
-  (Just clt', Just a) -> pure $! Just $! Address usr a conn (pushToken trp app tok clt')
-  _ -> do
-    env <- ask
-    liftIO $
-      Log.info (env ^. applog) $
-        field "user" (toByteString usr)
-          ~~ field "transport" (show trp)
-          ~~ field "app" (appNameText app)
-          ~~ field "tokenlen" (toInteger (Text.length (tokenText tok)))
-          ~~ msg (val "Deleting legacy push token without a client or ARN.")
-    delete usr trp app tok
-    pure Nothing
+mkAddr (usr, trp, app, tok, arn, conn, clt) = do
+  arn' <- traverse parseArn arn
+  case (clt, arn') of
+    (Just clt', Just a) -> pure $! Just $! Address usr a conn (pushToken trp app tok clt')
+    _ -> repair
+  where
+    parseArn t = case fromText t of
+      Right a -> pure a
+      Left err ->
+        liftIO . throwM . userError $
+          "push token store: unparseable endpoint ARN for user "
+            <> show usr
+            <> ": "
+            <> err
+    repair = do
+      env <- ask
+      liftIO $
+        Log.info (env ^. applog) $
+          field "user" (toByteString usr)
+            ~~ field "transport" (show trp)
+            ~~ field "app" (appNameText app)
+            ~~ field "tokenlen" (toInteger (Text.length (tokenText tok)))
+            ~~ msg (val "Deleting legacy push token without a client or ARN.")
+      delete usr trp app tok
+      pure Nothing
 
 -- | Runs the push token store effect according to
 -- @options.postgresMigration.pushTokens@, mirroring
