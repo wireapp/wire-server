@@ -1,1 +1,1 @@
-Migration of user key (email lookup key) store from cassandra to postgres
+Add a PostgreSQL implementation of the user key (email lookup key) store, selected with brig's `postgresMigration.userKey` setting (`migration-to-postgresql` behaves like `cassandra`; existing Cassandra data is not copied). Claiming a key on PostgreSQL is a guarded write, so concurrent claims cannot silently take over a key, and looking up accounts by several emails uses one bulk key lookup.
