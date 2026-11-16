@@ -2354,6 +2354,16 @@ Gundeck runs its PostgreSQL migrations at startup, so the `presence` table is
 created automatically.  When presences are stored in PostgreSQL, the
 `redis-ephemeral` chart (and its TLS certificates/reaper) are unnecessary.
 
+Like with Redis, all presences of a user expire 7 days after the user's most
+recent presence registration.  Expired presences are ignored on read and
+deleted by gundeck when their user registers a new presence.  To also delete
+expired presences of users that never come back, enable the
+[pg_cron](https://github.com/citusdata/pg_cron) extension in gundeck's
+database (`cron.database_name` must point to it) before gundeck runs its
+migrations: the `expire-presence` job is then scheduled automatically.
+Without pg_cron, a warning is logged during the migration and these rows
+remain in the table (they are harmless, but take up space).
+
 ## Configure RabbitMQ
 
 RabbitMQ authentication must be configured on brig, galley and background-worker. For example:

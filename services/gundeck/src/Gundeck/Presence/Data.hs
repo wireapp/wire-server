@@ -100,9 +100,9 @@ listAll uu = do
     PresenceBackendPostgres _ -> pgListAll uu
     PresenceBackendRedis _ _ -> runWithDefaultRedis (redisListAll uu)
 
--- | Compare-and-delete: only delete the stored presence if it is not newer
--- than the given one (a newer re-registration with the same conn id must not
--- be deleted by a stale disconnect).
+-- | Compare-and-delete: only delete the stored presence if it is the given one
+-- (a re-registration with the same conn id must not be deleted by a stale
+-- disconnect).
 deleteAll :: [Presence] -> Gundeck ()
 deleteAll [] = pure ()
 deleteAll pp = do
@@ -194,8 +194,10 @@ pgListAll uu = do
   pure [Map.findWithDefault [] u presencesByUser | u <- uu]
 
 -- | Compare-and-delete, in one round trip: only delete each stored presence
--- if it is not newer than the given one (a newer re-registration with the
--- same conn id must not be deleted by a stale disconnect).
+-- if it is the given one, i.e. its 'createdAt' matches exactly (like the redis
+-- implementation, which compares the whole stored value).  A re-registration
+-- with the same conn id must not be deleted by a stale disconnect.  Millisecond
+-- timestamps round-trip exactly through @timestamptz@, see 'msToUtc'.
 pgDeleteAll :: [Presence] -> Gundeck ()
 pgDeleteAll [] = pure ()
 pgDeleteAll pp =
@@ -282,16 +284,42 @@ readPresenceRow u c r cl t = do
   where
     parseClient = fromByteString . encodeUtf8
 
+-- | Upsert a presence and mirror the redis TTL semantics: redis expired /all/
+-- presences of a user 7 days after the user's latest registration (every add
+-- refreshed the TTL of the user's key).  So in one statement:
+--
+-- * upsert the presence with @expires_at = created_at + 7 days@,
+-- * extend @expires_at@ of the user's other, not yet expired presences to the
+--   same deadline,
+-- * delete the user's other, already expired presences (they would have been
+--   gone with the redis key).  This keeps the table clean even without the
+--   optional pg_cron job.
+--
+-- The three parts touch disjoint rows (by @conn_id@ resp. @expires_at@), all
+-- within the user's primary key range.
 upsertPresence :: Statement (UUID, Text, Text, Maybe Text, UTCTime) ()
 upsertPresence =
   [resultlessStatement|
-    INSERT INTO presence (user_id, conn_id, resource, client_id, created_at, expires_at)
-    VALUES ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: timestamptz, $5 :: timestamptz + interval '7 days')
-    ON CONFLICT (user_id, conn_id) DO UPDATE
-    SET resource = EXCLUDED.resource,
-        client_id = EXCLUDED.client_id,
-        created_at = EXCLUDED.created_at,
-        expires_at = EXCLUDED.expires_at
+    WITH upserted AS (
+      INSERT INTO presence (user_id, conn_id, resource, client_id, created_at, expires_at)
+      VALUES ($1 :: uuid, $2 :: text, $3 :: text, $4 :: text?, $5 :: timestamptz, $5 :: timestamptz + interval '7 days')
+      ON CONFLICT (user_id, conn_id) DO UPDATE
+      SET resource = EXCLUDED.resource,
+          client_id = EXCLUDED.client_id,
+          created_at = EXCLUDED.created_at,
+          expires_at = EXCLUDED.expires_at
+    ),
+    refreshed AS (
+      UPDATE presence
+      SET expires_at = $5 :: timestamptz + interval '7 days'
+      WHERE user_id = $1 :: uuid
+        AND conn_id <> $2 :: text
+        AND expires_at >= now()
+    )
+    DELETE FROM presence
+    WHERE user_id = $1 :: uuid
+      AND conn_id <> $2 :: text
+      AND expires_at < now()
   |]
 
 selectByUsers :: Statement (Vector.Vector UUID) (Vector.Vector (UUID, Text, Text, Maybe Text, UTCTime))
@@ -310,6 +338,5 @@ deleteMany =
     USING unnest($1 :: uuid[], $2 :: text[], $3 :: timestamptz[]) AS d (user_id, conn_id, created_at)
     WHERE p.user_id = d.user_id
       AND p.conn_id = d.conn_id
-      AND p.created_at <= d.created_at
+      AND p.created_at = d.created_at
   |]
-
