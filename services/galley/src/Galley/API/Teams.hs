@@ -803,10 +803,10 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       case feat.status of
         FeatureStatusEnabled -> do
           admins <- E.getTeamAdmins tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
+          uncheckedDeleteTeamMember lusr (Just zcon) CleanUpTeamOne2Ones tid remove (Left admins)
         FeatureStatusDisabled -> do
           mems <- TeamSubsystem.getTeamMembersForFanout tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
+          uncheckedDeleteTeamMember lusr (Just zcon) CleanUpTeamOne2Ones tid remove (Right mems)
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
@@ -819,16 +819,17 @@ uncheckedDeleteTeamMember ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  TeamOne2Ones ->
   TeamId ->
   UserId ->
   Either [UserId] TeamMemberList ->
   Sem r ()
-uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
+uncheckedDeleteTeamMember lusr zcon one2ones tid remove (Left admins) = do
   now <- Now.get
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  deleteUserFromTeamConversations lusr zcon tid remove
+  deleteUserFromTeamConversations lusr zcon one2ones tid remove
   where
     -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
@@ -846,12 +847,12 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
               transient = True
             }
         ]
-uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
+uncheckedDeleteTeamMember lusr zcon one2ones tid remove (Right mems) = do
   now <- Now.get
   pushMemberLeaveEventToAll now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  deleteUserFromTeamConversations lusr zcon tid remove
+  deleteUserFromTeamConversations lusr zcon one2ones tid remove
   where
     -- notify all team members. This is to maintain compatibility with clients
     -- relying on these events, but eventually they will catch up and this
@@ -1289,7 +1290,7 @@ removeTeamCollaborator lusr tid rusr = do
   -- decided by what is left (see
   -- 'Wire.ConversationSubsystem.Update.deleteUserFromTeamOne2OneConversations').
   internalRemoveTeamCollaborator rusr tid
-  uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
+  uncheckedDeleteTeamMember lusr Nothing CleanUpTeamOne2Ones tid rusr toNotify
   now <- Now.get
   let e = newEvent tid now (EdCollaboratorRemove rusr)
   admins <- E.getTeamAdmins tid

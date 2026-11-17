@@ -378,6 +378,16 @@ rmUser lusr conn = do
   -- 'EdMembersLeave' member-leave event). This smells like our
   -- architecture is a bit lopsided, but would need further
   -- investigation.
+  --
+  -- MLS 1:1 conversations are the exception to that partition: they never
+  -- carry a team id, so they are not team conversations, and they are not
+  -- all about the team either (a 1:1 backed by a connection has nothing to do
+  -- with it, and a user without a team has 1:1s too).  When a user merely
+  -- leaves a team, 'deleteUserFromTeamConversations' cleans up the ones the
+  -- team no longer justifies; here it is told not to
+  -- ('AccountDeletionHandlesOne2Ones'), because 'goConvPages' removes the
+  -- user from all of them anyway.  That way they are handled in one place
+  -- and one pass, and not looked at twice.
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
   allConvIds <- conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
@@ -405,7 +415,7 @@ rmUser lusr conn = do
                     FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
                 )
               . (.status)
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+      uncheckedDeleteTeamMember lusr conn AccountDeletionHandlesOne2Ones tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
@@ -441,10 +451,9 @@ rmUser lusr conn = do
           -- remove proposal, the remaining party's MLS group keeps a stale leaf
           -- for a user that does not exist any more, and without the
           -- member-leave event, the proposal would refer to a member that the
-          -- remaining party's conversation state still lists.  'leaveTeams'
-          -- above does not cover these, because an MLS 1:1 conversation never
-          -- carries a team id (see
-          -- 'Wire.ConversationSubsystem.Update.deleteUserFromTeamOne2OneConversations').
+          -- remaining party's conversation state still lists.  This is the
+          -- only place that removes a deleted user from their MLS 1:1
+          -- conversations (see the comment at the top of 'rmUser').
           | otherwise -> leaveWithEvent now c
         ConnectConv -> ConversationStore.deleteMemberRowsOnly ConversationStore.ProteusOnlyConversation c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv -> leaveWithEvent now c

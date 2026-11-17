@@ -138,7 +138,7 @@ import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
-import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
+import Wire.ConversationSubsystem (RemoveMemberResponseMode (..), TeamOne2Ones (..))
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember, kickMemberWith)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
@@ -1624,10 +1624,11 @@ deleteUserFromTeamConversationsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  TeamOne2Ones ->
   TeamId ->
   UserId ->
   Sem r ()
-deleteUserFromTeamConversationsImpl lusr conn tid remove = do
+deleteUserFromTeamConversationsImpl lusr conn one2ones tid remove = do
   cc <- E.getTeamConversations tid
   for_ cc $
     ( E.getConversation
@@ -1661,7 +1662,9 @@ deleteUserFromTeamConversationsImpl lusr conn tid remove = do
                   | otherwise -> pure ()
             )
     )
-  deleteUserFromTeamOne2OneConversations lusr conn tid remove
+  case one2ones of
+    CleanUpTeamOne2Ones -> deleteUserFromTeamOne2OneConversations lusr conn tid remove
+    AccountDeletionHandlesOne2Ones -> pure ()
 
 -- | Remove a user from a local conversation the way a backend-initiated
 -- removal does: 'kickMemberWith' deletes the member, notifies the remaining
@@ -1726,7 +1729,8 @@ kickLoggingFederationErrors lusr conn failureMsg dc remove =
 -- this team.  Such a 1:1 is kept as long as either party could still reach the
 -- other, with exactly the rule that 'getMLSOne2OneConversation' applies
 -- ('ensureConnectedToLocalsOrSameTeam'): an accepted connection, a shared
--- team, or another collaboration in either direction.  Otherwise the user is
+-- team, or another collaboration in either direction (see
+-- 'notReachableEitherWay', which checks a whole page of them at once).  Otherwise the user is
 -- kicked, and the remaining party keeps the conversation and its history.
 --
 -- Left alone:
@@ -1741,7 +1745,6 @@ deleteUserFromTeamOne2OneConversations ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
-    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member E.ConversationStore r,
     Member E.ExternalAccess r,
@@ -1799,30 +1802,17 @@ deleteUserFromTeamOne2OneConversations lusr conn tid remove = go Nothing
         fmap Collaborator.gUser
           <$> internalGetTeamCollaboratorsWithIds (Set.singleton tid) (Set.fromList peers)
       let relatedToTeam = Set.fromList (peersInTeam <> peersCollaborating)
+      notJustified <-
+        Set.fromList
+          <$> notReachableEitherWay remove (filter (`Set.member` relatedToTeam) peers)
       for_ convs $ \(dc, peer) ->
-        when (Set.member peer relatedToTeam) $ do
-          justified <- stillJustified peer
-          unless justified $
-            kickLoggingFederationErrors
-              lusr
-              conn
-              "failed to remove user from 1:1 conversation after leaving a team"
-              dc
-              remove
-
-    -- Could either party still get the 1:1 with the other one?
-    stillJustified :: UserId -> Sem r Bool
-    stillJustified peer =
-      (||)
-        <$> reachable remove peer
-        <*> reachable peer remove
-
-    reachable :: UserId -> UserId -> Sem r Bool
-    reachable from to =
-      (ensureConnectedToLocalsOrSameTeam (qualifyAs lusr from) [to] $> True)
-        `catch` \case
-          ConversationSubsystemErrorNotConnected -> pure False
-          e -> throw e
+        when (Set.member peer notJustified) $
+          kickLoggingFederationErrors
+            lusr
+            conn
+            "failed to remove user from 1:1 conversation after leaving a team"
+            dc
+            remove
 
 -- | if the public member leave api was called, we can assume that
 --   it was called by a user
