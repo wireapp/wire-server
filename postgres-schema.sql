@@ -1800,6 +1800,18 @@ CREATE TABLE public.user_group_member (
 ALTER TABLE public.user_group_member OWNER TO "wire-server";
 
 --
+-- Name: user_keys; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_keys (
+    key text NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_keys OWNER TO "wire-server";
+
+--
 -- Name: user_migration_pending_deletes; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2262,6 +2274,14 @@ ALTER TABLE ONLY public.user_group_member
 
 ALTER TABLE ONLY public.user_group
     ADD CONSTRAINT user_group_pkey PRIMARY KEY (team_id, id);
+
+
+--
+-- Name: user_keys user_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_keys
+    ADD CONSTRAINT user_keys_pkey PRIMARY KEY (key);
 
 
 --

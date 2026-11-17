@@ -69,16 +69,13 @@ import Wire.Rpc
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics.IO
-import Wire.UserKeyStore (UserKeyStore)
-import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
 import Wire.UserStore (UserStore)
 import Wire.UserStore.Cassandra
 import Wire.UserStore.Postgres (interpretUserStorePostgres)
 
 type BrigIndexEffectStack =
-  [ UserKeyStore,
-    UserStore,
+  [ UserStore,
     IndexedUserStore,
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
@@ -156,7 +153,6 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
     . userStoreInterpreter
-    . interpretUserKeyStoreCassandra casClient
     $ action
 
 throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Error e) r
