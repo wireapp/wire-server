@@ -47,6 +47,7 @@
 , fsnotify
 , galley-types
 , hashable
+, hasql
 , hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -87,6 +88,7 @@
 , polysemy-time
 , polysemy-wire-zoo
 , postie
+, pqi-ffi
 , process
 , prometheus-client
 , proto-lens
@@ -191,6 +193,7 @@ mkDerivation {
     fsnotify
     galley-types
     hashable
+    hasql
     hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -222,6 +225,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    pqi-ffi
     prometheus-client
     proto-lens
     QuickCheck
@@ -286,6 +290,7 @@ mkDerivation {
     federator
     filepath
     galley-types
+    hasql
     hscim
     HsOpenSSL
     http-api-data
