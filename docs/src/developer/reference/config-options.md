@@ -2394,6 +2394,7 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
+      properties: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2548,6 +2549,7 @@ The current settings and their background-worker flags are:
          budget: postgresql
          nonce: postgresql
          connections: postgresql
+         properties: postgresql
    background-worker:
      config:
        migrateConversations: false

@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.PropertyStore.Cassandra where
+module Wire.PropertyStore.Cassandra
+  ( interpretPropertyStoreCassandra,
+  )
+where
 
 import Cassandra
 import Data.Id
