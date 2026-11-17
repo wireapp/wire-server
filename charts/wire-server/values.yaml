@@ -107,6 +107,7 @@ galley:
       nonce: cassandra
       connections: cassandra
       clients: cassandra
+      userClientIndex: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000

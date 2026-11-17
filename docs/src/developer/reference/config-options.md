@@ -2395,6 +2395,7 @@ galley:
       nonce: postgresql
       connections: postgresql
       clients: postgresql
+      userClientIndex: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2443,6 +2444,22 @@ The current settings and their background-worker flags are:
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
 
+The galley-side `user_client_index` table (`postgresMigration.userClientIndex`)
+indexes the clients of each user. If it ever gets out of sync, it can be
+rebuilt from brig's `clients` table. This is only valid when brig's clients are
+stored in PostgreSQL (`postgresMigration.clients: postgresql`); otherwise the
+`clients` table is not the authoritative client inventory. Run the rebuild in a
+single transaction so that readers never observe an empty index:
+
+```sql
+BEGIN;
+DELETE FROM user_client_index;
+INSERT INTO user_client_index (user_id, client_id)
+  SELECT user_id, client_id FROM clients
+  ON CONFLICT DO NOTHING;
+COMMIT;
+```
+
 **Migration pattern per migration setting**
 
 1. Prepare the selected migration setting(s) for migration by setting
@@ -2469,6 +2486,7 @@ The current settings and their background-worker flags are:
          nonce: cassandra
          connections: cassandra
          clients: cassandra
+         userClientIndex: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2551,6 +2569,7 @@ The current settings and their background-worker flags are:
          nonce: postgresql
          connections: postgresql
          clients: postgresql
+         userClientIndex: postgresql
    background-worker:
      config:
        migrateConversations: false
