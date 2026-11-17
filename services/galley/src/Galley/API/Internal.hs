@@ -26,6 +26,7 @@ module Galley.API.Internal
   )
 where
 
+import Control.Error (lastMay)
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.ByteString.UTF8 qualified as UTF8
@@ -95,7 +96,6 @@ import Wire.ListItems
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
-import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.ServiceStore
 import Wire.StoredConversation
@@ -334,9 +334,8 @@ cellsAPI :: API ICellsAPI GalleyEffects
 cellsAPI = mkNamedAPI @"set-cells-state" updateCellsState
 
 rmUser ::
-  forall p2 r.
-  ( p2 ~ InternalPaging,
-    Member BackendNotificationQueueAccess r,
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
     Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (Error DynError) r,
@@ -345,7 +344,7 @@ rmUser ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member Now r,
-    Member (ListItems p2 TeamId) r,
+    Member (ListItems LegacyPaging TeamId) r,
     Member P.TinyLog r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r
@@ -377,13 +376,32 @@ rmUser lusr conn = do
   -- 'EdMembersLeave' member-leave event). This smells like our
   -- architecture is a bit lopsided, but would need further
   -- investigation.
-  tids <- listTeams (tUnqualified lusr) Nothing maxBound
-  leaveTeams tids
+  -- Team memberships are drained with the 'LegacyPaging' instantiation (a
+  -- plain, exclusive TeamId keyset cursor), which both the Cassandra and the
+  -- Postgres interpreters support.
+  leaveTeams Nothing
   allConvIds <- conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
 
   deleteClients (tUnqualified lusr)
   where
+    nRange100 = toRange (Proxy @100) :: Range 1 100 Int32
+
+    leaveTeams :: Maybe TeamId -> Sem r ()
+    leaveTeams mcursor = do
+      page <- listTeams @LegacyPaging (tUnqualified lusr) mcursor nRange100
+      for_ (resultSetResult page) $ \tid -> do
+        toNotify <-
+          handleImpossibleErrors $
+            getFeatureForTeam @_ @LimitedEventFanoutConfig tid
+              >>= ( \case
+                      FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                      FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
+                  )
+                . (.status)
+        uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+      when (resultSetType page == ResultSetTruncated) $
+        for_ (lastMay (resultSetResult page)) (leaveTeams . Just)
     goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
@@ -394,19 +412,6 @@ rmUser lusr conn = do
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- conversationIdsPageFrom lusr nextQuery
         goConvPages range newCids
-
-    leaveTeams page = for_ (pageItems page) $ \tid -> do
-      toNotify <-
-        handleImpossibleErrors $
-          getFeatureForTeam @_ @LimitedEventFanoutConfig tid
-            >>= ( \case
-                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
-                )
-              . (.status)
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
-      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-      leaveTeams page'
 
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
