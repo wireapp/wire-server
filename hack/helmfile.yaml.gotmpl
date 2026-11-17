@@ -182,10 +182,21 @@ releases:
                 GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server";
                 GRANT ALL PRIVILEGES ON DATABASE "wire_fan_in" TO "wire-server";
 
+                \connect "wire-server"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect "dyn-1"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect "dyn-2"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect "dyn-3"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+
+                \connect postgres
                 CREATE ROLE partman_maintainer WITH LOGIN PASSWORD 'local-partman-password';
                 GRANT partman_maintainer TO "wire-server";
 
                 \connect "wire_fan_in"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
                 CREATE SCHEMA partman AUTHORIZATION "wire-server";
                 CREATE EXTENSION pg_partman SCHEMA partman;
 
@@ -216,10 +227,14 @@ releases:
                 GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
                 GRANT ALL PRIVILEGES ON DATABASE "wire_fan_in" TO "wire-server";
 
+                \connect "wire-server"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect postgres
                 CREATE ROLE partman_maintainer WITH LOGIN PASSWORD 'local-partman-password';
                 GRANT partman_maintainer TO "wire-server";
 
                 \connect "wire_fan_in"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
                 CREATE SCHEMA partman AUTHORIZATION "wire-server";
                 CREATE EXTENSION pg_partman SCHEMA partman;
 
