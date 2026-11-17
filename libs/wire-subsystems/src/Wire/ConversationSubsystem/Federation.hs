@@ -525,21 +525,18 @@ onUserDeleted origDomain udcn = do
     fromRange convIds <&> \c -> do
       lc <- qualifyLocal c
       mconv <- E.getConversation c
-      E.deleteMemberRowsOnly
-        ( E.KnownBug
-            "the One2OneConv case below never calls removeUser, but a local \
-            \MLS 1:1 can have a remote member (see \
-            \Query.getMLSOne2OneMLSConversation), so a remote user's \
-            \deletion can leave a stale leaf in that group"
-        )
-        c
-        (UserList [] [deletedUser])
+      E.deleteMemberRowsOnly E.MlsHandledByCaller c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
         when (isRemoteMember deletedUser (conv.remoteMembers)) $
           case Data.convType conv of
             -- No need for a notification on One2One conv as the user is being
-            -- deleted and that notification should suffice.
-            Public.One2OneConv -> pure ()
+            -- deleted and that notification should suffice.  But a local MLS
+            -- 1:1 conversation can have a remote member (see
+            -- 'Wire.ConversationSubsystem.Query.getMLSOne2OneConversation'),
+            -- and its group must not keep a leaf for the deleted user.
+            -- ('removeUser' does nothing for a Proteus conversation.)
+            Public.One2OneConv ->
+              removeUser (qualifyAs lc conv) RemoveUserIncludeMain untaggedDeletedUser
             -- No need for a notification on Connect Conv as there should be no
             -- other user in the conv.
             Public.ConnectConv -> pure ()

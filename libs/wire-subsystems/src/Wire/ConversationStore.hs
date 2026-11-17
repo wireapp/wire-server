@@ -78,15 +78,12 @@ data MemberRowRemovalReason
   = -- | The caller performs the MLS half itself, around this call.
     MlsHandledByCaller
   | -- | The conversation cannot have an MLS group: it is a Proteus-only
-    -- conversation type ('ConnectConv'), or the member is a bot.
+    -- conversation type ('ConnectConv'), a conversation with the Proteus
+    -- protocol, or the member is a bot.
     ProteusOnlyConversation
   | -- | The row is hidden rather than removed, and is expected to come back
     -- without a new commit. The leaf stays on purpose.
     ReversibleHide
-  | -- | This call site is wrong: the conversation can have an MLS group with
-    -- a leaf for this member, and nothing signs a remove proposal for it.
-    -- TODO: remove this constructor and fix the bug.
-    KnownBug Text
   deriving (Eq, Show, Generic)
 
 data ConversationStore m a where
