@@ -26,6 +26,7 @@ module Wire.FanInAckStore
     FanInAckStore (..),
     getFanInAck,
     upsertFanInAck,
+    advanceFanInAck,
     deleteFanInAck,
   )
 where
@@ -50,8 +51,11 @@ data FanInAckKey
 
 data FanInAckStore m a where
   GetFanInAck :: FanInAckKey -> FanInAckStore m (Maybe NotificationId)
-  -- | Persist the caller's latest successfully processed notification.
+  -- | Set a cursor exactly, including rewinding it for an explicit reset.
+  -- Normal WebSocket acknowledgements must use AdvanceFanInAck.
   UpsertFanInAck :: FanInAckKey -> NotificationId -> FanInAckStore m ()
+  -- | Atomically advance a cursor without regressing it under concurrent acks.
+  AdvanceFanInAck :: FanInAckKey -> NotificationId -> FanInAckStore m ()
   -- | Remove ack state when its owning client or relationship is deleted.
   DeleteFanInAck :: FanInAckKey -> FanInAckStore m ()
 

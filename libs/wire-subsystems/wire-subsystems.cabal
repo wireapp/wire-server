@@ -365,8 +365,11 @@ library
     Wire.ExternalAccess
     Wire.ExternalAccess.External
     Wire.FanInAckStore
+    Wire.FanInDeliverySubsystem
     Wire.FanInEpochMembershipStore
+    Wire.FanInGundeckAPIAccess
     Wire.FanInNotificationStore
+    Wire.FanInNotificationSubsystem
     Wire.FeaturesConfigSubsystem
     Wire.FeaturesConfigSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem.Types

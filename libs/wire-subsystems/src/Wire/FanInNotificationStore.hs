@@ -27,21 +27,27 @@ module Wire.FanInNotificationStore
     appendFanInUserNotifications,
     getFanInUserNotificationPage,
     getLastFanInUserNotificationId,
+    hasFanInUserNotification,
     appendFanInClientNotifications,
     getFanInClientNotificationPage,
     getLastFanInClientNotificationId,
+    hasFanInClientNotification,
     appendFanInTeamNotifications,
     getFanInTeamNotificationPage,
     getLastFanInTeamNotificationId,
+    hasFanInTeamNotification,
     appendFanInEpochNotifications,
     getFanInEpochNotificationPage,
     getLastFanInEpochNotificationId,
+    hasFanInEpochNotification,
     appendFanInLocalConnectionNotifications,
     getFanInLocalConnectionNotificationPage,
     getLastFanInLocalConnectionNotificationId,
+    hasFanInLocalConnectionNotification,
     appendFanInRemoteConnectionNotifications,
     getFanInRemoteConnectionNotificationPage,
     getLastFanInRemoteConnectionNotificationId,
+    hasFanInRemoteConnectionNotification,
   )
 where
 
@@ -73,26 +79,37 @@ data FanInNotificationPage = FanInNotificationPage
   }
   deriving stock (Eq, Show)
 
+-- | Has... checks the retained notification row, independently of the last-id
+-- cursor. The subsystem needs both to detect expired, unacknowledged history.
+-- All append operations atomically maintain the corresponding last-id cursor
+-- using the greatest UUIDv7 id, and are idempotent on replay of the same event.
+-- Pages are ordered by UUIDv7 id and exclude the supplied cursor.
 data FanInNotificationStore m a where
   -- | Append notifications to user streams. The store also updates each stream's
   -- last-notification cursor in the same transaction.
   AppendFanInUserNotifications :: NonEmpty (UserId, FanInNotification) -> FanInNotificationStore m ()
   GetFanInUserNotificationPage :: UserId -> Maybe NotificationId -> Range 1 10000 Int32 -> FanInNotificationStore m FanInNotificationPage
   GetLastFanInUserNotificationId :: UserId -> FanInNotificationStore m (Maybe NotificationId)
+  HasFanInUserNotification :: UserId -> NotificationId -> FanInNotificationStore m Bool
   AppendFanInClientNotifications :: NonEmpty ((UserId, ClientId), FanInNotification) -> FanInNotificationStore m ()
   GetFanInClientNotificationPage :: UserId -> ClientId -> Maybe NotificationId -> Range 1 10000 Int32 -> FanInNotificationStore m FanInNotificationPage
   GetLastFanInClientNotificationId :: UserId -> ClientId -> FanInNotificationStore m (Maybe NotificationId)
+  HasFanInClientNotification :: UserId -> ClientId -> NotificationId -> FanInNotificationStore m Bool
   AppendFanInTeamNotifications :: NonEmpty (TeamId, FanInNotification) -> FanInNotificationStore m ()
   GetFanInTeamNotificationPage :: TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> FanInNotificationStore m FanInNotificationPage
   GetLastFanInTeamNotificationId :: TeamId -> FanInNotificationStore m (Maybe NotificationId)
+  HasFanInTeamNotification :: TeamId -> NotificationId -> FanInNotificationStore m Bool
   AppendFanInEpochNotifications :: NonEmpty ((GroupId, Epoch), FanInNotification) -> FanInNotificationStore m ()
   GetFanInEpochNotificationPage :: GroupId -> Epoch -> Maybe NotificationId -> Range 1 10000 Int32 -> FanInNotificationStore m FanInNotificationPage
   GetLastFanInEpochNotificationId :: GroupId -> Epoch -> FanInNotificationStore m (Maybe NotificationId)
+  HasFanInEpochNotification :: GroupId -> Epoch -> NotificationId -> FanInNotificationStore m Bool
   AppendFanInLocalConnectionNotifications :: NonEmpty (UserId, FanInNotification) -> FanInNotificationStore m ()
   GetFanInLocalConnectionNotificationPage :: UserId -> Maybe NotificationId -> Range 1 10000 Int32 -> FanInNotificationStore m FanInNotificationPage
   GetLastFanInLocalConnectionNotificationId :: UserId -> FanInNotificationStore m (Maybe NotificationId)
+  HasFanInLocalConnectionNotification :: UserId -> NotificationId -> FanInNotificationStore m Bool
   AppendFanInRemoteConnectionNotifications :: NonEmpty ((Domain, UserId), FanInNotification) -> FanInNotificationStore m ()
   GetFanInRemoteConnectionNotificationPage :: Domain -> UserId -> Maybe NotificationId -> Range 1 10000 Int32 -> FanInNotificationStore m FanInNotificationPage
   GetLastFanInRemoteConnectionNotificationId :: Domain -> UserId -> FanInNotificationStore m (Maybe NotificationId)
+  HasFanInRemoteConnectionNotification :: Domain -> UserId -> NotificationId -> FanInNotificationStore m Bool
 
 makeSem ''FanInNotificationStore
