@@ -2,6 +2,13 @@ auth:
   postgresPassword: "posty-the-gres"
   username: wire-server
   password: "posty-the-gres"
+global:
+  # Use the per-image registry below instead of the global mirror override.
+  imageRegistry: ""
+image:
+  registry: quay.io/wire
+  repository: postgresql-fan-in
+  tag: 17.5.0-partman-5.5.0
 primary:
   resources:
     requests:
