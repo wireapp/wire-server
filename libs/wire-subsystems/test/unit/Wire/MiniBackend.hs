@@ -399,6 +399,7 @@ type StateEffects =
   '[ State [Push],
      State (Map (TeamId) [TeamCollaborator]),
      State (Map (TeamId, InvitationId) StoredInvitation),
+     State InvitationExpiries,
      State (Map InvitationCode StoredInvitation),
      State (Map (TeamId, EmailAddress) [UserId]),
      State (Map EmailKey (Maybe UserId, ActivationCode)),
@@ -433,6 +434,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftActivationCodeStoreState
     . liftPendingScimUserStoreState
     . liftInvitationInfoStoreState
+    . liftInvitationExpiriesState
     . liftInvitationStoreState
     . liftTeamCollaboratorsStoreState
     . liftPushNotificationsState
@@ -525,6 +527,7 @@ data MiniBackend = MkMiniBackend
     activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
     invitationInfos :: Map InvitationCode StoredInvitation,
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
+    invitationExpiries :: InvitationExpiries,
     pendingScimUsers :: Map (TeamId, EmailAddress) [UserId],
     teamIdps :: Map TeamId IdPList,
     teamCollaborators :: Map TeamId [TeamCollaborator],
@@ -546,6 +549,7 @@ instance Default MiniBackend where
         activationCodes = mempty,
         invitationInfos = mempty,
         invitations = mempty,
+        invitationExpiries = mempty,
         pendingScimUsers = mempty,
         teamIdps = mempty,
         teamCollaborators = mempty,
@@ -848,6 +852,11 @@ liftInvitationStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (T
 liftInvitationStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitations)
   Put newInvs -> modify $ \b -> b {invitations = newInvs}
+
+liftInvitationExpiriesState :: (Member (State MiniBackend) r) => Sem (State InvitationExpiries : r) a -> Sem r a
+liftInvitationExpiriesState = interpret \case
+  Polysemy.State.Get -> gets (.invitationExpiries)
+  Put newExpiries -> modify $ \b -> b {invitationExpiries = newExpiries}
 
 liftPendingScimUserStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (TeamId, EmailAddress) [UserId]) : r) a -> Sem r a
 liftPendingScimUserStoreState = interpret \case

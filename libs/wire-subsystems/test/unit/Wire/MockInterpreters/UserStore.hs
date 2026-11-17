@@ -34,22 +34,54 @@ import Wire.API.Password
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
 import Wire.API.User.Search (SetSearchable (SetSearchable))
+import Wire.InvitationStore (StoredInvitation (..))
+import Wire.MockInterpreters.InvitationStore (InvitationExpiries, isLiveInvitation)
+import Wire.MockInterpreters.Now qualified as MockNow
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
+-- | Runs the mock 'UserStore' without any team invitations.
 runInMemoryUserStoreInterpreter :: [StoredUser] -> Map UserId Password -> InterpreterFor UserStore r
 runInMemoryUserStoreInterpreter users passwords =
   evalState users
     . evalState passwords
+    . evalState (mempty :: Map (TeamId, InvitationId) StoredInvitation)
+    . evalState (mempty :: InvitationExpiries)
+    . MockNow.interpretNowConst MockNow.defaultTime
     . inMemoryUserStoreInterpreter
     . raiseUnder
     . raiseUnder
+    . raiseUnder
+    . raiseUnder
+    . raiseUnder
+
+-- | Same shape as the Postgres store's pending SCIM users.
+isPendingScimUser :: StoredUser -> Bool
+isPendingScimUser u =
+  u.managedBy == Just ManagedByScim
+    && u.status == Just PendingInvitation
+    && u.activated
+    && isJust u.email
+
+-- | Whether the team has a live (i.e. not expired) invitation for the user's
+-- email; emulates the Postgres store's @team_invitation@ check.
+hasLiveInvitation :: UTCTime -> Map (TeamId, InvitationId) StoredInvitation -> InvitationExpiries -> TeamId -> StoredUser -> Bool
+hasLiveInvitation now invitations expiries tid u =
+  any
+    (\inv -> inv.teamId == tid && Just inv.email == u.email && isLiveInvitation now expiries inv)
+    (Map.elems invitations)
 
 inMemoryUserStoreInterpreter ::
   forall r.
   ( Member (State [StoredUser]) r,
-    Member (State (Map UserId Password)) r
+    Member (State (Map UserId Password)) r,
+    -- the invitations of the mock 'InvitationStore'
+    Member (State (Map (TeamId, InvitationId) StoredInvitation)) r,
+    Member (State InvitationExpiries) r,
+    Member Now r
   ) =>
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = inMemoryUserStoreInterpreterWithDeleteHook (const $ pure ())
@@ -57,7 +89,11 @@ inMemoryUserStoreInterpreter = inMemoryUserStoreInterpreterWithDeleteHook (const
 inMemoryUserStoreInterpreterWithDeleteHook ::
   forall r.
   ( Member (State [StoredUser]) r,
-    Member (State (Map UserId Password)) r
+    Member (State (Map UserId Password)) r,
+    -- the invitations of the mock 'InvitationStore'
+    Member (State (Map (TeamId, InvitationId) StoredInvitation)) r,
+    Member (State InvitationExpiries) r,
+    Member Now r
   ) =>
   (UserId -> Sem r ()) ->
   InterpreterFor UserStore r
@@ -119,20 +155,32 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   GetPendingScimUsers tid -> do
     users <- get @[StoredUser]
-    pure $ Just $ do
-      user <- users
-      guard $ user.teamId == Just tid && user.managedBy == Just ManagedByScim
-      guard $ user.status == Just PendingInvitation && user.activated
-      email <- maybeToList user.email
-      pure (user.id, email)
-  GetScimUsersPaginated tid excludedIds pageSize mOffset -> do
+    pure $ Just [(user.id, email) | user <- users, user.teamId == Just tid, isPendingScimUser user, email <- maybeToList user.email]
+  GetScimUsersPaginated tid expiredPendingScimUsers pageSize mOffset -> do
     users <- get @[StoredUser]
-    let eligible = sortOn (.id) $ filter (\user -> user.teamId == Just tid && user.managedBy == Just ManagedByScim && user.id `notElem` excludedIds) users
+    expiredIds <- case expiredPendingScimUsers of
+      ExpiredPendingScimUsersGiven uids -> pure uids
+      ExpiredPendingScimUsersFromTeamInvitations -> do
+        now <- Now.get
+        invitations <- get @(Map (TeamId, InvitationId) StoredInvitation)
+        expiries <- get @InvitationExpiries
+        pure
+          [ u.id
+          | u <- users,
+            u.teamId == Just tid,
+            isPendingScimUser u,
+            not (hasLiveInvitation now invitations expiries tid u)
+          ]
+    let eligible = sortOn (.id) $ filter (\user -> user.teamId == Just tid && user.managedBy == Just ManagedByScim && user.id `notElem` expiredIds) users
     pure $
       Just
-        OffsetPage
-          { results = take (fromIntegral pageSize) $ drop (fromIntegral $ max 0 $ fromMaybe 0 mOffset) eligible,
-            totalResults = fromIntegral $ length eligible
+        ScimUsersPage
+          { scimUsers =
+              OffsetPage
+                { results = take (fromIntegral pageSize) $ drop (fromIntegral $ max 0 $ fromMaybe 0 mOffset) eligible,
+                  totalResults = fromIntegral $ length eligible
+                },
+            expiredPendingUsers = expiredIds
           }
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
