@@ -34,7 +34,6 @@ import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -45,6 +44,7 @@ import Web.Scim.Schema.Meta as Scim.Meta
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import qualified Wire.IdPConfigStore as IdPEffect
+import qualified Wire.ScimTokenStore as ScimTokenStore
 import qualified Wire.VerdictFormatStore as VerdictFormatStore
 
 spec :: SpecWith TestEnv
