@@ -851,3 +851,85 @@ testMLSOne2OneAfterEndOfRelationship scenario = do
     mp <- createApplicationMessage convId member2Client "hello"
     postMLSMessage mp.sender mp.message >>= assertStatus 201
   getConversation member2 convQid >>= getJSON 200 >>= (`shouldMatch` convAfter)
+
+-- | Removing an app collaborator ends its MLS 1:1 conversation with a team
+-- member (see 'testMLSOne2OneAfterEndOfRelationship'), but not for good: once
+-- the app is a collaborator again, the team member gets back the very same
+-- conversation, and can add the app to it again.
+testMLSOne2OneReAddExternalApp :: (HasCallStack) => App ()
+testMLSOne2OneReAddExternalApp = do
+  (owner1, tid1, []) <- createTeam OwnDomain 1
+  (owner2, tid2, [member2]) <- createTeam OwnDomain 2
+
+  app <- bindResponse (createApp owner1 tid1 (def {name = "external-app-o2o"} :: NewApp)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+  appId <- app %. "id" & asString
+
+  let appPermissions = ["create_team_conversation", "implicit_connection"]
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  one2OneConv <- getMLSOne2OneConversation member2 app >>= getJSON 200
+  convQid <- one2OneConv %. "conversation.qualified_id"
+  convId <- objConvId $ one2OneConv %. "conversation"
+  [member2Client, appClient] <- traverse (createMLSClient def) [member2, app]
+  void $ uploadNewKeyPackage def appClient
+  resetOne2OneGroup def member2Client one2OneConv
+  void $ createAddCommit member2Client convId [app] >>= sendAndConsumeCommitBundle
+
+  let otherMemberIds :: (HasCallStack) => App [String]
+      otherMemberIds = do
+        conv <- getConversation member2 convQid >>= getJSON 200
+        mems <- conv %. "members.others" & asList
+        traverse (\m -> m %. "qualified_id.id" & asString) mems
+
+  otherMemberIds `shouldMatch` [appId]
+
+  removeTeamCollaborator owner2 tid2 app >>= assertSuccess
+
+  -- The remaining client consumes the backend's remove proposal and commits
+  -- it, so that the group is in a state where the app can be added again.
+  eventually $ do
+    notifs <- getNotifications member2 def {client = Just member2Client.client} >>= getJSON 200
+    mlsNotifs <-
+      notifs %. "notifications"
+        & asList
+          >>= filterM (\n -> isNewMLSMessageNotif n &&~ isNotifConvId convId n)
+    mlsNotif <- assertOne mlsNotifs
+    msgData <- mlsNotif %. "payload.0.data" & asByteString
+    void $ mlsCliConsume convId def member2Client msgData
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \c ->
+                c
+                  { members = Set.filter (\m -> m.user /= appId) c.members,
+                    memberUsers = Set.filter (/= appClient.qualifiedUserId) c.memberUsers
+                  }
+            )
+            convId
+            mls.convs
+      }
+  void $ createPendingProposalCommit convId member2Client >>= sendCommitBundle
+
+  otherMemberIds `shouldMatch` ([] :: [String])
+  getMLSOne2OneConversation member2 app >>= assertLabel 403 "not-connected"
+
+  addTeamCollaborator owner2 tid2 app appPermissions >>= assertSuccess
+
+  -- The conversation is the one from before, and the app does not come back
+  -- by itself.
+  getMLSOne2OneConversation member2 app `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "conversation.qualified_id" `shouldMatch` convQid
+  otherMemberIds `shouldMatch` ([] :: [String])
+
+  do
+    void $ uploadNewKeyPackage def appClient
+    mp <- createAddCommit member2Client convId [app]
+    void $ sendCommitBundle mp
+    mlsConv <- getMLSConv convId
+    traverse_ (fromWelcome convId mlsConv.ciphersuite appClient) mp.welcome
+
+  otherMemberIds `shouldMatch` [appId]
