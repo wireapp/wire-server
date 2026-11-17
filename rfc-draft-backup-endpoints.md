@@ -17,8 +17,8 @@ Backup routes exist from API version V19, i.e. `/v19/backups/...` (nginz routes 
 | `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                                 | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
 | `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                           | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
 | `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                                  | `2026-11-12T10:15:30.123Z`             |
-| `<Word64>`         | non-negative integer                                                                                            | `1048576`                              |
-| `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <Word64>, "createdAt": <UTCTimeMillis>, "ready": <Bool>}` | see below                              |
+| `<ByteCount>`      | number of bytes, non-negative integer                                                                                          | `1048576`                              |
+| `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>, "ready": <Bool>}` | see below                              |
 | `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                                  | `weekly`                               |
 | `<FeatureStatus>`  | `enabled` or `disabled`                                                                                         | `enabled`                              |
 | `<LockStatus>`     | `locked` or `unlocked`                                                                                          | `unlocked`                             |
@@ -127,7 +127,7 @@ Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `204`
 
 #### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
 
-- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <Word64>` (required), `Content-Type: application/octet-stream`
+- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxFullBytes`)
 - **Response:** 200 `<BackupFile>` with `"kind": "full"`, `"size"` = `Content-Length`, `"ready": true`
 
@@ -161,7 +161,7 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with `Conten
 
 #### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/incremental`
 
-- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <Word64>` (required), `Content-Type: application/octet-stream`
+- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxIncrementalBytes`)
 - **Response:** 200 `<BackupFile>` with `"kind": "incremental"`, `"ready": true`
 
