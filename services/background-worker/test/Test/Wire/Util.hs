@@ -76,6 +76,7 @@ testEnv = do
             maxAttempts = toRange (Proxy @3)
           }
       hasqlPool = undefined
+      mlsCommitLockPool = undefined
       amqpJobsPublisherChannel = undefined
       amqpBackendNotificationsChannel = undefined
       federationDomain = Domain "local"

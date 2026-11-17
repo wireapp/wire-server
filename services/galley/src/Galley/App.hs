@@ -60,7 +60,7 @@ import Galley.Monad (runApp)
 import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
-import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended (initNamedPostgresPool, initPostgresPool)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
@@ -108,7 +108,7 @@ import Wire.CodeStore.Cassandra
 import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
-import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
@@ -142,6 +142,7 @@ import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
   )
+import Wire.MLSCommitLockStore.Postgres (interpretMLSCommitLockStoreToPostgres)
 import Wire.MeetingNotifier (MeetingNotifier)
 import Wire.MeetingNotifier.Interpreter (interpretMeetingNotifier)
 import Wire.MeetingsStore (MeetingsStore)
@@ -355,8 +356,9 @@ createEnv o l = do
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
   postgres <- initPostgresPool o._postgresqlPool o._postgresql o._postgresqlPassword
+  mlsCommitLockPool' <- initNamedPostgresPool "mls_commit_lock_pool" o._postgresqlPool o._postgresql o._postgresqlPassword
   let disableTlsV1 = True
-  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
+  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres mlsCommitLockPool'
     <$> Q.new 16000
     <*> initExtEnv disableTlsV1
     <*> maybe (pure Nothing) (\jo -> fmap Just (Aws.mkEnv l mgr (jo ^. O.endpoint) (jo ^. O.queueName))) (o ^. journal)
@@ -558,7 +560,7 @@ evalGalley e =
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . teamFeatureStoreInterpreter
-        . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
+        . interpretMLSCommitLockStoreToPostgres (e ^. mlsCommitLockPool)
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
