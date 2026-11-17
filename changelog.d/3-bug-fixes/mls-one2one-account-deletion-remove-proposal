@@ -1,6 +1,0 @@
-When a user account is deleted, remove it from its MLS 1:1 conversations
-properly: send the external remove proposals for its clients, and notify the
-remaining party of the member leaving.  Before, the member row was deleted
-silently, so the remaining party of an MLS 1:1 conversation was left with a
-stale leaf for a user that no longer exists.  This also applies to deleted
-users from remote backends.
