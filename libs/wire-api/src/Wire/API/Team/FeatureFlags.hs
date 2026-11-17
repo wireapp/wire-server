@@ -446,6 +446,7 @@ newtype instance FeatureDefaults TotpConfig
   deriving newtype (Default, GetFeatureDefaults)
   deriving (FromJSON, ToJSON) via Defaults (LockableFeature TotpConfig)
   deriving (ParseFeatureDefaults) via OptionalField TotpConfig
+
 newtype instance FeatureDefaults AutomaticBackupsConfig
   = AutomaticBackupsDefaults (LockableFeature AutomaticBackupsConfig)
   deriving stock (Eq, Show)

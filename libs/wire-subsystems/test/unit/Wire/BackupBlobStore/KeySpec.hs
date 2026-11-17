@@ -117,3 +117,24 @@ spec = do
         (s, parseEpochPrefix cp (cp <> s)) `shouldBe` (s, Nothing)
     it "rejects different prefix" $
       parseEpochPrefix cp ("other/7/") `shouldBe` Nothing
+
+  describe "renderLockKey / parseLockKey" $ do
+    let ep = renderPrefix testKey (EpochPrefix uid1 cid1 (BackupEpoch 7))
+    it "is the file key plus .lock" $
+      renderLockKey testKey loc1 `shouldBe` renderKey testKey loc1 <> ".lock"
+    it "does not contain uid or cid" $ do
+      let k = renderLockKey testKey loc1
+      T.isInfixOf "00000000-0000-0000-0000-000000000001" k `shouldBe` False
+      T.isInfixOf "1a2b" k `shouldBe` False
+    it "roundtrips to the file id" $
+      parseLockKey ep (renderLockKey testKey loc1) `shouldBe` Just fid1
+    it "a lock key is not a file key" $
+      parseFileKey ep (renderLockKey testKey loc1) `shouldBe` Nothing
+    it "a file key is not a lock key" $
+      parseLockKey ep (renderKey testKey loc1) `shouldBe` Nothing
+    it "rejects locks of incremental files" $
+      parseLockKey ep (renderLockKey testKey (BackupLocation uid1 cid1 (BackupEpoch 7) BackupIncremental fid1))
+        `shouldBe` Nothing
+    it "lock of epoch 10 is not under epoch 1 prefix" $
+      renderPrefix testKey (EpochPrefix uid1 cid1 (BackupEpoch 1))
+        `shouldSatisfy` (not . (`T.isPrefixOf` renderLockKey testKey loc1 {epoch = BackupEpoch 10}))

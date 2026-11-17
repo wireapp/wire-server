@@ -119,7 +119,7 @@ postUpload received stored body = do
           Http.defaultRequest
             { Http.port = port,
               Http.method = methodPost,
-              Http.path = "/v19/backups/clients/" <> toByteString' cid <> "/epochs/1",
+              Http.path = "/v19/backups/clients/" <> toByteString' cid <> "/epochs/1/full",
               Http.requestHeaders =
                 [ ("Z-User", toByteString' (userId user)),
                   ("Z-Client", toByteString' cid),
@@ -209,8 +209,9 @@ countingBlobStore received stored = interpret $ \case
     writeIORef stored (Just body)
     pure Nothing
   ListBlobEpochs _ _ -> pure []
-  ListBlobs {} -> pure []
-  DeleteBlobVersion _ _ -> writeIORef stored Nothing
+  ListBlobs {} -> pure (BackupEpochListing [] [])
+  PutLock _ -> pure ()
+  DeleteLock _ -> pure ()
   DeleteBlob _ -> writeIORef stored Nothing
   DeleteBlobs _ -> writeIORef stored Nothing
   _ -> error "countingBlobStore: unexpected call"

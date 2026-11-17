@@ -22,6 +22,7 @@ import Polysemy
 import Servant.API
 import Servant.Server (ServerT)
 import Wire.API.Asset (AssetLocation (..))
+import Wire.API.Backup (BackupKind (..))
 import Wire.API.Routes.AssetBody (AssetSource (..))
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
@@ -34,8 +35,11 @@ import Wire.BackupSubsystem
 backupServer :: (Member BackupSubsystem r) => ServerT BackupAPI (Sem r)
 backupServer =
   Named @"backup-list-epochs" listEpochs
-    :<|> Named @"backup-upload" (\u z c e len body -> uploadBackup u z c e len body.getAssetSource)
+    :<|> Named @"backup-upload-full" (upload BackupFull)
+    :<|> Named @"backup-upload-incremental" (upload BackupIncremental)
     :<|> Named @"backup-list-files" listFiles
     :<|> Named @"backup-download" (\u z c e k fid -> Just . AssetLocation <$> downloadUrl u z c e k fid)
     :<|> Named @"backup-delete-epoch" deleteEpochBackups
     :<|> Named @"backup-delete-client" deleteClientBackups
+  where
+    upload kind u z c e len body = uploadBackup u z c e kind len body.getAssetSource

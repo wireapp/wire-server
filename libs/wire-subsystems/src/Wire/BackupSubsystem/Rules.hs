@@ -17,54 +17,66 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Pure upload rules for automatic backups. The subsystem calls them with the epoch set and file
--- count taken from S3 listings. Not atomic with the upload; races are tolerated (RFC spec,
--- "Races (tolerated)").
+-- | Pure rules for automatic backups. The subsystem calls them with the epoch set and the
+-- epoch listing taken from S3. Not atomic with the upload; races of incrementals are tolerated
+-- (spec, "Races"), full uploads exclude each other with a lock (see
+-- 'Wire.BackupSubsystem.Interpreter').
 module Wire.BackupSubsystem.Rules
   ( BackupLimits (..),
     UploadRejection (..),
     checkUpload,
+    readyBlobs,
+    epochFiles,
+    toFile,
   )
 where
 
 import Data.Aeson (FromJSON)
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Backup
+import Wire.BackupBlobStore
+import Wire.BackupSubsystem.UUIDv7
 
 data BackupLimits = BackupLimits
-  { -- | Size cap of the first file of a @(device, epoch)@.
+  { -- | Size cap of a full file.
     maxFullBytes :: Word64,
-    -- | Size cap of any later file of a @(device, epoch)@.
+    -- | Size cap of an incremental file.
     maxIncrementalBytes :: Word64,
     maxFilesPerEpoch :: Word32
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (FromJSON)
 
-data UploadRejection = EpochNotAllowed | TooManyFiles | TooLarge
+data UploadRejection = EpochNotAllowed | FullExists | FullMissing | TooManyFiles | TooLarge
   deriving stock (Eq, Show)
 
--- | Decide whether a file of the given size may be stored at the given epoch, given the stored
--- epochs and the file count of the target epoch (both from S3 listings). Returns the kind of the new file: full iff it is the first file
--- of its epoch.
+-- | Decide whether a file of the given kind and size may be stored at the given epoch, given the
+-- stored epochs, whether the target epoch has a ready full file and the number of its ready
+-- files (all from S3 listings).
 checkUpload ::
   BackupLimits ->
+  BackupKind ->
   -- | Stored epochs of the device
   Set BackupEpoch ->
-  -- | Number of files in the target epoch
+  -- | Does the target epoch have a ready full file?
+  Bool ->
+  -- | Number of ready files in the target epoch
   Word32 ->
   BackupEpoch ->
   Word64 ->
-  Either UploadRejection BackupKind
-checkUpload limits epochs files e size = do
+  Either UploadRejection ()
+checkUpload limits kind epochs hasFull files e size = do
   unless (e.unBackupEpoch >= 1 && epochAllowed (Set.toAscList epochs)) $ Left EpochNotAllowed
-  let (kind, cap)
-        | files == 0 = (BackupFull, limits.maxFullBytes)
-        | otherwise = (BackupIncremental, limits.maxIncrementalBytes)
-  when (size > cap) $ Left TooLarge
-  unless (files < limits.maxFilesPerEpoch) $ Left TooManyFiles
-  pure kind
+  case kind of
+    BackupFull -> do
+      when hasFull $ Left FullExists
+      when (size > limits.maxFullBytes) $ Left TooLarge
+    BackupIncremental -> do
+      unless hasFull $ Left FullMissing
+      when (size > limits.maxIncrementalBytes) $ Left TooLarge
+      unless (files < limits.maxFilesPerEpoch) $ Left TooManyFiles
   where
     epochAllowed :: [BackupEpoch] -> Bool
     epochAllowed [] = True
@@ -76,3 +88,32 @@ checkUpload limits epochs files e size = do
     next (BackupEpoch n)
       | n < maxBound = Just (BackupEpoch (n + 1))
       | otherwise = Nothing
+
+-- | The files of an epoch that are complete: all but the full files whose lock still exists.
+readyBlobs :: BackupEpochListing -> [BackupBlob]
+readyBlobs l = filter (\b -> not (isLockedFull l b)) l.blobs
+
+isLockedFull :: BackupEpochListing -> BackupBlob -> Bool
+isLockedFull l b = b.kind == BackupFull && b.fileId `elem` l.locks
+
+-- | All files of an epoch as shown to clients: full files first, then incremental ones, each by
+-- id. A full file whose lock exists is 'ready = False'. A lock without a file (upload started,
+-- nothing stored yet) is shown as a not ready full file of size 0.
+epochFiles :: BackupEpochListing -> [BackupFile]
+epochFiles l =
+  map snd . sortOn fst $
+    [((b.kind, b.fileId), toFile (not (isLockedFull l b)) b) | b <- l.blobs]
+      <> [ ((BackupFull, fid), toFile False BackupBlob {kind = BackupFull, fileId = fid, size = 0})
+         | fid <- l.locks,
+           fid `notElem` [b.fileId | b <- l.blobs, b.kind == BackupFull]
+         ]
+
+toFile :: Bool -> BackupBlob -> BackupFile
+toFile ready b =
+  BackupFile
+    { id = b.fileId,
+      kind = b.kind,
+      size = b.size,
+      createdAt = toUTCTimeMillis (uuidV7Time b.fileId.unBackupFileId),
+      ready
+    }

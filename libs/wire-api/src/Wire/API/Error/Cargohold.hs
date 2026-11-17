@@ -36,6 +36,9 @@ data CargoholdError
   | BackupFeatureDisabled
   | BackupForbidden
   | BackupNotFound
+  | BackupFullExists
+  | BackupFullLocked
+  | BackupFullMissing
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -70,3 +73,9 @@ type instance MapError 'BackupFeatureDisabled = 'StaticError 403 "backup-feature
 type instance MapError 'BackupForbidden = 'StaticError 403 "backup-forbidden" "Backup operation forbidden for this client"
 
 type instance MapError 'BackupNotFound = 'StaticError 404 "backup-not-found" "Backup not found"
+
+type instance MapError 'BackupFullExists = 'StaticError 409 "backup-full-exists" "A full backup already exists for this epoch; delete the epoch to start over"
+
+type instance MapError 'BackupFullLocked = 'StaticError 409 "backup-full-locked" "A full backup for this epoch is being uploaded or its upload was interrupted; delete the epoch to start over"
+
+type instance MapError 'BackupFullMissing = 'StaticError 409 "backup-full-missing" "The epoch has no full backup yet"

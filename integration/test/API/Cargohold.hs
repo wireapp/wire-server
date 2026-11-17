@@ -450,16 +450,18 @@ listBackupEpochs :: (HasCallStack, MakesValue user) => user -> String -> String 
 listBackupEpochs user zcid cid =
   backupRequest user zcid cid "/epochs" >>= submit "GET"
 
+-- | @kind@ is @"full"@ or @"incremental"@.
 uploadBackup ::
   (HasCallStack, MakesValue user) =>
   user ->
   String ->
   String ->
   Word32 ->
+  String ->
   ByteString ->
   App Response
-uploadBackup user zcid cid epoch bs =
-  uploadBackupBody user zcid cid epoch (HTTP.RequestBodyBS bs)
+uploadBackup user zcid cid epoch kind bs =
+  uploadBackupBody user zcid cid epoch kind (HTTP.RequestBodyBS bs)
 
 -- | The body decides whether a Content-Length header is sent: 'HTTP.RequestBodyBS' and
 -- 'HTTP.RequestBodyStream' send one, 'HTTP.RequestBodyStreamChunked' does not.
@@ -469,10 +471,11 @@ uploadBackupBody ::
   String ->
   String ->
   Word32 ->
+  String ->
   HTTP.RequestBody ->
   App Response
-uploadBackupBody user zcid cid epoch body = do
-  req <- backupRequest user zcid cid ("/epochs/" <> show epoch)
+uploadBackupBody user zcid cid epoch kind body = do
+  req <- backupRequest user zcid cid ("/epochs/" <> show epoch <> "/" <> kind)
   submit "POST" $ req & addBody body "application/octet-stream"
 
 listBackupFiles :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App Response

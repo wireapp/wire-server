@@ -138,12 +138,20 @@ interpretBackupBlobStoreToS3 env k = interpret $ \case
   ListBlobs u c e -> do
     let p = renderPrefix k (EpochPrefix u c e)
         blob (key, size) = (\(kind, fileId) -> BackupBlob {kind, fileId, size}) <$> parseFileKey p key
-    mapMaybe blob <$> runHandlerSem (S3.listObjects p)
-  DeleteBlobVersion l version -> runHandlerSem (S3.deleteObject (objectKey l) version)
+    objects <- runHandlerSem (S3.listObjects p)
+    pure
+      BackupEpochListing
+        { blobs = mapMaybe blob objects,
+          locks = mapMaybe (parseLockKey p . fst) objects
+        }
+  PutLock l -> runHandlerSem (S3.putEmptyObject (lockObjectKey l))
+  LockExists l -> runHandlerSem (S3.headObjectExists (lockObjectKey l))
+  DeleteLock l -> let key = renderLockKey k l in runHandlerSem (S3.deleteAllVersions key (== key))
   DeleteBlob l -> let key = renderKey k l in runHandlerSem (S3.deleteAllVersions key (== key))
   DeleteBlobs p -> runHandlerSem (S3.deleteAllVersions (renderPrefix k p) (const True))
   where
     objectKey = S3.S3AssetKey . renderKey k
+    lockObjectKey = S3.S3AssetKey . renderLockKey k
     -- Exceptions become 'Wai.Error's: 'Resource' discards a failing rollback only if it fails
     -- via 'Error', an exception would mask the original failure.
     runHandlerSem ::

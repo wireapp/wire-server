@@ -39,6 +39,9 @@ data BackupError
   | BackupErrTooLarge
   | BackupErrFeatureDisabled
   | BackupErrIncompleteBody
+  | BackupErrFullExists
+  | BackupErrFullLocked
+  | BackupErrFullMissing
   deriving stock (Eq, Show)
 
 backupErrorToWai :: BackupError -> Wai.Error
@@ -50,6 +53,9 @@ backupErrorToWai = \case
   BackupErrTooLarge -> errorToWai @E.BackupTooLarge
   BackupErrFeatureDisabled -> errorToWai @E.BackupFeatureDisabled
   BackupErrIncompleteBody -> errorToWai @E.IncompleteBody
+  BackupErrFullExists -> errorToWai @E.BackupFullExists
+  BackupErrFullLocked -> errorToWai @E.BackupFullLocked
+  BackupErrFullMissing -> errorToWai @E.BackupFullMissing
 
 -- | Public operations take the caller (user and @Z-Client@) and the target client @cid@.
 data BackupSubsystem m a where
@@ -59,6 +65,7 @@ data BackupSubsystem m a where
     ClientId ->
     ClientId ->
     BackupEpoch ->
+    BackupKind ->
     -- | Declared @Content-Length@
     Word64 ->
     ConduitT () ByteString (ResourceT IO) () ->

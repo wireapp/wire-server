@@ -49,7 +49,7 @@ spec = describe "BackupSubsystem disabled" $ do
   it "list epochs rejected" $
     void (runDisabled (listEpochs lu c c)) `shouldBe` Left BackupErrFeatureDisabled
   it "upload rejected" $
-    void (runDisabled (uploadBackup lu c c e 1 (pure ()))) `shouldBe` Left BackupErrFeatureDisabled
+    void (runDisabled (uploadBackup lu c c e BackupFull 1 (pure ()))) `shouldBe` Left BackupErrFeatureDisabled
   it "list files rejected" $
     void (runDisabled (listFiles lu c c e)) `shouldBe` Left BackupErrFeatureDisabled
   it "download rejected" $

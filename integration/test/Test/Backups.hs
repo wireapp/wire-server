@@ -29,6 +29,7 @@ import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types.Status (statusCode)
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO (pooledForConcurrentlyN)
 
 -- REVIEW: Helpers should be below tests / using functions.
 
@@ -83,7 +84,7 @@ firstFile user zcid cid epoch =
 -- | Upload one file and return the presigned URL of its download redirect
 uploadAndGetUrl :: (HasCallStack, MakesValue user) => user -> String -> Word32 -> App String
 uploadAndGetUrl user cid epoch = do
-  bindResponse (uploadBackup user cid cid epoch (BSC.pack "some backup")) $ \resp ->
+  bindResponse (uploadBackup user cid cid epoch "full" (BSC.pack "some backup")) $ \resp ->
     resp.status `shouldMatchInt` 200
   (kind, fid) <- firstFile user cid cid epoch
   bindResponse (downloadBackupFile user cid cid epoch kind fid) backupLocation
@@ -97,17 +98,19 @@ testBackupRoundtrip = do
   -- REVIEW: Use cid and only a number if there is more than one. (Fix this in whole diff)
   c1 <- newClient owner
   let payload = BSC.pack "full backup content"
-  bindResponse (uploadBackup owner c1 c1 1 payload) $ \resp -> do
+  bindResponse (uploadBackup owner c1 c1 1 "full" payload) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "kind" `shouldMatch` "full"
+    resp.json %. "ready" `shouldMatch` True
     resp.json %. "size" `shouldMatchInt` BS.length payload
   bindResponse (listBackupEpochs owner c1 c1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "epochs" `shouldMatch` [1 :: Int]
   (kind, fid) <- firstFile owner c1 c1 1
   kind `shouldMatch` "full"
-  bindResponse (listBackupFiles owner c1 c1 1) $ \resp ->
+  bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
     resp.json %. "files.0.size" `shouldMatchInt` BS.length payload
+    resp.json %. "files.0.ready" `shouldMatch` True
   url <- bindResponse (downloadBackupFile owner c1 c1 1 kind fid) backupLocation
   bindResponse (fetchUrl url) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -117,7 +120,7 @@ testBackupEpochRules :: (HasCallStack) => App ()
 testBackupEpochRules = do
   (owner, _, _) <- backupTeam OwnDomain
   c1 <- newClient owner
-  let upload epoch = uploadBackup owner c1 c1 epoch (BSC.pack "x")
+  let upload epoch = uploadBackup owner c1 c1 epoch "full" (BSC.pack "x")
       expectOk epoch = bindResponse (upload epoch) $ \resp -> resp.status `shouldMatchInt` 200
       expectRejected epoch = bindResponse (upload epoch) $ \resp -> do
         resp.status `shouldMatchInt` 409
@@ -141,15 +144,18 @@ testBackupCaps = do
   withModifiedBackend limits $ \domain -> do
     (owner, _, _) <- backupTeam domain
     c1 <- newClient owner
-    let upload size = uploadBackup owner c1 c1 1 (BS.replicate size 0x61)
-    bindResponse (upload 50) $ \resp -> resp.status `shouldMatchInt` 200
-    bindResponse (upload 11) $ \resp -> do
+    let upload kind size = uploadBackup owner c1 c1 1 kind (BS.replicate size 0x61)
+    bindResponse (upload "full" 101) $ \resp -> do
       resp.status `shouldMatchInt` 413
       resp.json %. "label" `shouldMatch` "backup-too-large"
-    bindResponse (upload 10) $ \resp -> do
+    bindResponse (upload "full" 50) $ \resp -> resp.status `shouldMatchInt` 200
+    bindResponse (upload "incremental" 11) $ \resp -> do
+      resp.status `shouldMatchInt` 413
+      resp.json %. "label" `shouldMatch` "backup-too-large"
+    bindResponse (upload "incremental" 10) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "kind" `shouldMatch` "incremental"
-    bindResponse (upload 5) $ \resp -> do
+    bindResponse (upload "incremental" 5) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "label" `shouldMatch` "backup-too-many-files"
 
@@ -158,7 +164,7 @@ testBackupCrossUser = do
   (owner, _, mate) <- backupTeam OwnDomain
   c1 <- newClient owner
   m1 <- newClient mate
-  bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp ->
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp ->
     resp.status `shouldMatchInt` 200
   bindResponse (listBackupEpochs mate m1 c1) $ \resp -> do
     resp.status `shouldMatchInt` 404
@@ -169,7 +175,7 @@ testBackupOtherDeviceDelete = do
   (owner, _, _) <- backupTeam OwnDomain
   c1 <- newClient owner
   c2 <- newClient owner
-  bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp ->
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp ->
     resp.status `shouldMatchInt` 200
   -- other devices may read ...
   bindResponse (listBackupEpochs owner c2 c1) $ \resp -> do
@@ -182,7 +188,7 @@ testBackupOtherDeviceDelete = do
   bindResponse (deleteClientBackups owner c2 c1) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "backup-forbidden"
-  bindResponse (uploadBackup owner c2 c1 2 (BSC.pack "x")) $ \resp -> do
+  bindResponse (uploadBackup owner c2 c1 2 "full" (BSC.pack "x")) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "backup-forbidden"
   bindResponse (listBackupEpochs owner c1 c1) $ \resp ->
@@ -192,10 +198,10 @@ testBackupFeatureDisabled :: (HasCallStack) => App ()
 testBackupFeatureDisabled = do
   (owner, tid, _) <- backupTeam OwnDomain
   c1 <- newClient owner
-  bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp ->
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp ->
     resp.status `shouldMatchInt` 200
   disableBackups owner tid
-  bindResponse (uploadBackup owner c1 c1 2 (BSC.pack "x")) $ \resp -> do
+  bindResponse (uploadBackup owner c1 c1 2 "full" (BSC.pack "x")) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "backup-feature-disabled"
   bindResponse (listBackupEpochs owner c1 c1) $ \resp -> do
@@ -208,7 +214,7 @@ testBackupNonTeamUser :: (HasCallStack) => App ()
 testBackupNonTeamUser = do
   user <- randomUser OwnDomain def
   c1 <- newClient user
-  bindResponse (uploadBackup user c1 c1 1 (BSC.pack "x")) $ \resp -> do
+  bindResponse (uploadBackup user c1 c1 1 "full" (BSC.pack "x")) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "backup-feature-disabled"
 
@@ -244,7 +250,7 @@ testBackupMissingContentLength = do
         needsPopper $ atomicModifyIORef' chunks $ \case
           [] -> ([], BS.empty)
           x : xs -> (xs, x)
-  bindResponse (uploadBackupBody owner c1 c1 1 chunked) $ \resp ->
+  bindResponse (uploadBackupBody owner c1 c1 1 "full" chunked) $ \resp ->
     resp.status `shouldMatchOneOf` [400 :: Int, 411]
   bindResponse (listBackupEpochs owner c1 c1) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -265,7 +271,7 @@ testBackupLargeUploadRoundtrip = do
           then ((i, ctx), BS.empty)
           else let c = chunkAt i in ((i + 1, hashUpdate ctx c), c)
       body = HTTP.RequestBodyStream (fromIntegral total) ($ popper)
-  bindResponse (uploadBackupBody owner c1 c1 1 body) $ \resp -> do
+  bindResponse (uploadBackupBody owner c1 c1 1 "full" body) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "kind" `shouldMatch` "full"
     resp.json %. "size" `shouldMatchInt` total
@@ -302,10 +308,10 @@ testBackupManyFiles = do
   (owner, _, _) <- backupTeam OwnDomain
   c1 <- newClient owner
   let nFiles = 1005 :: Int -- more than one S3 page and one DeleteObjects batch (1000)
-  bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp ->
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp ->
     resp.json %. "kind" `shouldMatch` "full"
   for_ [2 .. nFiles] $ \_ ->
-    bindResponse (uploadBackup owner c1 c1 1 (BSC.pack "x")) $ \resp -> do
+    bindResponse (uploadBackup owner c1 c1 1 "incremental" (BSC.pack "x")) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "kind" `shouldMatch` "incremental"
   bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
@@ -324,13 +330,13 @@ testBackupEpochPrefixIsolation = do
   (owner, _, _) <- backupTeam OwnDomain
   a <- newClient owner
   b <- newClient owner
-  let upload cid epoch =
-        bindResponse (uploadBackup owner cid cid epoch (BSC.pack "x")) $ \resp ->
+  let upload cid epoch kind =
+        bindResponse (uploadBackup owner cid cid epoch kind (BSC.pack "x")) $ \resp ->
           resp.status `shouldMatchInt` 200
-  upload a 1
-  upload a 1
-  upload a 2
-  upload b 1
+  upload a 1 "full"
+  upload a 1 "incremental"
+  upload a 2 "full"
+  upload b 1 "full"
   bindResponse (deleteBackupEpoch owner a a 1) $ \resp -> resp.status `shouldMatchInt` 204
   bindResponse (listBackupEpochs owner a a) $ \resp ->
     resp.json %. "epochs" `shouldMatch` [2 :: Int]
@@ -341,3 +347,50 @@ testBackupEpochPrefixIsolation = do
   bindResponse (listBackupFiles owner b b 1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "files" & asList) >>= \fs -> length fs `shouldMatchInt` 1
+
+testBackupFullExists :: (HasCallStack) => App ()
+testBackupFullExists = do
+  (owner, _, _) <- backupTeam OwnDomain
+  c1 <- newClient owner
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp ->
+    resp.status `shouldMatchInt` 200
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "y")) $ \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "backup-full-exists"
+  -- the client starts over by deleting the epoch
+  bindResponse (deleteBackupEpoch owner c1 c1 1) $ \resp -> resp.status `shouldMatchInt` 204
+  bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "y")) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+testBackupIncrementalNeedsFull :: (HasCallStack) => App ()
+testBackupIncrementalNeedsFull = do
+  (owner, _, _) <- backupTeam OwnDomain
+  c1 <- newClient owner
+  bindResponse (uploadBackup owner c1 c1 1 "incremental" (BSC.pack "x")) $ \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "backup-full-missing"
+  bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> resp.status `shouldMatchInt` 404
+
+-- | At most one of the parallel full uploads succeeds, the others are rejected because a full
+-- file exists or is being uploaded. The epoch has exactly one ready full file afterwards (or
+-- none, if all of them lost the race, then a retry succeeds).
+testBackupConcurrentFulls :: (HasCallStack) => App ()
+testBackupConcurrentFulls = do
+  (owner, _, _) <- backupTeam OwnDomain
+  c1 <- newClient owner
+  statuses <- pooledForConcurrentlyN 4 [1 .. 4 :: Int] $ \_ ->
+    bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp -> do
+      when (resp.status /= 200)
+        $ resp.json
+        %. "label"
+        `shouldMatchOneOf` ["backup-full-exists", "backup-full-locked"]
+      pure resp.status
+  length (filter (== 200) statuses) `shouldMatchInt` (if 200 `elem` statuses then 1 else 0)
+  if 200 `elem` statuses
+    then bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      files <- resp.json %. "files" & asList
+      length files `shouldMatchInt` 1
+      (head files %. "ready") `shouldMatch` True
+    else bindResponse (uploadBackup owner c1 c1 1 "full" (BSC.pack "x")) $ \resp ->
+      resp.status `shouldMatchInt` 200

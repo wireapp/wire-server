@@ -95,7 +95,9 @@ data BackupFile = BackupFile
   { id :: BackupFileId,
     kind :: BackupKind,
     size :: Word64,
-    createdAt :: UTCTimeMillis
+    createdAt :: UTCTimeMillis,
+    -- | 'False' for a full backup whose upload is in progress or was interrupted
+    ready :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BackupFile)
@@ -109,6 +111,7 @@ instance ToSchema BackupFile where
         <*> (.kind) .= field "kind" schema
         <*> (.size) .= field "size" schema
         <*> (.createdAt) .= field "createdAt" schema
+        <*> (.ready) .= field "ready" schema
 
 newtype BackupEpochs = BackupEpochs {epochs :: [BackupEpoch]}
   deriving stock (Eq, Show)

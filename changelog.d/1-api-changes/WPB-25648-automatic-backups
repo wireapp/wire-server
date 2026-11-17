@@ -1,1 +1,1 @@
-Add cargohold endpoints for automatic backups: `GET/POST/DELETE /backups/clients/{cid}/epochs[/{epoch}[/files/{kind}/{id}]]`, internal deletion of client/user backups (WPB-25648)
+Add cargohold endpoints for automatic backups: `GET/DELETE /backups/clients/{cid}/epochs[/{epoch}[/files/{kind}/{id}]]`, `POST /backups/clients/{cid}/epochs/{epoch}/{full,incremental}`, internal deletion of client/user backups (WPB-25648)

@@ -53,6 +53,24 @@ type DownloadLinkDescription =
   \checked at request start, so the list returns no URLs and each file is fetched via \
   \its own redirect."
 
+type FullUploadDescription =
+  "Exactly one full backup exists per epoch. The epoch must not have a full backup yet \
+  \(`backup-full-exists`) nor a full upload in progress or interrupted (`backup-full-locked`). \
+  \To recover from an interrupted full upload, delete the epoch and start over. A failed or \
+  \aborted upload leaves no file behind."
+
+type IncrementalUploadDescription =
+  "Requires a complete full backup in the epoch (`backup-full-missing`), and no full upload in \
+  \progress or interrupted (`backup-full-locked`). A failed or aborted upload leaves no file \
+  \behind."
+
+type ListFilesDescription =
+  "Presigned URLs are bearer links valid for `downloadLinkTTL` seconds and expiry is \
+  \checked at request start, so the list returns no URLs and each file is fetched via \
+  \its own redirect. A full backup with `ready: false` is being uploaded or its upload was \
+  \interrupted: `createdAt` is when its upload started and `size` is 0 if nothing was stored \
+  \yet. It cannot be downloaded; delete the epoch to start over."
+
 type BackupAPI =
   Named
     "backup-list-epochs"
@@ -69,16 +87,17 @@ type BackupAPI =
         :> Get '[JSON] BackupEpochs
     )
     :<|> Named
-           "backup-upload"
-           ( Summary "Upload a backup file"
+           "backup-upload-full"
+           ( Summary "Upload the full backup file of an epoch"
                :> From 'V19
+               :> Description FullUploadDescription
                :> CanThrow 'BackupNotFound
                :> CanThrow 'BackupForbidden
                :> CanThrow 'BackupFeatureDisabled
                :> CanThrow 'BackupEpochNotAllowed
-               :> CanThrow 'BackupTooManyFiles
+               :> CanThrow 'BackupFullExists
+               :> CanThrow 'BackupFullLocked
                :> CanThrow 'BackupTooLarge
-               :> CanThrow 'InvalidLength
                :> CanThrow 'IncompleteBody
                :> ZLocalUser
                :> ZClient
@@ -87,6 +106,33 @@ type BackupAPI =
                :> Capture "cid" ClientId
                :> "epochs"
                :> Capture "epoch" BackupEpoch
+               :> "full"
+               :> Header' '[Required, Strict] "Content-Length" Word64
+               :> BackupBody
+               :> Post '[JSON] BackupFile
+           )
+    :<|> Named
+           "backup-upload-incremental"
+           ( Summary "Upload an incremental backup file of an epoch"
+               :> From 'V19
+               :> Description IncrementalUploadDescription
+               :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupFeatureDisabled
+               :> CanThrow 'BackupEpochNotAllowed
+               :> CanThrow 'BackupFullMissing
+               :> CanThrow 'BackupFullLocked
+               :> CanThrow 'BackupTooManyFiles
+               :> CanThrow 'BackupTooLarge
+               :> CanThrow 'IncompleteBody
+               :> ZLocalUser
+               :> ZClient
+               :> "backups"
+               :> "clients"
+               :> Capture "cid" ClientId
+               :> "epochs"
+               :> Capture "epoch" BackupEpoch
+               :> "incremental"
                :> Header' '[Required, Strict] "Content-Length" Word64
                :> BackupBody
                :> Post '[JSON] BackupFile
@@ -95,7 +141,7 @@ type BackupAPI =
            "backup-list-files"
            ( Summary "List the backup files of an epoch"
                :> From 'V19
-               :> Description DownloadLinkDescription
+               :> Description ListFilesDescription
                :> CanThrow 'BackupNotFound
                :> CanThrow 'BackupFeatureDisabled
                :> ZLocalUser
@@ -113,6 +159,7 @@ type BackupAPI =
                :> From 'V19
                :> Description DownloadLinkDescription
                :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFullLocked
                :> CanThrow 'BackupFeatureDisabled
                :> ZLocalUser
                :> ZClient
