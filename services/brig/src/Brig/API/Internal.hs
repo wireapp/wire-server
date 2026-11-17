@@ -150,7 +150,7 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
-  forall r p.
+  forall r.
   ( Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
@@ -167,7 +167,7 @@ servantSitemap ::
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
-    Member (UserPendingActivationStore p) r,
+    Member UserPendingActivationStore r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
@@ -241,7 +241,7 @@ accountAPI ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member (UserPendingActivationStore p) r,
+    Member UserPendingActivationStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
@@ -316,7 +316,7 @@ accountAPI =
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member UserPendingActivationStore r,
     Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
@@ -595,7 +595,7 @@ internalListFullClientsH (UserSet usrs) =
 createUserNoVerify ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
+    Member UserPendingActivationStore r,
     Member TinyLog r,
     Member Events r,
     Member InvitationStore r,

@@ -2389,6 +2389,7 @@ galley:
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
+      userPendingActivation: postgresql
       passwordReset: postgresql
       customBackend: postgresql
       budget: postgresql
@@ -2462,6 +2463,7 @@ The current settings and their background-worker flags are:
          domainRegistration: migration-to-postgresql
          user: migration-to-postgresql
          blockList: cassandra
+         userPendingActivation: cassandra
          passwordReset: cassandra
          customBackend: cassandra
          budget: cassandra
@@ -2543,6 +2545,7 @@ The current settings and their background-worker flags are:
          domainRegistration: postgresql
          user: postgresql
          blockList: cassandra
+         userPendingActivation: postgresql
          passwordReset: postgresql
          customBackend: postgresql
          budget: postgresql
