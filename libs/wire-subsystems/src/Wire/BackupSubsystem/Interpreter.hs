@@ -100,8 +100,9 @@ interpretBackupSubsystem = interpret $ \case
 --
 -- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
 -- new full file replaces the previous one. The newest full file (greatest id) wins; after storing,
--- the full file and the incremental files it superseded are deleted, and so are all but the two
--- newest epochs. Concurrent full uploads prune each other, a late older one deletes itself.
+-- a full file deletes the full file and the incremental files it superseded, and all
+-- files of all but the two newest epochs. An incremental file deletes nothing.
+-- Concurrent full uploads prune each other, a late older one deletes itself.
 uploadBackupImpl ::
   ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
@@ -136,9 +137,9 @@ uploadBackupImpl uid zcid cid e kind len src = do
   fid <- BackupFileId <$> (uuidV7 <$> Now.get <*> Random.uuid)
   let l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
   store l
-  when (kind == BackupFull) $
+  when (kind == BackupFull) $ do
     listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
-  traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $ Set.insert e epochs
+    traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $ Set.insert e epochs
   pure (toFile BackupBlob {kind, fileId = fid, size = len})
   where
     location b = BackupLocation {user = uid, client = cid, epoch = e, kind = b.kind, fileId = b.fileId}

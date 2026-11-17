@@ -56,8 +56,8 @@ type DownloadLinkDescription =
 type FullUploadDescription =
   "The new full backup replaces the epoch's previous full backup and the incremental files \
   \of it; the newest full backup (by id) wins. A failed or aborted upload leaves no file \
-  \behind. Only the two newest epochs are kept: storing a file in a new epoch deletes older \
-  \epochs."
+  \behind. Only the two newest epochs are kept: after the full backup is stored, all files of \
+  \the older epochs are deleted."
 
 type IncrementalUploadDescription =
   "Requires a full backup in the epoch (`backup-full-missing`). Do not upload incremental \

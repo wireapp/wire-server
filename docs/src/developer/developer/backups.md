@@ -32,7 +32,8 @@ All other paths are under `/backups/clients/{cid}/epochs`:
 - `GET /{epoch}/files/{kind}/{id}` download: 302 redirect to a presigned S3 URL.
 
 There are no public deletes. Backups are deleted on client and user deletion (brig,
-internal) and the server keeps the two newest epochs of a client.
+internal). After storing a full file the server deletes all files of all but the two newest
+epochs of the client.
 
 `kind` is `full` or `incremental` and comes from the list response.
 

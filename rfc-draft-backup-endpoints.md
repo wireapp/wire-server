@@ -33,7 +33,7 @@ Rules shared by all routes under `/backups`:
 
 - If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`.
 - There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig).
-- The server keeps at most the two newest epochs of a client: after a successful upload it deletes all older ones.
+- The server keeps at most the two newest epochs of a client: after a full file is stored (`POST …/full`) it deletes all files of all older epochs. Storing an incremental file deletes nothing.
 
 #### `/backups`
 
@@ -149,7 +149,7 @@ Upload the full file of an epoch. It replaces the previous full of the epoch and
 
 Checked before any write, in this order: own client, team flag `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over the cap (413).
 
-Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`). After a successful upload all but the two newest epochs are deleted by the server.
+Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`). After a full file is stored, the server deletes all files of all but the two newest epochs; storing an incremental file deletes nothing.
 
 After storing, the server lists the epoch and deletes every full and incremental the new full superseded (older full, incrementals with a smaller id). Concurrent full uploads delete each other, a late older one deletes itself; the newest wins.
 
