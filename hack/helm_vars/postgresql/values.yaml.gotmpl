@@ -10,6 +10,9 @@ image:
   repository: postgresql-fan-in
   tag: 17.5.0-partman-5.5.0
 primary:
+  initdb:
+    user: postgres
+    password: "posty-the-gres"
   resources:
     requests:
       cpu: 1
