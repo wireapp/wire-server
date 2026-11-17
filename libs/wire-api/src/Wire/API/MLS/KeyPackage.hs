@@ -60,6 +60,7 @@ import Wire.API.MLS.HPKEPublicKey
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
@@ -75,6 +76,7 @@ instance ToSchema KeyPackageUpload where
 
 newtype KeyPackageData = KeyPackageData {kpData :: ByteString}
   deriving stock (Eq, Ord, Show)
+  deriving newtype (Arbitrary)
 
 instance ToSchema KeyPackageData where
   schema =
@@ -89,6 +91,12 @@ instance Cql KeyPackageData where
   toCql = CqlBlob . LBS.fromStrict . kpData
   fromCql (CqlBlob b) = pure . KeyPackageData . LBS.toStrict $ b
   fromCql _ = Left "Expected CqlBlob"
+
+instance PostgresMarshall ByteString KeyPackageData where
+  postgresMarshall = kpData
+
+instance PostgresUnmarshall ByteString KeyPackageData where
+  postgresUnmarshall = pure . KeyPackageData
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry
   { user :: Qualified UserId,
@@ -160,6 +168,12 @@ instance Cql KeyPackageRef where
   toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
   fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
   fromCql _ = Left "Expected CqlBlob"
+
+instance PostgresMarshall ByteString KeyPackageRef where
+  postgresMarshall = unKeyPackageRef
+
+instance PostgresUnmarshall ByteString KeyPackageRef where
+  postgresUnmarshall = pure . KeyPackageRef
 
 -- | Compute key package ref given a ciphersuite and the raw key package data.
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
