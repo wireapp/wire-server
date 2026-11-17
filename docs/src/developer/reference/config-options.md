@@ -2395,6 +2395,7 @@ galley:
       nonce: postgresql
       connections: postgresql
       notifications: postgresql
+      pushTokens: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2473,6 +2474,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
          nonce: cassandra
          connections: cassandra
          notifications: cassandra
+         pushTokens: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2555,6 +2557,7 @@ requires the `postgresql`, `postgresqlPool`, and a complete `postgresMigration` 
          nonce: postgresql
          connections: postgresql
          notifications: postgresql
+         pushTokens: postgresql
    background-worker:
      config:
        migrateConversations: false

@@ -187,6 +187,7 @@ postgresMigration:
   nonce: postgresql
   connections: cassandra
   notifications: postgresql
+  pushTokens: postgresql
 
 optSettings:
   setActivationTimeout: 4

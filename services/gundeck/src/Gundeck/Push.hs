@@ -151,11 +151,13 @@ runWithBudget'' budget fallback action = do
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class (Monad m) => MonadNativeTargets m where
   mntgtLogErr :: SomeException -> m ()
-  mntgtLookupAddresses :: UserId -> m [Address]
+
+  -- | All addresses of the given users (any order), in one bulk lookup.
+  mntgtLookupAddresses :: [UserId] -> m [Address]
 
 instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
-  mntgtLookupAddresses rcp = Data.lookup rcp Data.One
+  mntgtLookupAddresses rcps = Data.lookupForUsers rcps Data.One
 
 class (Monad m) => MonadMapAsync m where
   mntgtMapAsync :: (a -> m b) -> [a] -> m [Either SomeException b]
@@ -483,9 +485,12 @@ nativeTargetsRecipients psh = filter routeNative (toList (psh ^. pushRecipients)
       u ^. recipientRoute /= RouteDirect
         && (Just (u ^. recipientId) /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
--- | FUTUREWORK: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
--- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
--- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
+-- | Push token addresses are looked up in bulk, one store call per chunk of
+-- 'nativeTargetsLookupChunkSize' recipients. A failing chunk is logged and
+-- skipped, like a failing single lookup was before.
+--
+-- FUTUREWORK: this is still called once per 'Push'. Instead, it should be called once with
+-- @[Push]@ for every call to 'pushAll', yielding all addresses of all recipients of all pushes.
 nativeTargets ::
   forall m.
   (MonadNativeTargets m, MonadMapAsync m) =>
@@ -494,12 +499,13 @@ nativeTargets ::
   [(UserId, ClientId)] ->
   m [Address]
 nativeTargets psh rcps' dontPush =
-  mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+  mntgtMapAsync addresses (List.chunksOf nativeTargetsLookupChunkSize rcps') >>= fmap concat . mapM check
   where
-    addresses :: Recipient -> m [Address]
-    addresses u = do
-      addrs <- mntgtLookupAddresses (u ^. recipientId)
-      pure $ filter (eligible u) addrs
+    addresses :: [Recipient] -> m [Address]
+    addresses us = do
+      addrs <- mntgtLookupAddresses (map (^. recipientId) us)
+      let byUser = Map.fromListWith (flip (<>)) [(a ^. addrUser, [a]) | a <- addrs]
+      pure $ concatMap (\u -> filter (eligible u) (Map.findWithDefault [] (u ^. recipientId) byUser)) us
     eligible :: Recipient -> Address -> Bool
     eligible u a
       -- Never include the origin client.
@@ -514,6 +520,10 @@ nativeTargets psh rcps' dontPush =
     check :: Either SomeException [a] -> m [a]
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r
+
+-- | Number of recipients whose push tokens are fetched in one store call.
+nativeTargetsLookupChunkSize :: Int
+nativeTargetsLookupChunkSize = 128
 
 type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
