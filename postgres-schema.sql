@@ -1761,6 +1761,21 @@ CREATE TABLE public.team_features (
 ALTER TABLE public.team_features OWNER TO "wire-server";
 
 --
+-- Name: team_notifications; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_notifications (
+    team uuid NOT NULL,
+    id uuid NOT NULL,
+    payload bytea NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.team_notifications OWNER TO "wire-server";
+
+--
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2230,6 +2245,14 @@ ALTER TABLE ONLY public.subconversation
 
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
+
+
+--
+-- Name: team_notifications team_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_notifications
+    ADD CONSTRAINT team_notifications_pkey PRIMARY KEY (team, id);
 
 
 --
@@ -2748,6 +2771,20 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
+
+
+--
+-- Name: team_notifications_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_notifications_expires_at_idx ON public.team_notifications USING btree (expires_at);
+
+
+--
+-- Name: team_notifications_team_occurred_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_notifications_team_occurred_at_idx ON public.team_notifications USING btree (team, occurred_at, id);
 
 
 --
