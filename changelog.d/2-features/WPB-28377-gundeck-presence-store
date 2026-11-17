@@ -1,0 +1,10 @@
+Gundeck can again store presences in PostgreSQL: the presence store is
+selectable via `gundeck.presenceStore` (`redis` (default) or `postgresql`)
+or the `GUNDECK_PRESENCE_STORE` environment variable.  When PostgreSQL is
+selected, configure `gundeck.config.postgresql` (plus `postgresqlPool`,
+and optionally `secrets.pgPassword`) like brig's postgresql settings; the
+`redis-ephemeral` release and its TLS certificates are then unnecessary.
+As with Redis, all presences of a user expire 7 days after the user's
+latest presence registration; expired rows are deleted on the user's next
+registration and, if pg_cron is enabled in gundeck's database, hourly by
+a pg_cron job.

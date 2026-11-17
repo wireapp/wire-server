@@ -25,6 +25,8 @@ blockListStore: {{ $preferredStore }}
 budgetStore: {{ $preferredStore }}
 nonceStore: {{ $preferredStore }}
 connectionsStore: {{ $preferredStore }}
+# gundeck presences: redis or postgresql; GUNDECK_PRESENCE_STORE overrides
+presenceStore: {{ env "GUNDECK_PRESENCE_STORE" | default (ternary "postgresql" "redis" (eq $preferredStore "postgresql")) }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

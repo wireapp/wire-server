@@ -256,7 +256,12 @@ defaultOverrides resource =
       def
         { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
           galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
-          backgroundWorkerCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
+          backgroundWorkerCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
+          -- gundeck's postgresql config is optional (only used as presence store)
+          gundeckCfg = \cfg ->
+            lookupField cfg "postgresql" >>= \case
+              Nothing -> pure cfg
+              Just _ -> setField "postgresql.dbname" resource.berPostgresqlDBName cfg
         }
 
     setEsIndex :: ServiceOverrides
