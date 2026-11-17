@@ -236,7 +236,7 @@ attempt :: Sem Effs a -> Sem Effs (Either BackupError a)
 attempt = try
 
 epochsOf :: UserId -> ClientId -> ClientId -> Sem Effs [Word32]
-epochsOf u z c = map (.unBackupEpoch) . (.epochs) <$> listEpochs (loc u) z c
+epochsOf u z c = map (.epoch.unBackupEpoch) . (.epochs) <$> listClientBackups (loc u) z c
 
 filesOf :: UserId -> ClientId -> ClientId -> Word32 -> Sem Effs [BackupFile]
 filesOf u z c e = (.files) <$> listFiles (loc u) z c (BackupEpoch e)
@@ -474,21 +474,36 @@ spec = describe "BackupSubsystem" $ do
         epochsOf uA a1 a1
       res `shouldBe` Right [3, 4]
 
-  describe "list user backups" $ do
-    it "lists all clients with epochs, newest client first, omits clients without a full" $ do
+  describe "list backups" $ do
+    let summary e f = EpochSummary (BackupEpoch e) f.createdAt 1 f.size
+    it "lists all clients with epoch summaries, newest client first, omits clients without a full" $ do
       (_, res) <- runBackup world0 Nothing $ do
         f1 <- upload uA a1 a1 1 "x"
         passTime 1
-        g1 <- upload uA a2 a2 1 "y"
+        g1 <- upload uA a2 a2 1 "yy"
         passTime 1
-        g2 <- upload uA a2 a2 2 "z"
+        g2 <- upload uA a2 a2 2 "zzz"
         UserBackups cs <- listUserBackups (loc uA) a1
         pure (f1, g1, g2, cs)
       Right (f1, g1, g2, cs) <- pure res
       cs
-        `shouldBe` [ ClientBackups a2 [EpochBackups (BackupEpoch 1) [g1], EpochBackups (BackupEpoch 2) [g2]],
-                     ClientBackups a1 [EpochBackups (BackupEpoch 1) [f1]]
+        `shouldBe` [ ClientBackups a2 [summary 1 g1, summary 2 g2],
+                     ClientBackups a1 [summary 1 f1]
                    ]
+
+    it "summarises only the current files" $ do
+      (_, res) <- runBackup world0 Nothing $ do
+        _ <- uploadKind BackupFull uA a1 a1 1 "old"
+        passTime 1
+        _ <- uploadKind BackupIncremental uA a1 a1 1 "oldinc"
+        passTime 1
+        new <- uploadKind BackupFull uA a1 a1 1 "new!"
+        passTime 1
+        inc <- uploadKind BackupIncremental uA a1 a1 1 "ii"
+        UserBackups cs <- listUserBackups (loc uA) a1
+        pure (new, inc, cs)
+      Right (new, inc, cs) <- pure res
+      cs `shouldBe` [ClientBackups a1 [EpochSummary (BackupEpoch 1) inc.createdAt 2 (new.size + inc.size)]]
 
     it "is empty without backups" $ do
       (_, res) <- runBackup world0 Nothing $ listUserBackups (loc uA) a1
@@ -496,6 +511,20 @@ spec = describe "BackupSubsystem" $ do
 
     it "a client that is not the caller's is not found" $ do
       (_, res) <- runBackup world0 Nothing $ listUserBackups (loc uA) b1
+      void res `shouldBe` Left BackupErrNotFound
+
+    it "list of one client: empty without backups, readable from another client" $ do
+      (_, res) <- runBackup world0 Nothing $ do
+        none <- listClientBackups (loc uA) a2 a1
+        f <- upload uA a1 a1 1 "x"
+        other <- listClientBackups (loc uA) a2 a1
+        pure (none, f, other)
+      Right (none, f, other) <- pure res
+      none `shouldBe` ClientBackups a1 []
+      other `shouldBe` ClientBackups a1 [summary 1 f]
+
+    it "list of a foreign client is not found" $ do
+      (_, res) <- runBackup world0 Nothing $ listClientBackups (loc uA) a1 b1
       void res `shouldBe` Left BackupErrNotFound
 
   describe "failed uploads leave nothing behind" $ do

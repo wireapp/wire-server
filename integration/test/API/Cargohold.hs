@@ -452,9 +452,10 @@ listBackups user zcid = do
   req <- baseRequest user Cargohold Versioned "/backups"
   submit "GET" $ req & zClient zcid
 
-listBackupEpochs :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-listBackupEpochs user zcid cid =
-  backupRequest user zcid cid "/epochs" >>= submit "GET"
+-- | Summary of the restorable epochs of one client.
+listClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+listClientBackups user zcid cid =
+  backupRequest user zcid cid "" >>= submit "GET"
 
 -- | @kind@ is @"full"@ or @"incremental"@.
 uploadBackup ::

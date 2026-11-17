@@ -25,6 +25,7 @@ module Wire.BackupSubsystem.Rules
     UploadRejection (..),
     checkUpload,
     currentBlobs,
+    epochSummary,
     pruneTargets,
     staleEpochs,
     toFile,
@@ -96,6 +97,19 @@ currentBlobs blobs = case newestFull of
   Just f -> f : sortOn (.fileId) (filter (\b -> b.kind == BackupIncremental && b.fileId > f.fileId) blobs)
   where
     newestFull = listToMaybe . sortOn (Down . (.fileId)) $ filter ((== BackupFull) . (.kind)) blobs
+
+-- | Summary of the current files ('currentBlobs') of an epoch, 'Nothing' if it has none.
+epochSummary :: BackupEpoch -> [BackupBlob] -> Maybe EpochSummary
+epochSummary e blobs = case map toFile (currentBlobs blobs) of
+  [] -> Nothing
+  files@(f : _) ->
+    Just
+      EpochSummary
+        { epoch = e,
+          createdAt = foldr (max . (.createdAt)) f.createdAt files,
+          fileCount = fromIntegral (length files),
+          size = sum (map (.size) files)
+        }
 
 -- | The files of an epoch that a stored full file superseded, to be deleted.
 pruneTargets :: [BackupBlob] -> [BackupBlob]

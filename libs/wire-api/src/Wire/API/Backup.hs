@@ -20,9 +20,8 @@ module Wire.API.Backup
     BackupFileId (..),
     BackupKind (..),
     BackupFile (..),
-    BackupEpochs (..),
     BackupFiles (..),
-    EpochBackups (..),
+    EpochSummary (..),
     ClientBackups (..),
     UserBackups (..),
   )
@@ -113,16 +112,6 @@ instance ToSchema BackupFile where
         <*> (.size) .= field "size" schema
         <*> (.createdAt) .= field "createdAt" schema
 
-newtype BackupEpochs = BackupEpochs {epochs :: [BackupEpoch]}
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BackupEpochs)
-
-instance ToSchema BackupEpochs where
-  schema =
-    object $
-      BackupEpochs <$> (.epochs) .= field "epochs" (array schema)
-
 newtype BackupFiles = BackupFiles {files :: [BackupFile]}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
@@ -133,25 +122,33 @@ instance ToSchema BackupFiles where
     object $
       BackupFiles <$> (.files) .= field "files" (array schema)
 
--- | The current files of one epoch: the newest full file and the incremental files after it.
-data EpochBackups = EpochBackups
+-- | Summary of the current files of one epoch: the newest full file and the incremental files
+-- after it.
+data EpochSummary = EpochSummary
   { epoch :: BackupEpoch,
-    files :: [BackupFile]
+    -- | Creation time of the newest current file
+    createdAt :: UTCTimeMillis,
+    -- | Number of current files, including the full file
+    fileCount :: Word32,
+    -- | Total size of the current files in bytes
+    size :: Word64
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform EpochBackups)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema EpochBackups)
+  deriving (Arbitrary) via (GenericUniform EpochSummary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema EpochSummary)
 
-instance ToSchema EpochBackups where
+instance ToSchema EpochSummary where
   schema =
     object $
-      EpochBackups
+      EpochSummary
         <$> (.epoch) .= field "epoch" schema
-        <*> (.files) .= field "files" (array schema)
+        <*> (.createdAt) .= field "createdAt" schema
+        <*> (.fileCount) .= field "fileCount" schema
+        <*> (.size) .= field "size" schema
 
 data ClientBackups = ClientBackups
   { client :: ClientId,
-    epochs :: [EpochBackups]
+    epochs :: [EpochSummary]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientBackups)

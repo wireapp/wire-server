@@ -61,17 +61,12 @@ interpretBackupSubsystem = interpret $ \case
     let uid = tUnqualified luid
     cs <- clientsOf uid
     unless (zcid `Set.member` cs) $ throw BackupErrNotFound
-    clients <- fmap catMaybes . forM (Set.toAscList cs) $ \cid -> do
-      epochs <- Set.toAscList . Set.fromList <$> listBlobEpochs uid cid
-      eps <- fmap catMaybes . forM epochs $ \e -> do
-        files <- map toFile . currentBlobs <$> listBlobs uid cid e
-        pure (EpochBackups e files <$ listToMaybe files)
-      pure (ClientBackups cid eps <$ listToMaybe eps)
-    pure . UserBackups $ sortOn (Down . newestFile) clients
-  ListEpochs luid zcid cid -> do
+    clients <- filter (not . null . (.epochs)) <$> traverse (clientBackups uid) (Set.toAscList cs)
+    pure . UserBackups $ sortOn (Down . newestBackup) clients
+  ListClientBackups luid zcid cid -> do
     let uid = tUnqualified luid
     checkRead uid zcid cid
-    BackupEpochs . Set.toAscList . Set.fromList <$> listBlobEpochs uid cid
+    clientBackups uid cid
   UploadBackup luid zcid cid e kind len src ->
     uploadBackupImpl (tUnqualified luid) zcid cid e kind len src
   ListFiles luid zcid cid e -> do
@@ -164,9 +159,16 @@ rejectionError = \case
   TooManyFiles -> BackupErrTooManyFiles
   TooLarge -> BackupErrTooLarge
 
--- | Time of the newest file of a client's backups, i.e. of its last epoch.
-newestFile :: ClientBackups -> Maybe UTCTimeMillis
-newestFile c = foldr (max . Just) Nothing [f.createdAt | ep <- c.epochs, f <- ep.files]
+-- | The restorable epochs of a client, ascending. Epochs without a full file are left out.
+clientBackups :: (Member BackupBlobStore r) => UserId -> ClientId -> Sem r ClientBackups
+clientBackups uid cid = do
+  epochs <- Set.toAscList . Set.fromList <$> listBlobEpochs uid cid
+  summaries <- forM epochs $ \e -> epochSummary e <$> listBlobs uid cid e
+  pure ClientBackups {client = cid, epochs = catMaybes summaries}
+
+-- | Creation time of the newest file of a client's backups.
+newestBackup :: ClientBackups -> Maybe UTCTimeMillis
+newestBackup c = foldr (max . Just . (.createdAt)) Nothing c.epochs
 
 clientsOf :: (Member BrigAPIAccess r) => UserId -> Sem r (Set ClientId)
 clientsOf uid = Map.findWithDefault mempty uid . userClients <$> lookupClients [uid]

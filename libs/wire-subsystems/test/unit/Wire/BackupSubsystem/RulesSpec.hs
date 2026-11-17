@@ -105,6 +105,25 @@ spec = describe "Rules" $ do
         `shouldBe` [blob BackupFull 4 6, blob BackupIncremental 5 1, blob BackupIncremental 6 1]
     it "is empty without a full" $ currentBlobs [blob BackupIncremental 1 1] `shouldBe` []
 
+  describe "epochSummary" $ do
+    let e = BackupEpoch 4
+    it "summarises the current files only" $
+      fmap
+        (\x -> (x.epoch, x.fileCount, x.size))
+        ( epochSummary
+            e
+            [ blob BackupFull 1 5,
+              blob BackupIncremental 2 1,
+              blob BackupFull 3 7,
+              blob BackupIncremental 4 2
+            ]
+        )
+        `shouldBe` Just (e, 2, 9)
+    it "has the creation time of the newest current file" $
+      fmap (.createdAt) (epochSummary e [blob BackupFull 3 7, blob BackupIncremental 4 2])
+        `shouldBe` Just (toFile (blob BackupIncremental 4 2)).createdAt
+    it "is Nothing without a full" $ epochSummary e [blob BackupIncremental 1 1] `shouldBe` Nothing
+
   describe "pruneTargets" $ do
     it "is what a newer full superseded" $
       pruneTargets [blob BackupFull 1 5, blob BackupIncremental 2 1, blob BackupFull 3 5]

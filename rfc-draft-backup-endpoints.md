@@ -19,8 +19,8 @@ Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature rou
 | `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                    | `2026-11-12T10:15:30.123Z`             |
 | `<ByteCount>`      | number of bytes, non-negative integer                                                             | `1048576`                              |
 | `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}` | see below                              |
-| `<EpochBackups>`   | `{"epoch": <BackupEpoch>, "files": [<BackupFile>]}`                                               | see `GET /backups`                     |
-| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochBackups>]}`                                              | see `GET /backups`                     |
+| `<EpochSummary>`   | `{"epoch": <BackupEpoch>, "createdAt": <UTCTimeMillis>, "fileCount": <Word32>, "size": <ByteCount>}` | see `GET /backups`                  |
+| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochSummary>]}`                                              | see `GET /backups`                     |
 | `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                    | `weekly`                               |
 | `<FeatureStatus>`  | `enabled` or `disabled`                                                                           | `enabled`                              |
 | `<LockStatus>`     | `locked` or `unlocked`                                                                            | `unlocked`                             |
@@ -43,7 +43,7 @@ Rules shared by all routes under `/backups`:
 - **Request body:** none
 - **Response:** 200 `{"clients": [<ClientBackups>]}`
 
-List the restorable backups of all clients of the caller, e.g. for a new client that restores a backup. Per client its epochs (ascending), per epoch the current files (full first, then incrementals by `id`). Epochs without a full and clients without any epoch are omitted. Clients are ordered by their newest file, newest first. `Z-Client` must be a client of the caller (else 404 `backup-not-found`). No team flag check. No URLs: each file is fetched via the download route with the listed `client`, `epoch`, `kind` and `id`.
+List the restorable backups of all clients of the caller, e.g. for a new client that restores a backup. Per client its epochs (ascending), per epoch a summary of the current files (see the rules below): `createdAt` is the creation time of the newest current file, `fileCount` the number of current files including the full, `size` their total bytes. Epochs without a full and clients without any epoch are omitted. Clients are ordered by their newest `createdAt`, newest first. `Z-Client` must be a client of the caller (else 404 `backup-not-found`). No team flag check. The summary is small whatever the number of files. To restore, the client picks an entry, lists its files with `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>` and fetches each via the download route.
 
 Example: `GET /v19/backups` → `200`
 
@@ -55,14 +55,9 @@ Example: `GET /v19/backups` → `200`
       "epochs": [
         {
           "epoch": 2,
-          "files": [
-            {
-              "id": "0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07",
-              "kind": "full",
-              "size": 1048576,
-              "createdAt": "2026-11-12T10:15:30.123Z"
-            }
-          ]
+          "createdAt": "2026-11-12T10:35:30.456Z",
+          "fileCount": 2,
+          "size": 1050624
         }
       ]
     }
@@ -81,20 +76,30 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
 - A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
 - _Newest full wins_: a full upload replaces the epoch's previous full and the incrementals of it. Files are ordered by `<BackupFileId>` (UUIDv7, i.e. server time); the current files of an epoch are the full with the greatest id and the incrementals with a greater id. A client must not upload incrementals while it uploads a new full of the same epoch: they are deleted when the full is stored.
 
-##### `/backups/clients/<ClientId>/epochs`
+##### `/backups/clients/<ClientId>`
 
-###### `GET /backups/clients/<ClientId>/epochs`
+###### `GET /backups/clients/<ClientId>`
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
-- **Response:** 200 `{"epochs": [<BackupEpoch>]}`, ascending
+- **Response:** 200 `<ClientBackups>`
 
-List the epochs that have anything stored for the client (at most two).
+The restorable epochs of one client, as one entry of `GET /backups`. `"epochs": []` if the client has no restorable backup.
 
-Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs` → `200`
+Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60` → `200`
 
 ```json
-{ "epochs": [1, 2] }
+{
+  "client": "4b2f7a9c1d3e5f60",
+  "epochs": [
+    {
+      "epoch": 2,
+      "createdAt": "2026-11-12T10:35:30.456Z",
+      "fileCount": 2,
+      "size": 1050624
+    }
+  ]
+}
 ```
 
 ---
@@ -264,7 +269,7 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 | 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (fewer bytes than `Content-Length` arrive, or disconnect)                                                                                                                                                                                          |
 | 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups` route (backups not configured on the server, i.e. no HMAC key)                                                                                                                      |
 | 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental` (`<ClientId>` is not `Z-Client`)                                                                                                                                                                                                                   |
-| 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller); `GET …/epochs`, `GET …/epochs/<BackupEpoch>`, `GET …/files/…` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s (`<ClientId>` is not a client of the caller) |
+| 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller); `GET /backups/clients/<ClientId>`, `GET …/epochs/<BackupEpoch>`, `GET …/files/…` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s (`<ClientId>` is not a client of the caller) |
 | 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                                                                    |
 | 409    | `backup-full-missing`                | `POST …/incremental`                                                                                                                                                                                                                                                                   |
 | 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                   |

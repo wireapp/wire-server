@@ -71,9 +71,14 @@ type ListFilesDescription =
 
 type ListBackupsDescription =
   "Lists the restorable backups of all clients of the user: per client its epochs, per epoch \
-  \the newest full backup and the incremental files after it. Epochs without a full backup and \
-  \clients without any are omitted. Clients are ordered by their newest file, newest first. \
-  \The list returns no URLs, each file is fetched via its own redirect."
+  \a summary of the newest full backup and the incremental files after it (newest creation \
+  \time, number of files, total size). Epochs without a full backup and clients without any \
+  \are omitted. Clients are ordered by their newest backup, newest first. The files of an \
+  \epoch are listed by `backup-list-files`."
+
+type ListClientBackupsDescription =
+  "Lists the restorable epochs of one client as in `backup-list`. An empty `epochs` list means \
+  \the client has no restorable backup."
 
 type BackupAPI =
   Named
@@ -89,9 +94,10 @@ type BackupAPI =
         :> Get '[JSON] UserBackups
     )
     :<|> Named
-           "backup-list-epochs"
-           ( Summary "List the epochs that have backup files for a client"
+           "backup-list-client"
+           ( Summary "List the backups of a client"
                :> From 'V19
+               :> Description ListClientBackupsDescription
                :> CanThrow 'BackupNotFound
                :> CanThrow 'BackupFeatureDisabled
                :> ZLocalUser
@@ -99,8 +105,7 @@ type BackupAPI =
                :> "backups"
                :> "clients"
                :> Capture "cid" ClientId
-               :> "epochs"
-               :> Get '[JSON] BackupEpochs
+               :> Get '[JSON] ClientBackups
            )
     :<|> Named
            "backup-upload-full"

@@ -28,7 +28,7 @@ import Wire.BackupSubsystem
 interpretBackupSubsystemDisabled :: (Member (Error BackupError) r) => InterpreterFor BackupSubsystem r
 interpretBackupSubsystemDisabled = interpret $ \case
   ListUserBackups {} -> throw BackupErrFeatureDisabled
-  ListEpochs {} -> throw BackupErrFeatureDisabled
+  ListClientBackups {} -> throw BackupErrFeatureDisabled
   UploadBackup {} -> throw BackupErrFeatureDisabled
   ListFiles {} -> throw BackupErrFeatureDisabled
   DownloadUrl {} -> throw BackupErrFeatureDisabled

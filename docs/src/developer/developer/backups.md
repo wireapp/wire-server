@@ -18,11 +18,13 @@ feature `automaticBackups`.
 Available from API version V19 (prefix `/v19/backups`).
 
 - `GET /backups` list the restorable backups of all clients of the user (per client
-  its epochs, per epoch the current files), e.g. for a new client that restores.
+  its epochs, per epoch a summary: newest `createdAt`, `fileCount`, total `size`), e.g.
+  for a new client that restores. The summary stays small however many files exist;
+  the files of the chosen epoch come from `GET /{epoch}` below.
 
 All other paths are under `/backups/clients/{cid}/epochs`:
 
-- `GET /` list epochs (at most two).
+- `GET /` (client) the same summary for one client.
 - `POST /{epoch}/full` upload the full file of an epoch (raw body, `Content-Length`
   required). Replaces the previous full of the epoch.
 - `POST /{epoch}/incremental` upload an incremental file (needs a full file).

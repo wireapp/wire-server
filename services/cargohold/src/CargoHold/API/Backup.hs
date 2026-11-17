@@ -35,7 +35,7 @@ import Wire.BackupSubsystem
 backupServer :: (Member BackupSubsystem r) => ServerT BackupAPI (Sem r)
 backupServer =
   Named @"backup-list" listUserBackups
-    :<|> Named @"backup-list-epochs" listEpochs
+    :<|> Named @"backup-list-client" listClientBackups
     :<|> Named @"backup-upload-full" (upload BackupFull)
     :<|> Named @"backup-upload-incremental" (upload BackupIncremental)
     :<|> Named @"backup-list-files" listFiles

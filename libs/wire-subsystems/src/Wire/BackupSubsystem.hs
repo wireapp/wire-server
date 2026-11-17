@@ -57,7 +57,7 @@ backupErrorToWai = \case
 data BackupSubsystem m a where
   -- | Takes the caller (user and @Z-Client@) only.
   ListUserBackups :: Local UserId -> ClientId -> BackupSubsystem m UserBackups
-  ListEpochs :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m BackupEpochs
+  ListClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ClientBackups
   UploadBackup ::
     Local UserId ->
     ClientId ->
