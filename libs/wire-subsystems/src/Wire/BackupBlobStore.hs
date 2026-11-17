@@ -25,15 +25,14 @@ import Imports
 import Polysemy
 import URI.ByteString (URI)
 import Wire.API.Backup
-import Wire.BackupBlobStore.Key (BackupLocation (..), BackupPrefix (..))
+import Wire.BackupBlobStore.Key (BackupFileRef, BackupLocation (..), BackupPrefix (..))
 
 data BlobUploadError = BlobLengthMismatch
   deriving stock (Eq, Show)
 
 -- | A stored backup file as seen in a listing.
 data BackupBlob = BackupBlob
-  { kind :: BackupKind,
-    fileId :: BackupFileId,
+  { file :: BackupFileRef,
     size :: Word64
   }
   deriving stock (Eq, Show)

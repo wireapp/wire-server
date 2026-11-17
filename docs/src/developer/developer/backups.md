@@ -27,15 +27,17 @@ All other paths are under `/backups/clients/{cid}/epochs`:
 - `GET /` (client) the same summary for one client.
 - `POST /{epoch}/full` upload the full file of an epoch (raw body, `Content-Length`
   required). Replaces the previous full of the epoch.
-- `POST /{epoch}/incremental` upload an incremental file (needs a full file).
-- `GET /{epoch}` list the current files of an epoch.
-- `GET /{epoch}/files/{kind}/{id}` download: 302 redirect to a presigned S3 URL.
+- `POST /{epoch}/full/{fullId}/incremental` upload an incremental file under the full file
+  `fullId` (the id from the full upload response), which must be the epoch's newest full.
+- `GET /{epoch}` list the current files of an epoch: `{"full": ..., "incrementals": [...]}`.
+- `GET /{epoch}/full/{fullId}` and `GET /{epoch}/full/{fullId}/incremental/{id}` download:
+  302 redirect to a presigned S3 URL.
 
 There are no public deletes. Backups are deleted on client and user deletion (brig,
 internal). After storing a full file the server deletes all files of all but the two newest
 epochs of the client.
 
-`kind` is `full` or `incremental` and comes from the list response.
+`fullId` and `id` come from the upload responses and the list response.
 
 Limits (`cargohold.settings.backupLimits`): a full file up to `maxFullBytes`,
 incremental files up to `maxIncrementalBytes`, at most `maxFilesPerEpoch` files per
@@ -44,19 +46,26 @@ epoch.
 ### Newest full wins
 
 A stored object is complete (S3 shows it only when its upload finished), so there is
-no lock or readiness flag. The current files of an epoch are the full with the
-greatest id (UUIDv7, i.e. creation order) and the incrementals with a greater id.
+no lock or readiness flag. The current full of an epoch is the one with the greatest
+id (UUIDv7, i.e. creation order). An incremental is stored under the full it extends
+and is current only while that full is the current one. The client learns a full's id
+from the response of the finished upload, so an incremental can only extend a finished
+full, and an incremental of a replaced full is never listed, whatever the timing of the
+uploads (ids are assigned at upload start, so ordering incrementals by id alone would
+not be safe).
+
 After a full is stored the server deletes everything else in the epoch, so a new full
-replaces the old one and its incrementals. Concurrent fulls prune each other, a late
-older one deletes itself. Clients must not upload incrementals while a new full of the
-same epoch is uploaded: they are deleted when the full is stored.
+replaces the old one and its incrementals. Every upload deletes what the current full
+superseded, which also removes an incremental that was stored just after a newer full
+(it raced the new full). Concurrent fulls prune each other, a late older one deletes
+itself.
 
 A failed or aborted upload (any error, client disconnect) removes the file it created.
-Incremental uploads need a full (`409 backup-full-missing` otherwise).
+Incremental uploads need the current full (`409 backup-full-missing` otherwise).
 
 ### Why list + per-file redirect
 
-Presigned URLs are bearer links with a short TTL. Listing returns id, kind,
+Presigned URLs are bearer links with a short TTL. Listing returns id,
 size and createdAt (no URLs); each download asks for its own redirect, so URLs are minted when needed
 and expire quickly. Nothing is pre-signed in bulk.
 
@@ -65,14 +74,15 @@ and expire quickly. Nothing is pre-signed in bulk.
 One S3 object per uploaded file, in the asset bucket:
 
 ```
-backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<kind>/<id>
+backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<fullId>/full
+backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<fullId>/incremental/<id>
 ```
 
 - `hmac(x)`: lowercase hex HMAC-SHA256 of `x` with `backupHmacKey` (64 chars).
   Plain user or client ids never appear in S3: keys show up in presigned URLs
   and logs.
-- `epoch`: decimal, `kind`: `full` or `incremental`, `id`: UUIDv7 (key order
-  is creation order).
+- `epoch`: decimal, `fullId`, `id`: UUIDv7 (creation order). An incremental key
+  names the full file it extends.
 - `backup/` is outside the `v3/<retention>/` prefixes, so asset lifecycle
   rules do not expire backups.
 
@@ -87,7 +97,7 @@ returns key, size and `LastModified`, but never user metadata or tags.
 | API field | Source |
 |---|---|
 | epochs | `CommonPrefixes` of the device prefix (delimiter `/`) |
-| `id`, `kind` | key segments |
+| `id`, `fullId`, kind | key segments |
 | `size` | listing `Size` |
 | `createdAt` | UUIDv7 timestamp |
 

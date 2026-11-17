@@ -426,7 +426,6 @@ tests =
       meetingTypeVersioningTests,
       meetingLinkVersioningTests,
       testRoundTripWithSwagger @Backup.BackupEpoch,
-      testRoundTripWithSwagger @Backup.BackupKind,
       testRoundTripWithSwagger @Backup.BackupFile,
       testRoundTripWithSwagger @Backup.BackupFiles,
       testRoundTripWithSwagger @Backup.EpochSummary,

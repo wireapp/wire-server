@@ -137,7 +137,7 @@ interpretBackupBlobStoreToS3 env k = interpret $ \case
     mapMaybe (parseEpochPrefix p) <$> runHandlerSem (S3.listCommonPrefixes p)
   ListBlobs u c e -> do
     let p = renderPrefix k (EpochPrefix u c e)
-        blob (key, size) = (\(kind, fileId) -> BackupBlob {kind, fileId, size}) <$> parseFileKey p key
+        blob (key, size) = (\file -> BackupBlob {file, size}) <$> parseFileKey p key
     objects <- runHandlerSem (S3.listObjects p)
     pure (mapMaybe blob objects)
   DeleteBlob l -> let key = renderKey k l in runHandlerSem (S3.deleteAllVersions key (== key))

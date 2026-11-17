@@ -24,6 +24,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Wire.API.Backup
 import Wire.BackupBlobStore
+import Wire.BackupBlobStore.Key (BackupFileRef (..))
 import Wire.BackupSubsystem.Rules
 
 limits :: BackupLimits
@@ -34,15 +35,15 @@ limits =
       maxFilesPerEpoch = 3650
     }
 
--- | @check kind [(epoch, files)] target size@; the target epoch has a full file iff it has files.
-check :: BackupKind -> [(Word32, Word32)] -> Word32 -> Word64 -> Either UploadRejection ()
-check kind m e =
+-- | @check base [(epoch, files)] target size@; the target epoch has files iff it has a count: a
+-- full file with id 1 and incremental files under it.
+check :: Maybe BackupFileId -> [(Word32, Word32)] -> Word32 -> Word64 -> Either UploadRejection ()
+check base m e =
   checkUpload
     limits
-    kind
+    base
     (Set.fromList (map (BackupEpoch . fst) m))
-    (files > 0)
-    files
+    (if files > 0 then fullB 1 1 : [incB 1 n 1 | n <- [2 .. fromIntegral files]] else [])
     (BackupEpoch e)
   where
     files = fromMaybe 0 (lookup e m)
@@ -50,14 +51,18 @@ check kind m e =
 fid :: Word64 -> BackupFileId
 fid n = BackupFileId (UUID.fromWords64 n n)
 
-blob :: BackupKind -> Word64 -> Word64 -> BackupBlob
-blob kind n size = BackupBlob {kind, fileId = fid n, size}
+fullB :: Word64 -> Word64 -> BackupBlob
+fullB n size = BackupBlob {file = FullFile (fid n), size}
+
+-- | @incB full n size@: incremental file @n@ under full file @full@
+incB :: Word64 -> Word64 -> Word64 -> BackupBlob
+incB f n size = BackupBlob {file = IncrementalFile (fid f) (fid n), size}
 
 spec :: Spec
 spec = describe "Rules" $ do
   describe "checkUpload" $ do
-    let full = check BackupFull
-        inc = check BackupIncremental
+    let full = check Nothing
+        inc = check (Just (fid 1))
     describe "epoch rule" $ do
       it "{} + 1 -> full" $ full [] 1 1 `shouldBe` Right ()
       it "{} + 6 -> full" $ full [] 6 1 `shouldBe` Right ()
@@ -76,9 +81,17 @@ spec = describe "Rules" $ do
     describe "kind rule" $ do
       it "full into epoch with full is accepted (replaces)" $ full [(1, 1)] 1 1 `shouldBe` Right ()
       it "incremental into empty epoch is rejected" $ inc [] 1 1 `shouldBe` Left FullMissing
-      it "incremental into epoch without full is rejected" $
-        checkUpload limits BackupIncremental (Set.singleton (BackupEpoch 1)) False 0 (BackupEpoch 1) 1
+      it "incremental under an unknown full is rejected" $
+        check (Just (fid 9)) [(1, 1)] 1 1 `shouldBe` Left FullMissing
+      it "incremental into epoch with incrementals only is rejected" $
+        checkUpload limits (Just (fid 1)) (Set.singleton (BackupEpoch 1)) [incB 1 2 1] (BackupEpoch 1) 1
           `shouldBe` Left FullMissing
+      it "incremental under an older full is rejected" $
+        checkUpload limits (Just (fid 1)) (Set.singleton (BackupEpoch 1)) [fullB 1 1, fullB 3 1] (BackupEpoch 1) 1
+          `shouldBe` Left FullMissing
+      it "incremental under the newest of several fulls is accepted" $
+        checkUpload limits (Just (fid 3)) (Set.singleton (BackupEpoch 1)) [fullB 1 1, fullB 3 1] (BackupEpoch 1) 1
+          `shouldBe` Right ()
     describe "size rule" $ do
       it "full at cap OK" $ full [] 1 1073741824 `shouldBe` Right ()
       it "full above cap rejected" $ full [] 1 1073741825 `shouldBe` Left TooLarge
@@ -90,20 +103,28 @@ spec = describe "Rules" $ do
     prop "never accepts epoch 0" $
       \(m :: [(Word32, Word32)]) (s :: Word64) (useMax :: Bool) (k :: Bool) ->
         let m' = if useMax then (maxBound, 1) : m else m
-         in isLeft (check (if k then BackupFull else BackupIncremental) m' 0 s)
+         in isLeft (check (if k then Nothing else Just (fid 1)) m' 0 s)
 
   describe "currentBlobs" $ do
-    it "is the newest full, then incrementals after it by id" $
+    it "is the newest full, then the incrementals under it by id" $
       currentBlobs
-        [ blob BackupIncremental 5 1,
-          blob BackupFull 2 5,
-          blob BackupIncremental 1 1,
-          blob BackupFull 4 6,
-          blob BackupIncremental 3 1,
-          blob BackupIncremental 6 1
+        [ incB 4 5 1,
+          fullB 2 5,
+          incB 2 1 1,
+          fullB 4 6,
+          incB 2 3 1,
+          incB 4 6 1
         ]
-        `shouldBe` [blob BackupFull 4 6, blob BackupIncremental 5 1, blob BackupIncremental 6 1]
-    it "is empty without a full" $ currentBlobs [blob BackupIncremental 1 1] `shouldBe` []
+        `shouldBe` [fullB 4 6, incB 4 5 1, incB 4 6 1]
+    it "excludes incrementals of an older full even with greater ids" $
+      currentBlobs [fullB 1 5, fullB 2 5, incB 1 9 1] `shouldBe` [fullB 2 5]
+    it "is empty without a full" $ currentBlobs [incB 1 1 1] `shouldBe` []
+
+  describe "currentFiles" $ do
+    it "splits the full from the incrementals" $
+      currentFiles [incB 1 3 1, fullB 1 5, incB 1 2 1]
+        `shouldBe` Just (fullB 1 5, [incB 1 2 1, incB 1 3 1])
+    it "is Nothing without a full" $ currentFiles [incB 1 2 1] `shouldBe` Nothing
 
   describe "epochSummary" $ do
     let e = BackupEpoch 4
@@ -112,25 +133,28 @@ spec = describe "Rules" $ do
         (\x -> (x.epoch, x.fileCount, x.size))
         ( epochSummary
             e
-            [ blob BackupFull 1 5,
-              blob BackupIncremental 2 1,
-              blob BackupFull 3 7,
-              blob BackupIncremental 4 2
+            [ fullB 1 5,
+              incB 1 2 1,
+              fullB 3 7,
+              incB 3 4 2,
+              incB 1 5 100
             ]
         )
         `shouldBe` Just (e, 2, 9)
     it "has the creation time of the newest current file" $
-      fmap (.createdAt) (epochSummary e [blob BackupFull 3 7, blob BackupIncremental 4 2])
-        `shouldBe` Just (toFile (blob BackupIncremental 4 2)).createdAt
-    it "is Nothing without a full" $ epochSummary e [blob BackupIncremental 1 1] `shouldBe` Nothing
+      fmap (.createdAt) (epochSummary e [fullB 3 7, incB 3 4 2])
+        `shouldBe` Just (toFile (incB 3 4 2)).createdAt
+    it "is Nothing without a full" $ epochSummary e [incB 1 1 1] `shouldBe` Nothing
 
   describe "pruneTargets" $ do
     it "is what a newer full superseded" $
-      pruneTargets [blob BackupFull 1 5, blob BackupIncremental 2 1, blob BackupFull 3 5]
-        `shouldBe` [blob BackupFull 1 5, blob BackupIncremental 2 1]
+      pruneTargets [fullB 1 5, incB 1 2 1, fullB 3 5]
+        `shouldBe` [fullB 1 5, incB 1 2 1]
+    it "includes incrementals of an older full with a greater id (orphans)" $
+      pruneTargets [fullB 1 5, fullB 2 5, incB 1 9 1] `shouldBe` [fullB 1 5, incB 1 9 1]
     it "is empty if everything is current" $
-      pruneTargets [blob BackupFull 1 5, blob BackupIncremental 2 1] `shouldBe` []
-    it "is empty without a full" $ pruneTargets [blob BackupIncremental 2 1] `shouldBe` []
+      pruneTargets [fullB 1 5, incB 1 2 1] `shouldBe` []
+    it "is empty without a full" $ pruneTargets [incB 1 2 1] `shouldBe` []
 
   describe "staleEpochs" $ do
     let es = staleEpochs . Set.fromList . map BackupEpoch

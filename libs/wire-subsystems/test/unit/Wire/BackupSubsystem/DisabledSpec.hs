@@ -51,11 +51,11 @@ spec = describe "BackupSubsystem disabled" $ do
   it "list client backups rejected" $
     void (runDisabled (listClientBackups lu c c)) `shouldBe` Left BackupErrFeatureDisabled
   it "upload rejected" $
-    void (runDisabled (uploadBackup lu c c e BackupFull 1 (pure ()))) `shouldBe` Left BackupErrFeatureDisabled
+    void (runDisabled (uploadBackup lu c c e Nothing 1 (pure ()))) `shouldBe` Left BackupErrFeatureDisabled
   it "list files rejected" $
     void (runDisabled (listFiles lu c c e)) `shouldBe` Left BackupErrFeatureDisabled
   it "download rejected" $
-    void (runDisabled (downloadUrl lu c c e BackupFull (BackupFileId UUID.nil)))
+    void (runDisabled (downloadUrl lu c c e (BackupFileId UUID.nil) Nothing))
       `shouldBe` Left BackupErrFeatureDisabled
   it "internal deletes are no-ops" $
     runDisabled

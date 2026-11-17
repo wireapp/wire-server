@@ -215,22 +215,34 @@ mockGalley = interpret $ \case
     pure . fromMaybe (error "mockGalley: unexpected feature") $ cast feat
   _ -> error "mockGalley: unexpected call"
 
-uploadKind :: BackupKind -> UserId -> ClientId -> ClientId -> Word32 -> ByteString -> Sem Effs BackupFile
-uploadKind kind u z c e body =
-  uploadBackup (loc u) z c (BackupEpoch e) kind (fromIntegral (BS.length body)) (yield body)
+-- | Uploads a full file ('Nothing') or an incremental file under the given full file.
+uploadTo :: Maybe BackupFileId -> UserId -> ClientId -> ClientId -> Word32 -> ByteString -> Sem Effs BackupFile
+uploadTo base u z c e body =
+  uploadBackup (loc u) z c (BackupEpoch e) base (fromIntegral (BS.length body)) (yield body)
 
--- | Uploads a full file if the epoch has no files yet, an incremental one otherwise.
+uploadFull :: UserId -> ClientId -> ClientId -> Word32 -> ByteString -> Sem Effs BackupFile
+uploadFull = uploadTo Nothing
+
+-- | An incremental file under the given full file.
+uploadInc :: BackupFile -> UserId -> ClientId -> ClientId -> Word32 -> ByteString -> Sem Effs BackupFile
+uploadInc full = uploadTo (Just full.id)
+
+-- | Uploads a full file if the epoch has no files yet, an incremental one under the current full
+-- file otherwise.
 upload :: UserId -> ClientId -> ClientId -> Word32 -> ByteString -> Sem Effs BackupFile
 upload u z c e body = do
-  existing <- attempt (filesOf u z c e)
-  uploadKind (either (const BackupFull) (const BackupIncremental) existing) u z c e body
+  existing <- attempt (listFiles (loc u) z c (BackupEpoch e))
+  uploadTo (either (const Nothing) (Just . (.full.id)) existing) u z c e body
 
-uploadSizedKind :: BackupKind -> UserId -> ClientId -> Word32 -> Word64 -> Sem Effs BackupFile
-uploadSizedKind kind u c e n =
-  uploadBackup (loc u) c c (BackupEpoch e) kind n (yield (BS.replicate (fromIntegral n) 0))
-
+-- | An incremental file of the given size under the current full file.
 uploadSized :: UserId -> ClientId -> Word32 -> Word64 -> Sem Effs BackupFile
-uploadSized = uploadSizedKind BackupIncremental
+uploadSized u c e n = do
+  fs <- listFiles (loc u) c c (BackupEpoch e)
+  uploadBackup (loc u) c c (BackupEpoch e) (Just fs.full.id) n (yield (BS.replicate (fromIntegral n) 0))
+
+uploadSizedFull :: UserId -> ClientId -> Word32 -> Word64 -> Sem Effs BackupFile
+uploadSizedFull u c e n =
+  uploadBackup (loc u) c c (BackupEpoch e) Nothing n (yield (BS.replicate (fromIntegral n) 0))
 
 attempt :: Sem Effs a -> Sem Effs (Either BackupError a)
 attempt = try
@@ -239,10 +251,15 @@ epochsOf :: UserId -> ClientId -> ClientId -> Sem Effs [Word32]
 epochsOf u z c = map (.epoch.unBackupEpoch) . (.epochs) <$> listClientBackups (loc u) z c
 
 filesOf :: UserId -> ClientId -> ClientId -> Word32 -> Sem Effs [BackupFile]
-filesOf u z c e = (.files) <$> listFiles (loc u) z c (BackupEpoch e)
+filesOf u z c e = (\fs -> fs.full : fs.incrementals) <$> listFiles (loc u) z c (BackupEpoch e)
 
-locationOf :: UserId -> ClientId -> Word32 -> BackupFile -> BackupLocation
-locationOf u c e f = BackupLocation {user = u, client = c, epoch = BackupEpoch e, kind = f.kind, fileId = f.id}
+fullLoc :: UserId -> ClientId -> Word32 -> BackupFile -> BackupLocation
+fullLoc u c e f = BackupLocation {user = u, client = c, epoch = BackupEpoch e, file = FullFile f.id}
+
+-- | @incLoc u c e full f@: location of the incremental file @f@ under @full@
+incLoc :: UserId -> ClientId -> Word32 -> BackupFile -> BackupFile -> BackupLocation
+incLoc u c e full f =
+  BackupLocation {user = u, client = c, epoch = BackupEpoch e, file = IncrementalFile full.id f.id}
 
 spec :: Spec
 spec = describe "BackupSubsystem" $ do
@@ -251,10 +268,9 @@ spec = describe "BackupSubsystem" $ do
       f <- upload uA a1 a1 1 "hello"
       es <- epochsOf uA a2 a1
       fs <- filesOf uA a2 a1 1
-      url <- downloadUrl (loc uA) a2 a1 (BackupEpoch 1) f.kind f.id
+      url <- downloadUrl (loc uA) a2 a1 (BackupEpoch 1) f.id Nothing
       pure (f, es, fs, serializeURIRef' url)
     Right (f, es, fs, url) <- pure res
-    f.kind `shouldBe` BackupFull
     f.size `shouldBe` 5
     f.createdAt `shouldBe` toUTCTimeMillis t0
     es `shouldBe` [1]
@@ -268,18 +284,18 @@ spec = describe "BackupSubsystem" $ do
       epochsOf uA a1 a1
     res `shouldBe` Right [1, 2]
 
-  it "list files orders full first, then by id" $ do
+  it "list files: the full, then the incrementals by id" $ do
     (_, res) <- runBackup world0 Nothing $ do
       full <- upload uA a1 a1 1 "full"
       passTime 1
       inc1 <- upload uA a1 a1 1 "inc1"
       passTime 1
       inc2 <- upload uA a1 a1 1 "inc2"
-      fs <- filesOf uA a1 a1 1
+      fs <- listFiles (loc uA) a1 a1 (BackupEpoch 1)
       pure ([full, inc1, inc2], fs)
-    Right (uploaded, fs) <- pure res
-    fs `shouldBe` uploaded
-    map (.kind) fs `shouldBe` [BackupFull, BackupIncremental, BackupIncremental]
+    Right (uploaded, listed) <- pure res
+    listed `shouldBe` BackupFiles {full = head uploaded, incrementals = drop 1 uploaded}
+    let fs = listed.full : listed.incrementals
     map (.createdAt) fs `shouldBe` map toUTCTimeMillis [t0, addUTCTime 1 t0, addUTCTime 2 t0]
 
   it "list of empty epoch is not found" $ do
@@ -291,8 +307,8 @@ spec = describe "BackupSubsystem" $ do
       _ <- upload uA a1 a1 1 "full"
       f <- upload uA a1 a1 1 "incr"
       tooLarge <- attempt $ uploadSized uA a1 1 (10 * 1024 * 1024 + 1)
-      pure (f.kind, tooLarge)
-    fmap (fmap void) res `shouldBe` Right (BackupIncremental, Left BackupErrTooLarge)
+      pure (f.size, tooLarge)
+    fmap (fmap void) res `shouldBe` Right (4, Left BackupErrTooLarge)
 
   it "file count per epoch capped" $ do
     (_, res) <- runBackup world0 Nothing $ do
@@ -309,16 +325,16 @@ spec = describe "BackupSubsystem" $ do
     (_, res) <- runBackup world0 Nothing $ upload uA a1 a1 6 "x" >> epochsOf uA a1 a1
     res `shouldBe` Right [6]
 
-  it "download needs matching kind" $ do
+  it "download of an incremental file needs its full file" $ do
     (_, res) <- runBackup world0 Nothing $ do
       f <- upload uA a1 a1 1 "x"
-      attempt (downloadUrl (loc uA) a1 a1 (BackupEpoch 1) BackupIncremental f.id)
+      attempt (downloadUrl (loc uA) a1 a1 (BackupEpoch 1) f.id (Just f.id))
     void <$> res `shouldBe` Right (Left BackupErrNotFound)
 
   it "download of missing file is not found" $ do
     (_, res) <- runBackup world0 Nothing $ do
       f <- upload uA a1 a1 1 "x"
-      attempt (downloadUrl (loc uA) a1 a1 (BackupEpoch 2) f.kind f.id)
+      attempt (downloadUrl (loc uA) a1 a1 (BackupEpoch 2) f.id Nothing)
     void <$> res `shouldBe` Right (Left BackupErrNotFound)
 
   it "mutating other device forbidden" $ do
@@ -344,36 +360,36 @@ spec = describe "BackupSubsystem" $ do
       modify (\w -> w {feature = FeatureStatusDisabled})
       blocked <- attempt $ upload uA a1 a1 1 "y"
       es <- epochsOf uA a2 a1
-      _ <- downloadUrl (loc uA) a2 a1 (BackupEpoch 1) f.kind f.id
+      _ <- downloadUrl (loc uA) a2 a1 (BackupEpoch 1) f.id Nothing
       pure (void blocked, es)
     res `shouldBe` Right (Left BackupErrFeatureDisabled, [1])
     Map.size blobs `shouldBe` 1
 
   it "client gone after PUT: rolled back, no version left" $ do
-    (blobs, res) <- runBackup world0 {dropA1From = Just 2} Nothing $ uploadKind BackupFull uA a1 a1 1 "x"
+    (blobs, res) <- runBackup world0 {dropA1From = Just 2} Nothing $ uploadFull uA a1 a1 1 "x"
     void res `shouldBe` Left BackupErrForbidden
     blobs `shouldBe` mempty
 
   it "failing client re-check (non-BackupError) rolls back, original error surfaced" $ do
-    (blobs, res) <- runBackupWithFailures world0 {failLookupFrom = Just 2} Nothing $ uploadKind BackupFull uA a1 a1 1 "x"
+    (blobs, res) <- runBackupWithFailures world0 {failLookupFrom = Just 2} Nothing $ uploadFull uA a1 a1 1 "x"
     void <$> res `shouldBe` Left BrigDown
     blobs `shouldBe` mempty
 
   it "failing rollback does not mask the original error" $ do
     let w = world0 {failLookupFrom = Just 2, failDelete = True}
-    (blobs, res) <- runBackupWithFailures w Nothing $ uploadKind BackupFull uA a1 a1 1 "x"
+    (blobs, res) <- runBackupWithFailures w Nothing $ uploadFull uA a1 a1 1 "x"
     void <$> res `shouldBe` Left BrigDown
     Map.size blobs `shouldBe` 1
 
   it "failing rollback after client gone surfaces forbidden" $ do
     let w = world0 {dropA1From = Just 2, failDelete = True}
-    (_, res) <- runBackupWithFailures w Nothing $ uploadKind BackupFull uA a1 a1 1 "x"
+    (_, res) <- runBackupWithFailures w Nothing $ uploadFull uA a1 a1 1 "x"
     void <$> res `shouldBe` Right (Left BackupErrForbidden)
 
   it "incomplete body leaves no version" $ do
     (blobs, res) <-
       runBackup world0 Nothing $
-        uploadBackup (loc uA) a1 a1 (BackupEpoch 1) BackupFull 10 (yield "abc")
+        uploadBackup (loc uA) a1 a1 (BackupEpoch 1) Nothing 10 (yield "abc")
     void res `shouldBe` Left BackupErrIncompleteBody
     blobs `shouldBe` mempty
 
@@ -382,7 +398,7 @@ spec = describe "BackupSubsystem" $ do
       _ <- upload uA a1 a1 1 "x"
       g <- upload uA a2 a2 1 "y"
       internalDeleteClientBackups uA a1
-      pure (locationOf uA a2 1 g)
+      pure (fullLoc uA a2 1 g)
     Right kept <- pure res
     Map.keys blobs `shouldBe` [kept]
 
@@ -392,7 +408,7 @@ spec = describe "BackupSubsystem" $ do
       _ <- upload uA a2 a2 1 "y"
       g <- upload uB b1 b1 1 "z"
       internalDeleteUserBackups uA
-      pure (locationOf uB b1 1 g)
+      pure (fullLoc uB b1 1 g)
     Right kept <- pure res
     Map.keys blobs `shouldBe` [kept]
 
@@ -403,62 +419,95 @@ spec = describe "BackupSubsystem" $ do
     out <-
       timeout 10_000_000 . runBackup world0 (Just consumed) $
         let len = fromIntegral (n * size)
-         in uploadBackup (loc uA) a1 a1 (BackupEpoch 1) BackupFull len (lockstepSource consumed n size)
+         in uploadBackup (loc uA) a1 a1 (BackupEpoch 1) Nothing len (lockstepSource consumed n size)
     Just (blobs, res) <- pure out
     void res `shouldBe` Right ()
     map (map snd) (Map.elems blobs)
       `shouldBe` [[Just (BS.concat [BS.replicate size (fromIntegral i) | i <- [0 .. n - 1]])]]
 
-  describe "explicit kinds" $ do
-    it "incremental needs a full" $ do
-      (_, res) <- runBackup world0 Nothing $ attempt (uploadKind BackupIncremental uA a1 a1 1 "inc")
+  describe "incremental files" $ do
+    it "need a full file" $ do
+      (blobs, res) <-
+        runBackup world0 Nothing $
+          attempt (uploadTo (Just (BackupFileId UUID.nil)) uA a1 a1 1 "inc")
       void <$> res `shouldBe` Right (Left BackupErrFullMissing)
+      blobs `shouldBe` mempty
 
-    it "incremental after full is accepted" $ do
+    it "are accepted under the full file" $ do
       (_, res) <- runBackup world0 Nothing $ do
-        _ <- uploadKind BackupFull uA a1 a1 1 "full"
-        f <- uploadKind BackupIncremental uA a1 a1 1 "inc"
+        full <- uploadFull uA a1 a1 1 "full"
+        f <- uploadInc full uA a1 a1 1 "inc"
         fs <- filesOf uA a1 a1 1
-        pure (f.kind, length fs)
-      res `shouldBe` Right (BackupIncremental, 2)
+        pure (f.size, length fs)
+      res `shouldBe` Right (3, 2)
+
+    it "are rejected under an older full file" $ do
+      (blobs, res) <- runBackup world0 Nothing $ do
+        old <- uploadFull uA a1 a1 1 "old"
+        passTime 1
+        new <- uploadFull uA a1 a1 1 "new"
+        rejected <- attempt (uploadInc old uA a1 a1 1 "inc")
+        pure (new, void rejected)
+      Right (new, rejected) <- pure res
+      rejected `shouldBe` Left BackupErrFullMissing
+      Map.keys blobs `shouldBe` [fullLoc uA a1 1 new]
+
+    it "of a full file that lost a race are never listed and removed by the next upload" $ do
+      -- the race: the incremental file passed the check against the old full file, a newer full
+      -- file was stored and pruned, then the incremental file was stored with a greater id
+      (blobs, res) <- runBackup world0 Nothing $ do
+        old <- uploadFull uA a1 a1 1 "old"
+        passTime 1
+        new <- uploadFull uA a1 a1 1 "new"
+        passTime 1
+        let orphan = BackupFileId (UUID.fromWords64 maxBound maxBound)
+            l = BackupLocation {user = uA, client = a1, epoch = BackupEpoch 1, file = IncrementalFile old.id orphan}
+        modify (Map.insert l [(1, Just "orphan")])
+        listed <- filesOf uA a1 a1 1
+        passTime 1
+        inc <- uploadInc new uA a1 a1 1 "inc"
+        pure (new, inc, listed)
+      Right (new, inc, listed) <- pure res
+      listed `shouldBe` [new]
+      Map.keys blobs `shouldMatchList` [fullLoc uA a1 1 new, incLoc uA a1 1 new inc]
 
     it "oversize full is rejected" $ do
       (blobs, res) <-
         runBackup world0 Nothing $
-          attempt (uploadSizedKind BackupFull uA a1 1 (1024 * 1024 * 1024 + 1))
+          attempt (uploadSizedFull uA a1 1 (1024 * 1024 * 1024 + 1))
       void <$> res `shouldBe` Right (Left BackupErrTooLarge)
       blobs `shouldBe` mempty
 
   describe "newest full wins" $ do
     it "a new full replaces the old full and its incrementals" $ do
       (blobs, res) <- runBackup world0 Nothing $ do
-        old <- uploadKind BackupFull uA a1 a1 1 "old"
+        old <- uploadFull uA a1 a1 1 "old"
         passTime 1
-        oldInc <- uploadKind BackupIncremental uA a1 a1 1 "oldinc"
+        oldInc <- uploadInc old uA a1 a1 1 "oldinc"
         passTime 1
-        new <- uploadKind BackupFull uA a1 a1 1 "new"
+        new <- uploadFull uA a1 a1 1 "new"
         passTime 1
-        newInc <- uploadKind BackupIncremental uA a1 a1 1 "newinc"
+        newInc <- uploadInc new uA a1 a1 1 "newinc"
         fs <- filesOf uA a1 a1 1
-        pure ((old, oldInc), (new, newInc), fs)
-      Right ((old, oldInc), (new, newInc), fs) <- pure res
+        pure (old, oldInc, new, newInc, fs)
+      Right (old, oldInc, new, newInc, fs) <- pure res
       fs `shouldBe` [new, newInc]
       Map.keys blobs
-        `shouldMatchList` [locationOf uA a1 1 new, locationOf uA a1 1 newInc]
-      Map.member (locationOf uA a1 1 old) blobs `shouldBe` False
-      Map.member (locationOf uA a1 1 oldInc) blobs `shouldBe` False
+        `shouldMatchList` [fullLoc uA a1 1 new, incLoc uA a1 1 new newInc]
+      Map.member (fullLoc uA a1 1 old) blobs `shouldBe` False
+      Map.member (incLoc uA a1 1 old oldInc) blobs `shouldBe` False
 
     it "an older full finishing late deletes itself" $ do
       (blobs, res) <- runBackup world0 Nothing $ do
         passTime 1
-        newer <- uploadKind BackupFull uA a1 a1 1 "newer"
+        newer <- uploadFull uA a1 a1 1 "newer"
         passTime (-5)
-        older <- uploadKind BackupFull uA a1 a1 1 "older"
+        older <- uploadFull uA a1 a1 1 "older"
         fs <- filesOf uA a1 a1 1
         pure (newer, older, fs)
       Right (newer, older, fs) <- pure res
       fs `shouldBe` [newer]
-      Map.member (locationOf uA a1 1 older) blobs `shouldBe` False
+      Map.member (fullLoc uA a1 1 older) blobs `shouldBe` False
 
     it "only the two newest epochs are kept" $ do
       (_, res) <- runBackup world0 Nothing $ do
@@ -493,13 +542,13 @@ spec = describe "BackupSubsystem" $ do
 
     it "summarises only the current files" $ do
       (_, res) <- runBackup world0 Nothing $ do
-        _ <- uploadKind BackupFull uA a1 a1 1 "old"
+        old <- uploadFull uA a1 a1 1 "old"
         passTime 1
-        _ <- uploadKind BackupIncremental uA a1 a1 1 "oldinc"
+        _ <- uploadInc old uA a1 a1 1 "oldinc"
         passTime 1
-        new <- uploadKind BackupFull uA a1 a1 1 "new!"
+        new <- uploadFull uA a1 a1 1 "new!"
         passTime 1
-        inc <- uploadKind BackupIncremental uA a1 a1 1 "ii"
+        inc <- uploadInc new uA a1 a1 1 "ii"
         UserBackups cs <- listUserBackups (loc uA) a1
         pure (new, inc, cs)
       Right (new, inc, cs) <- pure res
@@ -528,35 +577,34 @@ spec = describe "BackupSubsystem" $ do
       void res `shouldBe` Left BackupErrNotFound
 
   describe "failed uploads leave nothing behind" $ do
-    let both :: (BackupKind -> Spec) -> Spec
-        both t = traverse_ t [BackupFull, BackupIncremental]
-        -- a full file exists first, so that incrementals are allowed; epoch 2 is the target
-        prepare = uploadKind BackupFull uA a1 a1 2 "base"
-        target kind = case kind of
-          BackupFull -> 1 :: Word32
-          BackupIncremental -> 2
-        baseWorld kind = if kind == BackupFull then pure () else void prepare
-        expectedBlobs kind = if kind == BackupFull then 0 else 1
-    both $ \kind ->
-      it ("brig says client gone: " <> show kind) $ do
-        (blobs, res) <- runBackup world0 {dropA1From = Just (if kind == BackupFull then 2 else 4)} Nothing $ do
-          baseWorld kind
-          void <$> attempt (uploadKind kind uA a1 a1 (target kind) "x")
+    let both :: (Bool -> Spec) -> Spec
+        both t = traverse_ t [True, False]
+        -- incrementals need a full file first: epoch 2 holds it and is the target
+        target full = if full then 1 else 2 :: Word32
+        -- the full file the incremental upload extends
+        prepare full = if full then pure Nothing else Just . (.id) <$> uploadFull uA a1 a1 2 "base"
+        expectedBlobs full = if full then 0 else 1
+        name full = if full then "full" else "incremental"
+    both $ \full ->
+      it ("brig says client gone: " <> name full) $ do
+        (blobs, res) <- runBackup world0 {dropA1From = Just (if full then 2 else 4)} Nothing $ do
+          base <- prepare full
+          void <$> attempt (uploadTo base uA a1 a1 (target full) "x")
         res `shouldBe` Right (Left BackupErrForbidden)
-        Map.size blobs `shouldBe` expectedBlobs kind
-    both $ \kind ->
-      it ("short body: " <> show kind) $ do
+        Map.size blobs `shouldBe` expectedBlobs full
+    both $ \full ->
+      it ("short body: " <> name full) $ do
         (blobs, res) <- runBackup world0 Nothing $ do
-          baseWorld kind
+          base <- prepare full
           void
-            <$> attempt (uploadBackup (loc uA) a1 a1 (BackupEpoch (target kind)) kind 10 (yield "abc"))
+            <$> attempt (uploadBackup (loc uA) a1 a1 (BackupEpoch (target full)) base 10 (yield "abc"))
         res `shouldBe` Right (Left BackupErrIncompleteBody)
-        Map.size blobs `shouldBe` expectedBlobs kind
-    both $ \kind ->
-      it ("store failure after the object was stored: " <> show kind) $ do
+        Map.size blobs `shouldBe` expectedBlobs full
+    both $ \full ->
+      it ("store failure after the object was stored: " <> name full) $ do
         (blobs, res) <- runBackupWithFailures world0 Nothing $ do
-          baseWorld kind
+          base <- prepare full
           modify (\w -> w {failAfterPut = True})
-          void <$> try @MockFailure (uploadKind kind uA a1 a1 (target kind) "x")
+          void <$> try @MockFailure (uploadTo base uA a1 a1 (target full) "x")
         fmap (either (error . show) Function.id) res `shouldBe` Right (Left StoreDown)
-        Map.size blobs `shouldBe` expectedBlobs kind
+        Map.size blobs `shouldBe` expectedBlobs full

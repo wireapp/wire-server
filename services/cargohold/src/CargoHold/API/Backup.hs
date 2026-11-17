@@ -22,13 +22,12 @@ import Polysemy
 import Servant.API
 import Servant.Server (ServerT)
 import Wire.API.Asset (AssetLocation (..))
-import Wire.API.Backup (BackupKind (..))
 import Wire.API.Routes.AssetBody (AssetSource (..))
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
 import Wire.BackupSubsystem
 
--- | 'backup-download' never answers 'Nothing': a missing file is thrown as 'BackupErrNotFound'
+-- | The download routes never answer 'Nothing': a missing file is thrown as 'BackupErrNotFound'
 -- like in @assets-download@. The list routes never throw 'BackupErrForbidden' (the subsystem only
 -- checks read access there), but all routes may throw 'BackupErrFeatureDisabled' when the
 -- backup feature is disabled (no HMAC key configured).
@@ -36,9 +35,11 @@ backupServer :: (Member BackupSubsystem r) => ServerT BackupAPI (Sem r)
 backupServer =
   Named @"backup-list" listUserBackups
     :<|> Named @"backup-list-client" listClientBackups
-    :<|> Named @"backup-upload-full" (upload BackupFull)
-    :<|> Named @"backup-upload-incremental" (upload BackupIncremental)
+    :<|> Named @"backup-upload-full" (\u z c e len body -> upload u z c e Nothing len body)
+    :<|> Named @"backup-upload-incremental" (\u z c e full len body -> upload u z c e (Just full) len body)
     :<|> Named @"backup-list-files" listFiles
-    :<|> Named @"backup-download" (\u z c e k fid -> Just . AssetLocation <$> downloadUrl u z c e k fid)
+    :<|> Named @"backup-download-full" (\u z c e full -> download u z c e full Nothing)
+    :<|> Named @"backup-download-incremental" (\u z c e full i -> download u z c e full (Just i))
   where
-    upload kind u z c e len body = uploadBackup u z c e kind len body.getAssetSource
+    upload u z c e base len body = uploadBackup u z c e base len body.getAssetSource
+    download u z c e full i = Just . AssetLocation <$> downloadUrl u z c e full i

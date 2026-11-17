@@ -18,7 +18,6 @@
 module Wire.API.Backup
   ( BackupEpoch (..),
     BackupFileId (..),
-    BackupKind (..),
     BackupFile (..),
     BackupFiles (..),
     EpochSummary (..),
@@ -27,7 +26,6 @@ module Wire.API.Backup
   )
 where
 
-import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, uuidSchema)
 import Data.Json.Util (UTCTimeMillis)
@@ -65,37 +63,8 @@ newtype BackupFileId = BackupFileId {unBackupFileId :: UUID}
 instance ToSchema BackupFileId where
   schema = BackupFileId <$> unBackupFileId .= uuidSchema
 
-data BackupKind = BackupFull | BackupIncremental
-  deriving stock (Eq, Ord, Show, Generic, Bounded, Enum)
-  deriving (Arbitrary) via (GenericUniform BackupKind)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BackupKind)
-
-instance ToSchema BackupKind where
-  schema =
-    enum @Text $
-      mconcat
-        [ element "full" BackupFull,
-          element "incremental" BackupIncremental
-        ]
-
-instance ToHttpApiData BackupKind where
-  toUrlPiece BackupFull = "full"
-  toUrlPiece BackupIncremental = "incremental"
-
-instance FromHttpApiData BackupKind where
-  parseUrlPiece "full" = Right BackupFull
-  parseUrlPiece "incremental" = Right BackupIncremental
-  parseUrlPiece _ = Left "backup kind must be full or incremental"
-
-instance S.ToParamSchema BackupKind where
-  toParamSchema _ =
-    mempty
-      & S.type_ ?~ S.OpenApiString
-      & S.enum_ ?~ ["full", "incremental"]
-
 data BackupFile = BackupFile
   { id :: BackupFileId,
-    kind :: BackupKind,
     size :: Word64,
     createdAt :: UTCTimeMillis
   }
@@ -108,19 +77,25 @@ instance ToSchema BackupFile where
     object $
       BackupFile
         <$> (.id) .= field "id" schema
-        <*> (.kind) .= field "kind" schema
         <*> (.size) .= field "size" schema
         <*> (.createdAt) .= field "createdAt" schema
 
-newtype BackupFiles = BackupFiles {files :: [BackupFile]}
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
+-- | The current files of an epoch: the newest full file and the incremental files stored under
+-- it (by id). The id of the full file is the @fullId@ in the paths of all of these files.
+data BackupFiles = BackupFiles
+  { full :: BackupFile,
+    incrementals :: [BackupFile]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BackupFiles)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BackupFiles)
 
 instance ToSchema BackupFiles where
   schema =
     object $
-      BackupFiles <$> (.files) .= field "files" (array schema)
+      BackupFiles
+        <$> (.full) .= field "full" schema
+        <*> (.incrementals) .= field "incrementals" (array schema)
 
 -- | Summary of the current files of one epoch: the newest full file and the incremental files
 -- after it.

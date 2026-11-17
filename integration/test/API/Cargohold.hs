@@ -457,18 +457,18 @@ listClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String
 listClientBackups user zcid cid =
   backupRequest user zcid cid "" >>= submit "GET"
 
--- | @kind@ is @"full"@ or @"incremental"@.
+-- | A full file ('Nothing') or an incremental file under the full file with the given id.
 uploadBackup ::
   (HasCallStack, MakesValue user) =>
   user ->
   String ->
   String ->
   Word32 ->
-  String ->
+  Maybe String ->
   ByteString ->
   App Response
-uploadBackup user zcid cid epoch kind bs =
-  uploadBackupBody user zcid cid epoch kind (HTTP.RequestBodyBS bs)
+uploadBackup user zcid cid epoch base bs =
+  uploadBackupBody user zcid cid epoch base (HTTP.RequestBodyBS bs)
 
 -- | The body decides whether a Content-Length header is sent: 'HTTP.RequestBodyBS' and
 -- 'HTTP.RequestBodyStream' send one, 'HTTP.RequestBodyStreamChunked' does not.
@@ -478,18 +478,19 @@ uploadBackupBody ::
   String ->
   String ->
   Word32 ->
-  String ->
+  Maybe String ->
   HTTP.RequestBody ->
   App Response
-uploadBackupBody user zcid cid epoch kind body = do
-  req <- backupRequest user zcid cid ("/epochs/" <> show epoch <> "/" <> kind)
+uploadBackupBody user zcid cid epoch base body = do
+  req <- backupRequest user zcid cid ("/epochs/" <> show epoch <> maybe "/full" (\f -> "/full/" <> f <> "/incremental") base)
   submit "POST" $ req & addBody body "application/octet-stream"
 
 listBackupFiles :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App Response
 listBackupFiles user zcid cid epoch =
   backupRequest user zcid cid ("/epochs/" <> show epoch) >>= submit "GET"
 
--- | Does not follow the redirect: the response is a 302 with a Location header.
+-- | The full file with the given id, or the incremental file under it. Does not follow the
+-- redirect: the response is a 302 with a Location header.
 downloadBackupFile ::
   (HasCallStack, MakesValue user) =>
   user ->
@@ -497,8 +498,8 @@ downloadBackupFile ::
   String ->
   Word32 ->
   String ->
-  String ->
+  Maybe String ->
   App Response
-downloadBackupFile user zcid cid epoch kind fileId =
-  backupRequest user zcid cid ("/epochs/" <> show epoch <> "/files/" <> kind <> "/" <> fileId)
+downloadBackupFile user zcid cid epoch fullId incremental =
+  backupRequest user zcid cid ("/epochs/" <> show epoch <> "/full/" <> fullId <> maybe "" ("/incremental/" <>) incremental)
     >>= submit "GET"

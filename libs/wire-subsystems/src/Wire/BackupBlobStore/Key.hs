@@ -16,11 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Pure S3 key layout of automatic backups:
--- @backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<kind>/<id>@.
+-- @backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<fullId>/full@ and
+-- @backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<fullId>/incremental/<id>@.
 -- Layout is fixed forever once released.
 module Wire.BackupBlobStore.Key
   ( BackupHmacKey,
     mkBackupHmacKey,
+    BackupFileRef (..),
+    fileRefId,
     BackupLocation (..),
     BackupPrefix (..),
     renderKey,
@@ -54,12 +57,23 @@ mkBackupHmacKey bs
   | BS.length bs < 32 = Left "backup HMAC key must be at least 32 bytes"
   | otherwise = Right (BackupHmacKey bs)
 
+-- | A file of an epoch. An incremental file is stored under the full file it extends.
+data BackupFileRef
+  = FullFile BackupFileId
+  | -- | The full file it extends, its own id
+    IncrementalFile BackupFileId BackupFileId
+  deriving (Eq, Ord, Show)
+
+-- | The id of the file itself.
+fileRefId :: BackupFileRef -> BackupFileId
+fileRefId (FullFile i) = i
+fileRefId (IncrementalFile _ i) = i
+
 data BackupLocation = BackupLocation
   { user :: UserId,
     client :: ClientId,
     epoch :: BackupEpoch,
-    kind :: BackupKind,
-    fileId :: BackupFileId
+    file :: BackupFileRef
   }
   deriving (Eq, Ord, Show)
 
@@ -80,15 +94,6 @@ userSeg k = hmacHex k . idToText
 clientSeg :: BackupHmacKey -> ClientId -> Text
 clientSeg k = hmacHex k . clientToText
 
-renderKind :: BackupKind -> Text
-renderKind BackupFull = "full"
-renderKind BackupIncremental = "incremental"
-
-parseKind :: Text -> Maybe BackupKind
-parseKind "full" = Just BackupFull
-parseKind "incremental" = Just BackupIncremental
-parseKind _ = Nothing
-
 renderPrefix :: BackupHmacKey -> BackupPrefix -> Text
 renderPrefix k = \case
   UserPrefix u -> "backup/" <> userSeg k u <> "/"
@@ -97,10 +102,12 @@ renderPrefix k = \case
 
 renderKey :: BackupHmacKey -> BackupLocation -> Text
 renderKey k loc =
-  renderPrefix k (EpochPrefix loc.user loc.client loc.epoch)
-    <> renderKind loc.kind
-    <> "/"
-    <> UUID.toText (unBackupFileId loc.fileId)
+  renderPrefix k (EpochPrefix loc.user loc.client loc.epoch) <> case loc.file of
+    FullFile f -> uuidText f <> "/full"
+    IncrementalFile f i -> uuidText f <> "/incremental/" <> uuidText i
+
+uuidText :: BackupFileId -> Text
+uuidText = UUID.toText . unBackupFileId
 
 -- | Parses a CommonPrefix returned for a 'ClientPrefix' listing, e.g. "<clientPrefix>7/".
 parseEpochPrefix :: Text -> Text -> Maybe BackupEpoch
@@ -110,17 +117,19 @@ parseEpochPrefix clientPrefix cp = do
   parseCanonicalEpoch seg
 
 -- | Parses a key returned for an 'EpochPrefix' listing.
-parseFileKey :: Text -> Text -> Maybe (BackupKind, BackupFileId)
+parseFileKey :: Text -> Text -> Maybe BackupFileRef
 parseFileKey epochPrefix key = do
   rest <- T.stripPrefix epochPrefix key
   case T.splitOn "/" rest of
-    [kindSeg, idSeg] -> do
-      kind <- parseKind kindSeg
-      uuid <- UUID.fromText idSeg
-      -- canonical lowercase text only
-      guard (UUID.toText uuid == idSeg)
-      pure (kind, BackupFileId uuid)
+    [f, "full"] -> FullFile <$> parseId f
+    [f, "incremental", i] -> IncrementalFile <$> parseId f <*> parseId i
     _ -> Nothing
+  where
+    -- canonical lowercase text only
+    parseId t = do
+      uuid <- UUID.fromText t
+      guard (UUID.toText uuid == t)
+      pure (BackupFileId uuid)
 
 -- | Plain decimal, no padding, >= 1, fits 'Word32'.
 parseCanonicalEpoch :: Text -> Maybe BackupEpoch

@@ -85,7 +85,7 @@ interpreter onChunk = interpret $ \case
     either (error . show) pure
       . parseURI strictURIParserOptions
       . Text.encodeUtf8
-      $ "https://blob.test/" <> UUID.toText (unBackupFileId l.fileId)
+      $ "https://blob.test/" <> UUID.toText (unBackupFileId (fileRefId l.file))
   ListBlobEpochs u c -> do
     files <- gets (Map.keys . live)
     pure
@@ -96,7 +96,7 @@ interpreter onChunk = interpret $ \case
   ListBlobs u c e ->
     gets $
       reverse
-        . map (\(l, b) -> BackupBlob {kind = l.kind, fileId = l.fileId, size = fromIntegral (BS.length b)})
+        . map (\(l, b) -> BackupBlob {file = l.file, size = fromIntegral (BS.length b)})
         . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
         . Map.toList
         . live

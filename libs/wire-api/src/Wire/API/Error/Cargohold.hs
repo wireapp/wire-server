@@ -72,4 +72,4 @@ type instance MapError 'BackupForbidden = 'StaticError 403 "backup-forbidden" "B
 
 type instance MapError 'BackupNotFound = 'StaticError 404 "backup-not-found" "Backup not found"
 
-type instance MapError 'BackupFullMissing = 'StaticError 409 "backup-full-missing" "The epoch has no full backup yet"
+type instance MapError 'BackupFullMissing = 'StaticError 409 "backup-full-missing" "The epoch has no such newest full backup"

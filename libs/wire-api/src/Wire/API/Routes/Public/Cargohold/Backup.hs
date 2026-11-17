@@ -60,18 +60,18 @@ type FullUploadDescription =
   \the older epochs are deleted."
 
 type IncrementalUploadDescription =
-  "Requires a full backup in the epoch (`backup-full-missing`). Do not upload incremental \
-  \files while a new full backup of the epoch is being uploaded: they are deleted when the \
-  \full backup is stored. A failed or aborted upload leaves no file behind."
+  "Extends the full backup `fullId`, which must be the newest full backup of the epoch \
+  \(`backup-full-missing` otherwise: upload a new full backup instead). A failed or aborted \
+  \upload leaves no file behind."
 
 type ListFilesDescription =
-  "Lists the newest full backup of the epoch and the incremental files after it. Presigned \
+  "Lists the newest full backup of the epoch and the incremental files stored under it. Presigned \
   \URLs are bearer links valid for `downloadLinkTTL` seconds and expiry is checked at request \
   \start, so the list returns no URLs and each file is fetched via its own redirect."
 
 type ListBackupsDescription =
   "Lists the restorable backups of all clients of the user: per client its epochs, per epoch \
-  \a summary of the newest full backup and the incremental files after it (newest creation \
+  \a summary of the newest full backup and the incremental files stored under it (newest creation \
   \time, number of files, total size). Epochs without a full backup and clients without any \
   \are omitted. Clients are ordered by their newest backup, newest first. The files of an \
   \epoch are listed by `backup-list-files`."
@@ -150,6 +150,8 @@ type BackupAPI =
                :> Capture "cid" ClientId
                :> "epochs"
                :> Capture "epoch" BackupEpoch
+               :> "full"
+               :> Capture "fullId" BackupFileId
                :> "incremental"
                :> Header' '[Required, Strict] "Content-Length" Word64
                :> BackupBody
@@ -172,8 +174,8 @@ type BackupAPI =
                :> Get '[JSON] BackupFiles
            )
     :<|> Named
-           "backup-download"
-           ( Summary "Download a backup file"
+           "backup-download-full"
+           ( Summary "Download the full backup file of an epoch"
                :> From 'V19
                :> Description DownloadLinkDescription
                :> CanThrow 'BackupNotFound
@@ -185,8 +187,31 @@ type BackupAPI =
                :> Capture "cid" ClientId
                :> "epochs"
                :> Capture "epoch" BackupEpoch
-               :> "files"
-               :> Capture "kind" BackupKind
+               :> "full"
+               :> Capture "fullId" BackupFileId
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ErrorResponse 'BackupNotFound, BackupRedirect]
+                    (Maybe (AssetLocation Absolute))
+           )
+    :<|> Named
+           "backup-download-incremental"
+           ( Summary "Download an incremental backup file of an epoch"
+               :> From 'V19
+               :> Description DownloadLinkDescription
+               :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFeatureDisabled
+               :> ZLocalUser
+               :> ZClient
+               :> "backups"
+               :> "clients"
+               :> Capture "cid" ClientId
+               :> "epochs"
+               :> Capture "epoch" BackupEpoch
+               :> "full"
+               :> Capture "fullId" BackupFileId
+               :> "incremental"
                :> Capture "id" BackupFileId
                :> MultiVerb
                     'GET

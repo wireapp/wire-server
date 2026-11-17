@@ -63,7 +63,8 @@ data BackupSubsystem m a where
     ClientId ->
     ClientId ->
     BackupEpoch ->
-    BackupKind ->
+    -- | The full file an incremental file extends, 'Nothing' for a full file
+    Maybe BackupFileId ->
     -- | Declared @Content-Length@
     Word64 ->
     ConduitT () ByteString (ResourceT IO) () ->
@@ -74,8 +75,10 @@ data BackupSubsystem m a where
     ClientId ->
     ClientId ->
     BackupEpoch ->
-    BackupKind ->
+    -- | The full file
     BackupFileId ->
+    -- | The incremental file under it, 'Nothing' for the full file itself
+    Maybe BackupFileId ->
     BackupSubsystem m URI
   InternalDeleteClientBackups :: UserId -> ClientId -> BackupSubsystem m ()
   InternalDeleteUserBackups :: UserId -> BackupSubsystem m ()

@@ -67,17 +67,17 @@ interpretBackupSubsystem = interpret $ \case
     let uid = tUnqualified luid
     checkRead uid zcid cid
     clientBackups uid cid
-  UploadBackup luid zcid cid e kind len src ->
-    uploadBackupImpl (tUnqualified luid) zcid cid e kind len src
+  UploadBackup luid zcid cid e base len src ->
+    uploadBackupImpl (tUnqualified luid) zcid cid e base len src
   ListFiles luid zcid cid e -> do
     let uid = tUnqualified luid
     checkRead uid zcid cid
-    files <- map toFile . currentBlobs <$> listBlobs uid cid e
-    when (null files) $ throw BackupErrNotFound
-    pure (BackupFiles files)
-  DownloadUrl luid zcid cid e kind fid -> do
+    (full, incrementals) <- listBlobs uid cid e >>= note BackupErrNotFound . currentFiles
+    pure BackupFiles {full = toFile full, incrementals = map toFile incrementals}
+  DownloadUrl luid zcid cid e fullId incremental -> do
     let uid = tUnqualified luid
-        l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
+        file = maybe (FullFile fullId) (IncrementalFile fullId) incremental
+        l = BackupLocation {user = uid, client = cid, epoch = e, file}
     checkRead uid zcid cid
     unlessM (blobExists l) $ throw BackupErrNotFound
     signedDownloadUrl l
@@ -99,10 +99,13 @@ interpretBackupSubsystem = interpret $ \case
 -- list-after-write consistency.
 --
 -- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
--- new full file replaces the previous one. The newest full file (greatest id) wins; after storing,
--- a full file deletes the full file and the incremental files it superseded, and all
--- files of all but the two newest epochs. An incremental file deletes nothing.
--- Concurrent full uploads prune each other, a late older one deletes itself.
+-- new full file replaces the previous one. The newest full file (greatest id) wins. An
+-- incremental file is stored under the full file it extends, which must be the newest one, so it
+-- cannot belong to a full file that is still uploading. After storing, every upload deletes what
+-- the newest full file superseded: older full files, and incremental files under them, also
+-- orphans of an incremental upload that raced a newer full file. A full file also deletes all
+-- files of all but the two newest epochs. Concurrent full uploads prune each other, a late older
+-- one deletes itself.
 uploadBackupImpl ::
   ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
@@ -118,11 +121,11 @@ uploadBackupImpl ::
   ClientId ->
   ClientId ->
   BackupEpoch ->
-  BackupKind ->
+  Maybe BackupFileId ->
   Word64 ->
   ConduitT () ByteString (ResourceT IO) () ->
   Sem r BackupFile
-uploadBackupImpl uid zcid cid e kind len src = do
+uploadBackupImpl uid zcid cid e base len src = do
   checkWrite uid zcid cid
   tid <- getUsers [uid] >>= note BackupErrFeatureDisabled . (userTeam <=< listToMaybe)
   feat <- getFeatureConfigForTeam @_ @AutomaticBackupsConfig tid
@@ -130,19 +133,17 @@ uploadBackupImpl uid zcid cid e kind len src = do
   limits <- input
   epochs <- Set.fromList <$> listBlobEpochs uid cid
   blobs <- listBlobs uid cid e
-  let current = currentBlobs blobs
-      hasFull = any ((== BackupFull) . (.kind)) current
-  either (throw . rejectionError) pure $
-    checkUpload limits kind epochs hasFull (fromIntegral (length current)) e len
+  either (throw . rejectionError) pure $ checkUpload limits base epochs blobs e len
   fid <- BackupFileId <$> (uuidV7 <$> Now.get <*> Random.uuid)
-  let l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
-  store l
-  when (kind == BackupFull) $ do
-    listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
-    traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $ Set.insert e epochs
-  pure (toFile BackupBlob {kind, fileId = fid, size = len})
+  let file = maybe (FullFile fid) (`IncrementalFile` fid) base
+  store BackupLocation {user = uid, client = cid, epoch = e, file}
+  listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
+  when (isNothing base) $
+    traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $
+      Set.insert e epochs
+  pure (toFile BackupBlob {file, size = len})
   where
-    location b = BackupLocation {user = uid, client = cid, epoch = e, kind = b.kind, fileId = b.fileId}
+    location b = BackupLocation {user = uid, client = cid, epoch = e, file = b.file}
     store l = do
       let put = void (putBlob l len src) `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
           recheck = do

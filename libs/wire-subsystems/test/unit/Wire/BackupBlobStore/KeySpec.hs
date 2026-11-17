@@ -42,7 +42,7 @@ fid1 :: BackupFileId
 fid1 = BackupFileId (fromJust (UUID.fromText "018f0000-0000-7000-8000-000000000000"))
 
 loc1 :: BackupLocation
-loc1 = BackupLocation {user = uid1, client = cid1, epoch = BackupEpoch 7, kind = BackupFull, fileId = fid1}
+loc1 = BackupLocation {user = uid1, client = cid1, epoch = BackupEpoch 7, file = FullFile fid1}
 
 genLoc :: Gen BackupLocation
 genLoc =
@@ -50,8 +50,16 @@ genLoc =
     <$> arbitrary
     <*> arbitrary
     <*> arbitrary
-    <*> arbitrary
-    <*> (BackupFileId <$> arbitrary)
+    <*> genRef
+
+genRef :: Gen BackupFileRef
+genRef =
+  oneof
+    [ FullFile <$> fid,
+      IncrementalFile <$> fid <*> fid
+    ]
+  where
+    fid = BackupFileId <$> arbitrary
 
 fidText :: Text
 fidText = "018f0000-0000-7000-8000-000000000000"
@@ -69,14 +77,14 @@ spec = do
   describe "renderKey" $ do
     it "matches known vector" $
       renderKey testKey loc1
-        `shouldBe` "backup/f72fd43a3383faef21b364b0df978c5ee52e44557a8a565f7f0a7f6992a4cd8c/ce8a59f6f5c32a3473c2acaa1e647ee9b3885a6326bc91334f9ee80c3fe97637/7/full/018f0000-0000-7000-8000-000000000000"
+        `shouldBe` "backup/f72fd43a3383faef21b364b0df978c5ee52e44557a8a565f7f0a7f6992a4cd8c/ce8a59f6f5c32a3473c2acaa1e647ee9b3885a6326bc91334f9ee80c3fe97637/7/018f0000-0000-7000-8000-000000000000/full"
     it "does not contain uid or cid" $ do
       let k = renderKey testKey loc1
       T.isInfixOf "00000000-0000-0000-0000-000000000001" k `shouldBe` False
       T.isInfixOf "1a2b" k `shouldBe` False
     it "epoch 10 is not under epoch 1 prefix" $
       renderPrefix testKey (EpochPrefix uid1 cid1 (BackupEpoch 1))
-        `shouldSatisfy` (not . (`T.isPrefixOf` renderKey testKey (BackupLocation uid1 cid1 (BackupEpoch 10) BackupFull fid1)))
+        `shouldSatisfy` (not . (`T.isPrefixOf` renderKey testKey (BackupLocation uid1 cid1 (BackupEpoch 10) (FullFile fid1))))
 
   describe "renderPrefix" $ do
     prop "always ends with /" $ \u c e ->
@@ -94,18 +102,23 @@ spec = do
       parseFileKey
         (renderPrefix testKey (EpochPrefix loc.user loc.client loc.epoch))
         (renderKey testKey loc)
-        === Just (loc.kind, loc.fileId)
+        === Just loc.file
     let p = renderPrefix testKey (EpochPrefix uid1 cid1 (BackupEpoch 7))
     it "rejects other kinds" $
-      parseFileKey p (p <> "diff/" <> fidText) `shouldBe` Nothing
-    it "rejects invalid uuid" $
-      parseFileKey p (p <> "full/not-a-uuid") `shouldBe` Nothing
-    it "rejects extra segments" $
-      parseFileKey p (p <> "full/" <> fidText <> "/x") `shouldBe` Nothing
+      parseFileKey p (p <> fidText <> "/diff") `shouldBe` Nothing
+    it "rejects invalid uuid" $ do
+      parseFileKey p (p <> "not-a-uuid/full") `shouldBe` Nothing
+      parseFileKey p (p <> fidText <> "/incremental/not-a-uuid") `shouldBe` Nothing
+    it "rejects extra or missing segments" $ do
+      parseFileKey p (p <> fidText <> "/full/x") `shouldBe` Nothing
+      parseFileKey p (p <> fidText <> "/incremental") `shouldBe` Nothing
+      parseFileKey p (p <> "full/" <> fidText) `shouldBe` Nothing
     it "rejects different prefix" $
-      parseFileKey p (renderKey testKey (BackupLocation uid1 cid1 (BackupEpoch 8) BackupFull fid1)) `shouldBe` Nothing
-    it "accepts valid" $
-      parseFileKey p (p <> "incremental/" <> fidText) `shouldBe` Just (BackupIncremental, fid1)
+      parseFileKey p (renderKey testKey (BackupLocation uid1 cid1 (BackupEpoch 8) (FullFile fid1))) `shouldBe` Nothing
+    it "accepts valid" $ do
+      parseFileKey p (p <> fidText <> "/full") `shouldBe` Just (FullFile fid1)
+      parseFileKey p (p <> fidText <> "/incremental/" <> fidText)
+        `shouldBe` Just (IncrementalFile fid1 fid1)
 
   describe "parseEpochPrefix" $ do
     prop "round-trips" $ \e ->
