@@ -47,11 +47,15 @@ import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.Connection qualified as Connection
+import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
+import Wire.API.User.Auth (CookieLabel)
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey (PrekeyId)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
 import Wire.Arbitrary qualified as Arbitrary ()
 
@@ -66,7 +70,13 @@ tests =
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
       testRoundTrip @Int32 @Connection.RelationWithHistory,
-      testRoundTrip @A.Value @DbConfig
+      testRoundTrip @A.Value @DbConfig,
+      testRoundTrip @Int32 @ClientType,
+      testRoundTrip @Int32 @ClientClass,
+      testRoundTrip @Int32 @ClientCapability,
+      testRoundTrip @Text @CookieLabel,
+      testRoundTrip @Int32 @PrekeyId,
+      testRoundTrip @Text @SignatureSchemeTag
     ]
 
 testRoundTrip ::
