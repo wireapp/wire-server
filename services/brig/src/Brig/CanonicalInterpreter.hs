@@ -117,6 +117,7 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.InvitationStore.Postgres (interpretInvitationStoreToPostgres)
 import Wire.JwtTools
 import Wire.MigrationLock
 import Wire.MlsKeyPackageStore (MlsKeyPackageStore)
@@ -500,6 +501,21 @@ runBrigToIO e (AppT ma) = do
               . interpretConnectionStoreToCassandraAndPostgres
               . raiseUnder2
 
+      -- Same slot consideration as passwordResetCodeStore above. There is no
+      -- data migration for invitations: 'MigrationToPostgresql' behaves like
+      -- 'PostgresqlStorage'.
+      invitationStoreInterpreter =
+        case e.postgresMigration.invitations of
+          CassandraStorage -> interpretInvitationStoreToCassandra e.casClient
+          PostgresqlStorage -> invitationStoreToPostgres
+          MigrationToPostgresql -> invitationStoreToPostgres
+        where
+          invitationStoreToPostgres =
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretInvitationStoreToPostgres
+              . raiseUnder2
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -543,7 +559,7 @@ runBrigToIO e (AppT ma) = do
               . connectionsStoreInterpreter
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
-              . interpretInvitationStoreToCassandra e.casClient
+              . invitationStoreInterpreter
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
