@@ -1021,8 +1021,8 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetOtherMember lcid quid upd -> do
     logEffect "ConversationStore.SetOtherMember"
     embedClient client $ updateOtherMemberLocalConv lcid quid upd
-  DeleteMemberRowsOnly _reason cnv ul -> do
-    logEffect "ConversationStore.DeleteMemberRowsOnly"
+  DeleteMemberRowsOnly reason cnv ul -> do
+    logMemberRowRemoval reason cnv
     embedClient client $ removeMembersFromLocalConv cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
@@ -1426,7 +1426,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         False -> embedClient client $ updateOtherMemberLocalConv lcid quid upd
         True -> interpretConversationStoreToPostgres (ConvStore.setOtherMember lcid quid upd)
   DeleteMemberRowsOnly reason cid ul -> do
-    logEffect "ConversationStore.DeleteMemberRowsOnly"
+    logMemberRowRemoval reason cid
     withMigrationLockAndCleanup client LockShared (Left cid) $ do
       -- No need to check where these are, we just delete them from both places
       embedClient client $ removeMembersFromLocalConv cid ul
@@ -1685,3 +1685,13 @@ interpretConversationStoreByMigration storageLocation client =
     CassandraStorage -> interpretConversationStoreToCassandra client
     MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres client
     PostgresqlStorage -> interpretConversationStoreToPostgres
+
+-- | Like 'logEffect', but also says why the call site may delete member rows
+-- without signing MLS remove proposals, so that a stale leaf in an MLS group
+-- can be traced back to the deletion that caused it.
+logMemberRowRemoval :: (Member TinyLog r) => ConvStore.MemberRowRemovalReason -> ConvId -> Sem r ()
+logMemberRowRemoval reason cid =
+  debug $
+    Log.msg (Log.val "ConversationStore.DeleteMemberRowsOnly")
+      . Log.field "conversation_id" (idToText cid)
+      . Log.field "reason" (show reason)
