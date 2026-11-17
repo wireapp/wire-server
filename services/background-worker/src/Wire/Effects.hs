@@ -135,6 +135,7 @@ import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws (interpretTeamJournal)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
+import Wire.TeamStore.Postgres (interpretTeamStoreMetadataToPostgres)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter (TeamSubsystemConfig (..), interpretTeamSubsystem)
 import Wire.UserClientIndexStore (UserClientIndexStore)
@@ -332,7 +333,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
-    . interpretTeamStoreToCassandra
+    . interpretTeamStore
     . interpretTeamCollaboratorsStoreToPostgres
     . runInputConst @RequestId requestId
     . interpretJobSubsystem jobSubsystemConfig
@@ -379,6 +380,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       CassandraStorage -> interpretCodeStoreToCassandra
       MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
       PostgresqlStorage -> interpretCodeStoreToPostgres
+
+    -- The dual-write machinery was removed: 'MigrationToPostgresql' is
+    -- treated as 'PostgresqlStorage'.
+    interpretTeamStore = case env.postgresMigration.team of
+      CassandraStorage -> interpretTeamStoreToCassandra
+      PostgresqlStorage -> interpretTeamStoreMetadataToPostgres
+      MigrationToPostgresql -> interpretTeamStoreMetadataToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb

@@ -17,6 +17,7 @@
 
 module Wire.TeamStore.Cassandra
   ( interpretTeamStoreToCassandra,
+    removeAllTeamMembers,
   )
 where
 
@@ -262,6 +263,12 @@ deleteTeam tid = do
 markTeamDeletedAndRemoveTeamMembers :: TeamId -> Client ()
 markTeamDeletedAndRemoveTeamMembers tid = do
   retry x5 $ write Cql.markTeamDeleted (params LocalQuorum (PendingDelete, tid))
+  removeAllTeamMembers tid
+
+-- | Removes every member of the team (team_member, user_team,
+-- billing_team_member and team_admin rows) without touching the @team@ row.
+removeAllTeamMembers :: TeamId -> Client ()
+removeAllTeamMembers tid = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   removeTeamMembers mems
   where
