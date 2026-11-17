@@ -7,7 +7,7 @@ feature `automaticBackups`.
 ## Requirements
 
 - Optional secret `backupHmacKey` (see `config-options.md`). Without it backups
-  are not configured: all public backup routes (upload, read and delete) return
+  are not configured: all public backup routes (upload and read) return
   403 `backup-feature-disabled`. The internal deletes succeed as no-ops, so
   client and user deletion in brig keep working.
 - The S3 store must give strong list-after-write consistency (see
@@ -17,15 +17,20 @@ feature `automaticBackups`.
 
 Available from API version V19 (prefix `/v19/backups`).
 
-All paths are under `/backups/clients/{cid}/epochs`:
+- `GET /backups` list the restorable backups of all clients of the user (per client
+  its epochs, per epoch the current files), e.g. for a new client that restores.
 
-- `GET /` list epochs (an epoch may hold nothing but an unfinished full upload).
+All other paths are under `/backups/clients/{cid}/epochs`:
+
+- `GET /` list epochs (at most two).
 - `POST /{epoch}/full` upload the full file of an epoch (raw body, `Content-Length`
-  required).
-- `POST /{epoch}/incremental` upload an incremental file (needs a ready full file).
-- `GET /{epoch}` list files of an epoch.
+  required). Replaces the previous full of the epoch.
+- `POST /{epoch}/incremental` upload an incremental file (needs a full file).
+- `GET /{epoch}` list the current files of an epoch.
 - `GET /{epoch}/files/{kind}/{id}` download: 302 redirect to a presigned S3 URL.
-- `DELETE /{epoch}` and `DELETE /` (client) delete backups.
+
+There are no public deletes. Backups are deleted on client and user deletion (brig,
+internal) and the server keeps the two newest epochs of a client.
 
 `kind` is `full` or `incremental` and comes from the list response.
 
@@ -33,31 +38,18 @@ Limits (`cargohold.settings.backupLimits`): a full file up to `maxFullBytes`,
 incremental files up to `maxIncrementalBytes`, at most `maxFilesPerEpoch` files per
 epoch.
 
-### Full uploads: lock and readiness
+### Newest full wins
 
-Exactly one full file exists per epoch. A full upload takes a lock, an empty
-object `…/<epoch>/full/<id>.lock` (same id as the file):
+A stored object is complete (S3 shows it only when its upload finished), so there is
+no lock or readiness flag. The current files of an epoch are the full with the
+greatest id (UUIDv7, i.e. creation order) and the incrementals with a greater id.
+After a full is stored the server deletes everything else in the epoch, so a new full
+replaces the old one and its incrementals. Concurrent fulls prune each other, a late
+older one deletes itself. Clients must not upload incrementals while a new full of the
+same epoch is uploaded: they are deleted when the full is stored.
 
-1. the epoch holds a ready full: `409 backup-full-exists`; any lock:
-   `409 backup-full-locked`;
-2. put the lock, list the epoch again; another full or lock: remove the own lock,
-   `409` as above (with strong list-after-write consistency at most one contender
-   sees only its own lock; in a tight race both may fail, retry);
-3. upload the file;
-4. commit: delete the lock.
-
-A full file is *ready* only when its lock is gone. Until then `GET /{epoch}` shows it
-with `"ready": false` (`createdAt` is the start of its upload, `size` is 0 if nothing
-was stored yet), it can't be downloaded (`409 backup-full-locked`) and incremental
-uploads are rejected. This also covers a crash after the file was stored but before
-the check that the client still exists: such a full is never served.
-
-A failed or aborted upload (any error, client disconnect) removes the file it
-created and, for fulls, its lock. After a hard crash of cargohold the lock stays.
-There is no lock timeout (the speed of the client's connection is unknown): a client
-that sees a `ready: false` full (or `backup-full-locked`) and has no upload running
-decides to delete the epoch and start over. Incremental uploads need a ready full
-(`409 backup-full-missing` otherwise).
+A failed or aborted upload (any error, client disconnect) removes the file it created.
+Incremental uploads need a full (`409 backup-full-missing` otherwise).
 
 ### Why list + per-file redirect
 
@@ -77,8 +69,7 @@ backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<kind>/<id>
   Plain user or client ids never appear in S3: keys show up in presigned URLs
   and logs.
 - `epoch`: decimal, `kind`: `full` or `incremental`, `id`: UUIDv7 (key order
-  is creation order). The lock of a full upload is the key of the full file plus
-  `.lock`.
+  is creation order).
 - `backup/` is outside the `v3/<retention>/` prefixes, so asset lifecycle
   rules do not expire backups.
 
@@ -96,7 +87,6 @@ returns key, size and `LastModified`, but never user metadata or tags.
 | `id`, `kind` | key segments |
 | `size` | listing `Size` |
 | `createdAt` | UUIDv7 timestamp |
-| `ready` | no `<id>.lock` next to a full file |
 
 `x-amz-meta-*` is not used: it is immutable, needs a HEAD per object, and is
 returned as response headers to the holder of a presigned URL. Object tags are

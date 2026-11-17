@@ -54,38 +54,54 @@ type DownloadLinkDescription =
   \its own redirect."
 
 type FullUploadDescription =
-  "Exactly one full backup exists per epoch. The epoch must not have a full backup yet \
-  \(`backup-full-exists`) nor a full upload in progress or interrupted (`backup-full-locked`). \
-  \To recover from an interrupted full upload, delete the epoch and start over. A failed or \
-  \aborted upload leaves no file behind."
+  "The new full backup replaces the epoch's previous full backup and the incremental files \
+  \of it; the newest full backup (by id) wins. A failed or aborted upload leaves no file \
+  \behind. Only the two newest epochs are kept: storing a file in a new epoch deletes older \
+  \epochs."
 
 type IncrementalUploadDescription =
-  "Requires a complete full backup in the epoch (`backup-full-missing`), and no full upload in \
-  \progress or interrupted (`backup-full-locked`). A failed or aborted upload leaves no file \
-  \behind."
+  "Requires a full backup in the epoch (`backup-full-missing`). Do not upload incremental \
+  \files while a new full backup of the epoch is being uploaded: they are deleted when the \
+  \full backup is stored. A failed or aborted upload leaves no file behind."
 
 type ListFilesDescription =
-  "Presigned URLs are bearer links valid for `downloadLinkTTL` seconds and expiry is \
-  \checked at request start, so the list returns no URLs and each file is fetched via \
-  \its own redirect. A full backup with `ready: false` is being uploaded or its upload was \
-  \interrupted: `createdAt` is when its upload started and `size` is 0 if nothing was stored \
-  \yet. It cannot be downloaded; delete the epoch to start over."
+  "Lists the newest full backup of the epoch and the incremental files after it. Presigned \
+  \URLs are bearer links valid for `downloadLinkTTL` seconds and expiry is checked at request \
+  \start, so the list returns no URLs and each file is fetched via its own redirect."
+
+type ListBackupsDescription =
+  "Lists the restorable backups of all clients of the user: per client its epochs, per epoch \
+  \the newest full backup and the incremental files after it. Epochs without a full backup and \
+  \clients without any are omitted. Clients are ordered by their newest file, newest first. \
+  \The list returns no URLs, each file is fetched via its own redirect."
 
 type BackupAPI =
   Named
-    "backup-list-epochs"
-    ( Summary "List the epochs that have backup files for a client"
+    "backup-list"
+    ( Summary "List the backups of all clients of the user"
         :> From 'V19
+        :> Description ListBackupsDescription
         :> CanThrow 'BackupNotFound
         :> CanThrow 'BackupFeatureDisabled
         :> ZLocalUser
         :> ZClient
         :> "backups"
-        :> "clients"
-        :> Capture "cid" ClientId
-        :> "epochs"
-        :> Get '[JSON] BackupEpochs
+        :> Get '[JSON] UserBackups
     )
+    :<|> Named
+           "backup-list-epochs"
+           ( Summary "List the epochs that have backup files for a client"
+               :> From 'V19
+               :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFeatureDisabled
+               :> ZLocalUser
+               :> ZClient
+               :> "backups"
+               :> "clients"
+               :> Capture "cid" ClientId
+               :> "epochs"
+               :> Get '[JSON] BackupEpochs
+           )
     :<|> Named
            "backup-upload-full"
            ( Summary "Upload the full backup file of an epoch"
@@ -95,8 +111,6 @@ type BackupAPI =
                :> CanThrow 'BackupForbidden
                :> CanThrow 'BackupFeatureDisabled
                :> CanThrow 'BackupEpochNotAllowed
-               :> CanThrow 'BackupFullExists
-               :> CanThrow 'BackupFullLocked
                :> CanThrow 'BackupTooLarge
                :> CanThrow 'IncompleteBody
                :> ZLocalUser
@@ -121,7 +135,6 @@ type BackupAPI =
                :> CanThrow 'BackupFeatureDisabled
                :> CanThrow 'BackupEpochNotAllowed
                :> CanThrow 'BackupFullMissing
-               :> CanThrow 'BackupFullLocked
                :> CanThrow 'BackupTooManyFiles
                :> CanThrow 'BackupTooLarge
                :> CanThrow 'IncompleteBody
@@ -159,7 +172,6 @@ type BackupAPI =
                :> From 'V19
                :> Description DownloadLinkDescription
                :> CanThrow 'BackupNotFound
-               :> CanThrow 'BackupFullLocked
                :> CanThrow 'BackupFeatureDisabled
                :> ZLocalUser
                :> ZClient
@@ -176,34 +188,4 @@ type BackupAPI =
                     '[JSON]
                     '[ErrorResponse 'BackupNotFound, BackupRedirect]
                     (Maybe (AssetLocation Absolute))
-           )
-    :<|> Named
-           "backup-delete-epoch"
-           ( Summary "Delete all backup files of an epoch"
-               :> From 'V19
-               :> CanThrow 'BackupNotFound
-               :> CanThrow 'BackupFeatureDisabled
-               :> CanThrow 'BackupForbidden
-               :> ZLocalUser
-               :> ZClient
-               :> "backups"
-               :> "clients"
-               :> Capture "cid" ClientId
-               :> "epochs"
-               :> Capture "epoch" BackupEpoch
-               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 204 "Epoch deleted"] ()
-           )
-    :<|> Named
-           "backup-delete-client"
-           ( Summary "Delete all backup files of a client"
-               :> From 'V19
-               :> CanThrow 'BackupNotFound
-               :> CanThrow 'BackupFeatureDisabled
-               :> CanThrow 'BackupForbidden
-               :> ZLocalUser
-               :> ZClient
-               :> "backups"
-               :> "clients"
-               :> Capture "cid" ClientId
-               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 204 "Client backups deleted"] ()
            )

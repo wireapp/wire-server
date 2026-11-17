@@ -209,9 +209,7 @@ countingBlobStore received stored = interpret $ \case
     writeIORef stored (Just body)
     pure Nothing
   ListBlobEpochs _ _ -> pure []
-  ListBlobs {} -> pure (BackupEpochListing [] [])
-  PutLock _ -> pure ()
-  DeleteLock _ -> pure ()
+  ListBlobs {} -> pure []
   DeleteBlob _ -> writeIORef stored Nothing
   DeleteBlobs _ -> writeIORef stored Nothing
   _ -> error "countingBlobStore: unexpected call"

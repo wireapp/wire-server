@@ -61,14 +61,10 @@ data World = World
     -- | 'LookupClients' calls from this one on (1-based) no longer list @a1@.
     dropA1From :: Maybe Int,
     lookups :: Int,
-    -- | The next 'ListBlobs' returns nothing, simulating a concurrent upload.
-    emptyListingOnce :: Bool,
     -- | 'LookupClients' calls from this one on (1-based) throw 'BrigDown'.
     failLookupFrom :: Maybe Int,
     -- | 'DeleteBlob' throws 'StoreDown'.
     failDelete :: Bool,
-    -- | 'DeleteLock' throws 'StoreDown'.
-    failDeleteLock :: Bool,
     -- | 'PutBlob' stores the object, then throws 'StoreDown'.
     failAfterPut :: Bool
   }
@@ -92,7 +88,6 @@ type Effs =
      State World,
      State UTCTime,
      State BlobVersions,
-     State BlobLocks,
      Embed IO
    ]
 
@@ -136,10 +131,8 @@ world0 =
       feature = FeatureStatusEnabled,
       dropA1From = Nothing,
       lookups = 0,
-      emptyListingOnce = False,
       failLookupFrom = Nothing,
       failDelete = False,
-      failDeleteLock = False,
       failAfterPut = False
     }
 
@@ -161,7 +154,6 @@ runBackupWithFailures w counter prog = do
   base <- generate arbitrary
   fmap (either (error . show) Function.id)
     <$> ( runM
-            . evalState (mempty :: BlobLocks)
             . runState mempty
             . evalState t0
             . evalState w
@@ -178,30 +170,22 @@ runBackupWithFailures w counter prog = do
                   Nothing -> inMemoryBackupBlobStoreInterpreter p
                   Just t -> countingBackupBlobStoreInterpreter t p
               )
-            . emptyListingWhenAsked
+            . failingStore
             . interpretBackupSubsystem
             $ prog
         )
 
--- | Also fails 'DeleteBlob', 'DeleteLock' and 'PutBlob' (after storing) if asked.
-emptyListingWhenAsked ::
+-- | Also fails 'DeleteBlob' and 'PutBlob' (after storing) if asked.
+failingStore ::
   (Member BackupBlobStore r, Member (State World) r, Member (Error MockFailure) r) =>
   Sem r a ->
   Sem r a
-emptyListingWhenAsked = intercept $ \case
-  ListBlobs u c e -> do
-    hide <- gets (.emptyListingOnce)
-    modify (\w -> w {emptyListingOnce = False})
-    if hide then pure (BackupEpochListing [] []) else listBlobs u c e
+failingStore = intercept $ \case
   PutBlob l n s -> do
     v <- putBlob l n s
     whenM (gets (.failAfterPut)) $ throw StoreDown
     pure v
-  PutLock l -> putLock l
-  LockExists l -> lockExists l
-  DeleteLock l -> do
-    whenM (gets (.failDeleteLock)) $ throw StoreDown
-    deleteLock l
+  ListBlobs u c e -> listBlobs u c e
   BlobExists l -> blobExists l
   SignedDownloadUrl l -> signedDownloadUrl l
   ListBlobEpochs u c -> listBlobEpochs u c
@@ -247,16 +231,6 @@ uploadSizedKind kind u c e n =
 
 uploadSized :: UserId -> ClientId -> Word32 -> Word64 -> Sem Effs BackupFile
 uploadSized = uploadSizedKind BackupIncremental
-
-locksNow :: Sem Effs [BackupLocation]
-locksNow = gets Set.toList
-
-fullLoc :: UserId -> ClientId -> Word32 -> BackupFileId -> BackupLocation
-fullLoc u c e fid =
-  BackupLocation {user = u, client = c, epoch = BackupEpoch e, kind = BackupFull, fileId = fid}
-
-foreignFid :: BackupFileId
-foreignFid = BackupFileId (UUID.fromWords64 7 7)
 
 attempt :: Sem Effs a -> Sem Effs (Either BackupError a)
 attempt = try
@@ -308,16 +282,6 @@ spec = describe "BackupSubsystem" $ do
     map (.kind) fs `shouldBe` [BackupFull, BackupIncremental, BackupIncremental]
     map (.createdAt) fs `shouldBe` map toUTCTimeMillis [t0, addUTCTime 1 t0, addUTCTime 2 t0]
 
-  it "full first even if an incremental has a smaller id" $ do
-    (_, res) <- runBackup world0 Nothing $ do
-      passTime 10
-      full <- upload uA a1 a1 1 "full"
-      passTime (-5)
-      inc <- upload uA a1 a1 1 "inc"
-      fs <- filesOf uA a1 a1 1
-      pure (inc.id < full.id, map (.id) fs == [full.id, inc.id])
-    res `shouldBe` Right (True, True)
-
   it "list of empty epoch is not found" $ do
     (_, res) <- runBackup world0 Nothing $ filesOf uA a1 a1 1
     void res `shouldBe` Left BackupErrNotFound
@@ -332,7 +296,7 @@ spec = describe "BackupSubsystem" $ do
 
   it "file count per epoch capped" $ do
     (_, res) <- runBackup world0 Nothing $ do
-      replicateM_ 3 (upload uA a1 a1 1 "x")
+      replicateM_ 3 (upload uA a1 a1 1 "x" <* passTime 1)
       attempt (upload uA a1 a1 1 "y")
     void <$> res `shouldBe` Right (Left BackupErrTooManyFiles)
 
@@ -360,10 +324,8 @@ spec = describe "BackupSubsystem" $ do
   it "mutating other device forbidden" $ do
     (blobs, res) <- runBackup world0 Nothing $ do
       up <- attempt (upload uA a1 a2 1 "x")
-      delE <- attempt (deleteEpochBackups (loc uA) a1 a2 (BackupEpoch 1))
-      delC <- attempt (deleteClientBackups (loc uA) a1 a2)
-      pure (void up, delE, delC)
-    res `shouldBe` Right (Left BackupErrForbidden, Left BackupErrForbidden, Left BackupErrForbidden)
+      pure (void up)
+    res `shouldBe` Right (Left BackupErrForbidden)
     blobs `shouldBe` mempty
 
   it "foreign client is not found" $ do
@@ -376,42 +338,16 @@ spec = describe "BackupSubsystem" $ do
     (_, res) <- runBackup world0 Nothing $ upload uC c1 c1 1 "x"
     void res `shouldBe` Left BackupErrFeatureDisabled
 
-  it "feature disabled blocks upload but not read or delete" $ do
+  it "feature disabled blocks upload but not read" $ do
     (blobs, res) <- runBackup world0 Nothing $ do
       f <- upload uA a1 a1 1 "x"
       modify (\w -> w {feature = FeatureStatusDisabled})
       blocked <- attempt $ upload uA a1 a1 1 "y"
       es <- epochsOf uA a2 a1
       _ <- downloadUrl (loc uA) a2 a1 (BackupEpoch 1) f.kind f.id
-      deleteEpochBackups (loc uA) a1 a1 (BackupEpoch 1)
       pure (void blocked, es)
     res `shouldBe` Right (Left BackupErrFeatureDisabled, [1])
-    blobs `shouldBe` mempty
-
-  it "delete of empty epoch succeeds" $ do
-    (_, res) <- runBackup world0 Nothing $ deleteEpochBackups (loc uA) a1 a1 (BackupEpoch 7)
-    res `shouldBe` Right ()
-
-  it "delete epoch removes all versions" $ do
-    (blobs, res) <- runBackup world0 Nothing $ do
-      f <- upload uA a1 a1 1 "x"
-      g <- upload uA a1 a1 2 "y"
-      let l = locationOf uA a1 1 f
-      deleteEpochBackups (loc uA) a1 a1 (BackupEpoch 1)
-      pure (l, locationOf uA a1 2 g)
-    Right (l, kept) <- pure res
-    versionsOf l blobs `shouldBe` []
-    Map.keys blobs `shouldBe` [kept]
-
-  it "delete client removes all its files" $ do
-    (blobs, res) <- runBackup world0 Nothing $ do
-      _ <- upload uA a1 a1 1 "x"
-      _ <- upload uA a1 a1 2 "y"
-      g <- upload uA a2 a2 1 "z"
-      deleteClientBackups (loc uA) a1 a1
-      pure (locationOf uA a2 1 g)
-    Right kept <- pure res
-    Map.keys blobs `shouldBe` [kept]
+    Map.size blobs `shouldBe` 1
 
   it "client gone after PUT: rolled back, no version left" $ do
     (blobs, res) <- runBackup world0 {dropA1From = Just 2} Nothing $ uploadKind BackupFull uA a1 a1 1 "x"
@@ -474,94 +410,93 @@ spec = describe "BackupSubsystem" $ do
       `shouldBe` [[Just (BS.concat [BS.replicate size (fromIntegral i) | i <- [0 .. n - 1]])]]
 
   describe "explicit kinds" $ do
-    it "second full is rejected" $ do
-      (_, res) <- runBackup world0 Nothing $ do
-        _ <- uploadKind BackupFull uA a1 a1 1 "full"
-        attempt (uploadKind BackupFull uA a1 a1 1 "again")
-      void <$> res `shouldBe` Right (Left BackupErrFullExists)
-
     it "incremental needs a full" $ do
       (_, res) <- runBackup world0 Nothing $ attempt (uploadKind BackupIncremental uA a1 a1 1 "inc")
       void <$> res `shouldBe` Right (Left BackupErrFullMissing)
 
-    it "incremental after full is accepted and ready" $ do
+    it "incremental after full is accepted" $ do
       (_, res) <- runBackup world0 Nothing $ do
         _ <- uploadKind BackupFull uA a1 a1 1 "full"
         f <- uploadKind BackupIncremental uA a1 a1 1 "inc"
         fs <- filesOf uA a1 a1 1
-        pure (f.kind, map (.ready) fs)
-      res `shouldBe` Right (BackupIncremental, [True, True])
+        pure (f.kind, length fs)
+      res `shouldBe` Right (BackupIncremental, 2)
 
-    it "oversize full is rejected before the lock is written" $ do
-      (_, res) <- runBackup world0 Nothing $ do
-        r <- attempt (uploadSizedKind BackupFull uA a1 1 (1024 * 1024 * 1024 + 1))
-        (,) (void r) <$> locksNow
-      res `shouldBe` Right (Left BackupErrTooLarge, [])
-
-  describe "full lock" $ do
-    it "success removes the lock" $ do
-      (_, res) <- runBackup world0 Nothing $ uploadKind BackupFull uA a1 a1 1 "x" >> locksNow
-      res `shouldBe` Right []
-
-    it "foreign lock blocks the full and is kept, no own lock is written" $ do
-      (blobs, res) <- runBackup world0 Nothing $ do
-        modify (Set.insert (fullLoc uA a1 1 foreignFid))
-        r <- attempt (uploadKind BackupFull uA a1 a1 1 "x")
-        (,) (void r) <$> locksNow
-      res `shouldBe` Right (Left BackupErrFullLocked, [fullLoc uA a1 1 foreignFid])
+    it "oversize full is rejected" $ do
+      (blobs, res) <-
+        runBackup world0 Nothing $
+          attempt (uploadSizedKind BackupFull uA a1 1 (1024 * 1024 * 1024 + 1))
+      void <$> res `shouldBe` Right (Left BackupErrTooLarge)
       blobs `shouldBe` mempty
 
-    it "lock taken between listing and lock is detected, own lock removed" $ do
+  describe "newest full wins" $ do
+    it "a new full replaces the old full and its incrementals" $ do
       (blobs, res) <- runBackup world0 Nothing $ do
-        f <- uploadKind BackupFull uA a1 a1 1 "x"
-        -- the first listing of the next upload does not show the full file
-        modify (\w -> w {emptyListingOnce = True})
-        r <- attempt (uploadKind BackupFull uA a1 a1 1 "y")
-        (,,) (void r) f <$> locksNow
-      Right (r, f, locks) <- pure res
-      r `shouldBe` Left BackupErrFullExists
-      locks `shouldBe` []
-      Map.keys blobs `shouldBe` [locationOf uA a1 1 f]
-
-    it "foreign lock seen only after our lock fails the upload, own lock removed" $ do
-      (blobs, res) <- runBackup world0 Nothing $ do
-        modify (Set.insert (fullLoc uA a1 1 foreignFid))
-        -- the first listing does not show the foreign lock, the second one does
-        modify (\w -> w {emptyListingOnce = True})
-        r <- attempt (uploadKind BackupFull uA a1 a1 1 "x")
-        (,) (void r) <$> locksNow
-      res `shouldBe` Right (Left BackupErrFullLocked, [fullLoc uA a1 1 foreignFid])
-      blobs `shouldBe` mempty
-
-    it "stale lock blocks the full until the epoch is deleted" $ do
-      (_, res) <- runBackup world0 Nothing $ do
-        modify (Set.insert (fullLoc uA a1 1 foreignFid))
-        blocked <- attempt (uploadKind BackupFull uA a1 a1 1 "x")
-        deleteEpochBackups (loc uA) a1 a1 (BackupEpoch 1)
-        f <- uploadKind BackupFull uA a1 a1 1 "x"
-        pure (void blocked, f.ready)
-      res `shouldBe` Right (Left BackupErrFullLocked, True)
-
-  describe "readiness" $ do
-    it "a full with its lock is listed as not ready, not downloadable, not a base" $ do
-      (_, res) <- runBackup world0 Nothing $ do
-        f <- uploadKind BackupFull uA a1 a1 1 "x"
-        modify (Set.insert (fullLoc uA a1 1 f.id))
+        old <- uploadKind BackupFull uA a1 a1 1 "old"
+        passTime 1
+        oldInc <- uploadKind BackupIncremental uA a1 a1 1 "oldinc"
+        passTime 1
+        new <- uploadKind BackupFull uA a1 a1 1 "new"
+        passTime 1
+        newInc <- uploadKind BackupIncremental uA a1 a1 1 "newinc"
         fs <- filesOf uA a1 a1 1
-        dl <- attempt (downloadUrl (loc uA) a1 a1 (BackupEpoch 1) BackupFull f.id)
-        inc <- attempt (uploadKind BackupIncremental uA a1 a1 1 "i")
-        modify (Set.delete (fullLoc uA a1 1 f.id))
-        fs' <- filesOf uA a1 a1 1
-        pure (map (\x -> (x.size, x.ready)) fs, void dl, void inc, map (.ready) fs')
-      res `shouldBe` Right ([(1, False)], Left BackupErrFullLocked, Left BackupErrFullLocked, [True])
+        pure ((old, oldInc), (new, newInc), fs)
+      Right ((old, oldInc), (new, newInc), fs) <- pure res
+      fs `shouldBe` [new, newInc]
+      Map.keys blobs
+        `shouldMatchList` [locationOf uA a1 1 new, locationOf uA a1 1 newInc]
+      Map.member (locationOf uA a1 1 old) blobs `shouldBe` False
+      Map.member (locationOf uA a1 1 oldInc) blobs `shouldBe` False
 
-    it "a lock without a file is listed as a not ready full of size 0" $ do
+    it "an older full finishing late deletes itself" $ do
+      (blobs, res) <- runBackup world0 Nothing $ do
+        passTime 1
+        newer <- uploadKind BackupFull uA a1 a1 1 "newer"
+        passTime (-5)
+        older <- uploadKind BackupFull uA a1 a1 1 "older"
+        fs <- filesOf uA a1 a1 1
+        pure (newer, older, fs)
+      Right (newer, older, fs) <- pure res
+      fs `shouldBe` [newer]
+      Map.member (locationOf uA a1 1 older) blobs `shouldBe` False
+
+    it "only the two newest epochs are kept" $ do
       (_, res) <- runBackup world0 Nothing $ do
-        modify (Set.insert (fullLoc uA a1 1 foreignFid))
-        (,) <$> filesOf uA a1 a1 1 <*> epochsOf uA a1 a1
-      Right (fs, es) <- pure res
-      map (\f -> (f.id, f.kind, f.size, f.ready)) fs `shouldBe` [(foreignFid, BackupFull, 0, False)]
-      es `shouldBe` [1]
+        _ <- upload uA a1 a1 1 "x"
+        _ <- upload uA a1 a1 2 "x"
+        _ <- upload uA a1 a1 3 "x"
+        epochsOf uA a1 a1
+      res `shouldBe` Right [2, 3]
+
+    it "next epoch is allowed after pruning" $ do
+      (_, res) <- runBackup world0 Nothing $ do
+        traverse_ (\e -> upload uA a1 a1 e "x") [1, 2, 3, 4]
+        epochsOf uA a1 a1
+      res `shouldBe` Right [3, 4]
+
+  describe "list user backups" $ do
+    it "lists all clients with epochs, newest client first, omits clients without a full" $ do
+      (_, res) <- runBackup world0 Nothing $ do
+        f1 <- upload uA a1 a1 1 "x"
+        passTime 1
+        g1 <- upload uA a2 a2 1 "y"
+        passTime 1
+        g2 <- upload uA a2 a2 2 "z"
+        UserBackups cs <- listUserBackups (loc uA) a1
+        pure (f1, g1, g2, cs)
+      Right (f1, g1, g2, cs) <- pure res
+      cs
+        `shouldBe` [ ClientBackups a2 [EpochBackups (BackupEpoch 1) [g1], EpochBackups (BackupEpoch 2) [g2]],
+                     ClientBackups a1 [EpochBackups (BackupEpoch 1) [f1]]
+                   ]
+
+    it "is empty without backups" $ do
+      (_, res) <- runBackup world0 Nothing $ listUserBackups (loc uA) a1
+      res `shouldBe` Right (UserBackups [])
+
+    it "a client that is not the caller's is not found" $ do
+      (_, res) <- runBackup world0 Nothing $ listUserBackups (loc uA) b1
+      void res `shouldBe` Left BackupErrNotFound
 
   describe "failed uploads leave nothing behind" $ do
     let both :: (BackupKind -> Spec) -> Spec
@@ -572,50 +507,27 @@ spec = describe "BackupSubsystem" $ do
           BackupFull -> 1 :: Word32
           BackupIncremental -> 2
         baseWorld kind = if kind == BackupFull then pure () else void prepare
+        expectedBlobs kind = if kind == BackupFull then 0 else 1
     both $ \kind ->
       it ("brig says client gone: " <> show kind) $ do
         (blobs, res) <- runBackup world0 {dropA1From = Just (if kind == BackupFull then 2 else 4)} Nothing $ do
           baseWorld kind
-          r <- attempt (uploadKind kind uA a1 a1 (target kind) "x")
-          (,) (void r) <$> locksNow
-        Right (r, locks) <- pure res
-        r `shouldBe` Left BackupErrForbidden
-        locks `shouldBe` []
-        Map.size blobs `shouldBe` (if kind == BackupFull then 0 else 1)
+          void <$> attempt (uploadKind kind uA a1 a1 (target kind) "x")
+        res `shouldBe` Right (Left BackupErrForbidden)
+        Map.size blobs `shouldBe` expectedBlobs kind
     both $ \kind ->
       it ("short body: " <> show kind) $ do
         (blobs, res) <- runBackup world0 Nothing $ do
           baseWorld kind
-          r <-
-            attempt $
-              uploadBackup (loc uA) a1 a1 (BackupEpoch (target kind)) kind 10 (yield "abc")
-          (,) (void r) <$> locksNow
-        Right (r, locks) <- pure res
-        r `shouldBe` Left BackupErrIncompleteBody
-        locks `shouldBe` []
-        Map.size blobs `shouldBe` (if kind == BackupFull then 0 else 1)
+          void
+            <$> attempt (uploadBackup (loc uA) a1 a1 (BackupEpoch (target kind)) kind 10 (yield "abc"))
+        res `shouldBe` Right (Left BackupErrIncompleteBody)
+        Map.size blobs `shouldBe` expectedBlobs kind
     both $ \kind ->
       it ("store failure after the object was stored: " <> show kind) $ do
         (blobs, res) <- runBackupWithFailures world0 Nothing $ do
           baseWorld kind
           modify (\w -> w {failAfterPut = True})
-          r <- try @MockFailure (uploadKind kind uA a1 a1 (target kind) "x")
-          (,) (void r) <$> locksNow
-        Right (r, locks) <- pure (fmap (either (error . show) Function.id) res)
-        r `shouldBe` Left StoreDown
-        locks `shouldBe` []
-        Map.size blobs `shouldBe` (if kind == BackupFull then 0 else 1)
-
-    it "failing cleanup does not mask the original error and leaves the lock for the epoch delete" $ do
-      (blobs, res) <-
-        runBackupWithFailures world0 {failLookupFrom = Just 2, failDelete = True} Nothing $
-          uploadKind BackupFull uA a1 a1 1 "x"
-      void <$> res `shouldBe` Left BrigDown
-      Map.size blobs `shouldBe` 1
-
-    it "failing commit leaves a not ready full and surfaces the error" $ do
-      (_, res) <- runBackupWithFailures world0 {failDeleteLock = True} Nothing $ do
-        r <- try @MockFailure (uploadKind BackupFull uA a1 a1 1 "x")
-        fs <- filesOf uA a1 a1 1
-        pure (void r, map (.ready) fs)
-      res `shouldBe` Right (Right (Left StoreDown, [False]))
+          void <$> try @MockFailure (uploadKind kind uA a1 a1 (target kind) "x")
+        fmap (either (error . show) Function.id) res `shouldBe` Right (Left StoreDown)
+        Map.size blobs `shouldBe` expectedBlobs kind

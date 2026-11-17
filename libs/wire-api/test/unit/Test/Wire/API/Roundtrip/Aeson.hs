@@ -430,6 +430,9 @@ tests =
       testRoundTripWithSwagger @Backup.BackupFile,
       testRoundTripWithSwagger @Backup.BackupEpochs,
       testRoundTripWithSwagger @Backup.BackupFiles,
+      testRoundTripWithSwagger @Backup.EpochBackups,
+      testRoundTripWithSwagger @Backup.ClientBackups,
+      testRoundTripWithSwagger @Backup.UserBackups,
       backupEpochUrlPieceTests,
       testFeatureFlagsCanonicalJsonRoundtrip
     ]

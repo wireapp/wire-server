@@ -67,13 +67,14 @@ spec = describe "Rules" $ do
       it "{3:1} + 5 -> rejected" $ full [(3, 1)] 5 1 `shouldBe` Left EpochNotAllowed
       it "{3:1,4:1} + 3 -> rejected" $
         inc [(3, 1), (4, 1)] 3 1 `shouldBe` Left EpochNotAllowed
+      it "{3:1,4:1} + 5 -> full" $ full [(3, 1), (4, 1)] 5 1 `shouldBe` Right ()
       it "{3:1,4:1} + 4 -> incremental" $ inc [(3, 1), (4, 1)] 4 1 `shouldBe` Right ()
-      it "{3:1,4:1} + 5 -> rejected" $
-        full [(3, 1), (4, 1)] 5 1 `shouldBe` Left EpochNotAllowed
+      it "{3:1,4:1} + 6 -> rejected" $
+        full [(3, 1), (4, 1)] 6 1 `shouldBe` Left EpochNotAllowed
       it "{maxBound:1} + maxBound -> incremental" $
         inc [(maxBound, 1)] maxBound 1 `shouldBe` Right ()
     describe "kind rule" $ do
-      it "full into epoch with full is rejected" $ full [(1, 1)] 1 1 `shouldBe` Left FullExists
+      it "full into epoch with full is accepted (replaces)" $ full [(1, 1)] 1 1 `shouldBe` Right ()
       it "incremental into empty epoch is rejected" $ inc [] 1 1 `shouldBe` Left FullMissing
       it "incremental into epoch without full is rejected" $
         checkUpload limits BackupIncremental (Set.singleton (BackupEpoch 1)) False 0 (BackupEpoch 1) 1
@@ -91,37 +92,28 @@ spec = describe "Rules" $ do
         let m' = if useMax then (maxBound, 1) : m else m
          in isLeft (check (if k then BackupFull else BackupIncremental) m' 0 s)
 
-  describe "readyBlobs" $ do
-    it "drops full files whose lock exists" $
-      readyBlobs
-        BackupEpochListing
-          { blobs = [blob BackupFull 1 5, blob BackupIncremental 2 1],
-            locks = [fid 1]
-          }
-        `shouldBe` [blob BackupIncremental 2 1]
-    it "keeps full files without lock" $
-      readyBlobs BackupEpochListing {blobs = [blob BackupFull 1 5], locks = [fid 9]}
-        `shouldBe` [blob BackupFull 1 5]
+  describe "currentBlobs" $ do
+    it "is the newest full, then incrementals after it by id" $
+      currentBlobs
+        [ blob BackupIncremental 5 1,
+          blob BackupFull 2 5,
+          blob BackupIncremental 1 1,
+          blob BackupFull 4 6,
+          blob BackupIncremental 3 1,
+          blob BackupIncremental 6 1
+        ]
+        `shouldBe` [blob BackupFull 4 6, blob BackupIncremental 5 1, blob BackupIncremental 6 1]
+    it "is empty without a full" $ currentBlobs [blob BackupIncremental 1 1] `shouldBe` []
 
-  describe "epochFiles" $ do
-    let ids = map (\f -> (f.id, f.kind, f.size, f.ready))
-    it "shows a ready full, then incrementals by id" $
-      ids
-        ( epochFiles
-            BackupEpochListing
-              { blobs = [blob BackupIncremental 3 1, blob BackupFull 2 5, blob BackupIncremental 1 1],
-                locks = []
-              }
-        )
-        `shouldBe` [ (fid 2, BackupFull, 5, True),
-                     (fid 1, BackupIncremental, 1, True),
-                     (fid 3, BackupIncremental, 1, True)
-                   ]
-    it "shows a full with its lock as not ready, with its size" $
-      ids (epochFiles BackupEpochListing {blobs = [blob BackupFull 1 5], locks = [fid 1]})
-        `shouldBe` [(fid 1, BackupFull, 5, False)]
-    it "shows a lock without file as not ready full of size 0" $
-      ids (epochFiles BackupEpochListing {blobs = [], locks = [fid 1]})
-        `shouldBe` [(fid 1, BackupFull, 0, False)]
-    it "is empty for an empty listing" $
-      epochFiles BackupEpochListing {blobs = [], locks = []} `shouldBe` []
+  describe "pruneTargets" $ do
+    it "is what a newer full superseded" $
+      pruneTargets [blob BackupFull 1 5, blob BackupIncremental 2 1, blob BackupFull 3 5]
+        `shouldBe` [blob BackupFull 1 5, blob BackupIncremental 2 1]
+    it "is empty if everything is current" $
+      pruneTargets [blob BackupFull 1 5, blob BackupIncremental 2 1] `shouldBe` []
+    it "is empty without a full" $ pruneTargets [blob BackupIncremental 2 1] `shouldBe` []
+
+  describe "staleEpochs" $ do
+    let es = staleEpochs . Set.fromList . map BackupEpoch
+    it "keeps the two newest" $ es [1, 2, 3, 5] `shouldBe` [BackupEpoch 1, BackupEpoch 2]
+    it "keeps fewer than three" $ es [1, 2] `shouldBe` []

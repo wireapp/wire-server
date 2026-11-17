@@ -446,6 +446,12 @@ backupRequest user zcid cid suffix = do
   req <- baseRequest user Cargohold Versioned $ "/backups/clients/" <> cid <> suffix
   pure $ req & zClient zcid & noRedirect
 
+-- | All backups of all clients of the user.
+listBackups :: (HasCallStack, MakesValue user) => user -> String -> App Response
+listBackups user zcid = do
+  req <- baseRequest user Cargohold Versioned "/backups"
+  submit "GET" $ req & zClient zcid
+
 listBackupEpochs :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
 listBackupEpochs user zcid cid =
   backupRequest user zcid cid "/epochs" >>= submit "GET"
@@ -495,11 +501,3 @@ downloadBackupFile ::
 downloadBackupFile user zcid cid epoch kind fileId =
   backupRequest user zcid cid ("/epochs/" <> show epoch <> "/files/" <> kind <> "/" <> fileId)
     >>= submit "GET"
-
-deleteBackupEpoch :: (HasCallStack, MakesValue user) => user -> String -> String -> Word32 -> App Response
-deleteBackupEpoch user zcid cid epoch =
-  backupRequest user zcid cid ("/epochs/" <> show epoch) >>= submit "DELETE"
-
-deleteClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-deleteClientBackups user zcid cid =
-  backupRequest user zcid cid "" >>= submit "DELETE"

@@ -38,14 +38,6 @@ data BackupBlob = BackupBlob
   }
   deriving stock (Eq, Show)
 
--- | What an epoch prefix holds: the stored files and the locks of full uploads.
--- A lock has the id of the full file it guards; the file may not exist (yet).
-data BackupEpochListing = BackupEpochListing
-  { blobs :: [BackupBlob],
-    locks :: [BackupFileId]
-  }
-  deriving stock (Eq, Show)
-
 -- | S3 operations on backup objects.
 --
 -- Deletes remove /all versions/: on a versioned bucket a plain delete only adds a delete
@@ -62,15 +54,10 @@ data BackupBlobStore m a where
     BackupBlobStore m (Maybe Text)
   BlobExists :: BackupLocation -> BackupBlobStore m Bool
   SignedDownloadUrl :: BackupLocation -> BackupBlobStore m URI
-  -- | Epoch prefixes of the device (an epoch may hold nothing but a lock), any order.
+  -- | Epoch prefixes of the device, any order.
   ListBlobEpochs :: UserId -> ClientId -> BackupBlobStore m [BackupEpoch]
-  -- | Files and locks of an epoch, any order.
-  ListBlobs :: UserId -> ClientId -> BackupEpoch -> BackupBlobStore m BackupEpochListing
-  -- | Creates the (empty) lock of a full upload, see 'Wire.BackupBlobStore.Key.renderLockKey'.
-  PutLock :: BackupLocation -> BackupBlobStore m ()
-  LockExists :: BackupLocation -> BackupBlobStore m Bool
-  -- | Deletes all versions of the lock (see above why all). Idempotent.
-  DeleteLock :: BackupLocation -> BackupBlobStore m ()
+  -- | Files of an epoch, any order.
+  ListBlobs :: UserId -> ClientId -> BackupEpoch -> BackupBlobStore m [BackupBlob]
   -- | Deletes all versions of the key (see above why all). Idempotent.
   DeleteBlob :: BackupLocation -> BackupBlobStore m ()
   -- | Deletes all versions of all keys under the prefix (see above why all). Idempotent.

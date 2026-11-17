@@ -18,15 +18,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Pure rules for automatic backups. The subsystem calls them with the epoch set and the
--- epoch listing taken from S3. Not atomic with the upload; races of incrementals are tolerated
--- (spec, "Races"), full uploads exclude each other with a lock (see
--- 'Wire.BackupSubsystem.Interpreter').
+-- epoch listing taken from S3. Not atomic with the upload; races are tolerated (spec,
+-- "Races"): the newest full file (by id) wins and every upload prunes what it superseded.
 module Wire.BackupSubsystem.Rules
   ( BackupLimits (..),
     UploadRejection (..),
     checkUpload,
-    readyBlobs,
-    epochFiles,
+    currentBlobs,
+    pruneTargets,
+    staleEpochs,
     toFile,
   )
 where
@@ -49,71 +49,69 @@ data BackupLimits = BackupLimits
   deriving stock (Eq, Show, Generic)
   deriving anyclass (FromJSON)
 
-data UploadRejection = EpochNotAllowed | FullExists | FullMissing | TooManyFiles | TooLarge
+data UploadRejection = EpochNotAllowed | FullMissing | TooManyFiles | TooLarge
   deriving stock (Eq, Show)
 
 -- | Decide whether a file of the given kind and size may be stored at the given epoch, given the
--- stored epochs, whether the target epoch has a ready full file and the number of its ready
--- files (all from S3 listings).
+-- stored epochs, whether the target epoch has a full file and the number of its current files
+-- (all from S3 listings). A full file replaces the previous one, so it is never rejected for an
+-- existing one.
 checkUpload ::
   BackupLimits ->
   BackupKind ->
   -- | Stored epochs of the device
   Set BackupEpoch ->
-  -- | Does the target epoch have a ready full file?
+  -- | Does the target epoch have a full file?
   Bool ->
-  -- | Number of ready files in the target epoch
+  -- | Number of current files in the target epoch, see 'currentBlobs'
   Word32 ->
   BackupEpoch ->
   Word64 ->
   Either UploadRejection ()
 checkUpload limits kind epochs hasFull files e size = do
-  unless (e.unBackupEpoch >= 1 && epochAllowed (Set.toAscList epochs)) $ Left EpochNotAllowed
+  unless (e.unBackupEpoch >= 1 && epochAllowed (Set.lookupMax epochs)) $ Left EpochNotAllowed
   case kind of
     BackupFull -> do
-      when hasFull $ Left FullExists
       when (size > limits.maxFullBytes) $ Left TooLarge
     BackupIncremental -> do
       unless hasFull $ Left FullMissing
       when (size > limits.maxIncrementalBytes) $ Left TooLarge
       unless (files < limits.maxFilesPerEpoch) $ Left TooManyFiles
   where
-    epochAllowed :: [BackupEpoch] -> Bool
-    epochAllowed [] = True
-    epochAllowed [n] = e == n || Just e == next n
-    epochAllowed [n, m] | Just m == next n = e == m
-    epochAllowed _ = False
+    -- only the newest stored epoch or its successor
+    epochAllowed :: Maybe BackupEpoch -> Bool
+    epochAllowed = maybe True (\n -> e == n || Just e == next n)
 
     next :: BackupEpoch -> Maybe BackupEpoch
     next (BackupEpoch n)
       | n < maxBound = Just (BackupEpoch (n + 1))
       | otherwise = Nothing
 
--- | The files of an epoch that are complete: all but the full files whose lock still exists.
-readyBlobs :: BackupEpochListing -> [BackupBlob]
-readyBlobs l = filter (\b -> not (isLockedFull l b)) l.blobs
+-- | The files of an epoch that count: the newest full file (greatest id) and the incremental
+-- files after it (greater ids), full first, then incremental, each by id. Empty if there is no
+-- full file: incremental files before the newest full file belong to a superseded one.
+currentBlobs :: [BackupBlob] -> [BackupBlob]
+currentBlobs blobs = case newestFull of
+  Nothing -> []
+  Just f -> f : sortOn (.fileId) (filter (\b -> b.kind == BackupIncremental && b.fileId > f.fileId) blobs)
+  where
+    newestFull = listToMaybe . sortOn (Down . (.fileId)) $ filter ((== BackupFull) . (.kind)) blobs
 
-isLockedFull :: BackupEpochListing -> BackupBlob -> Bool
-isLockedFull l b = b.kind == BackupFull && b.fileId `elem` l.locks
+-- | The files of an epoch that a stored full file superseded, to be deleted.
+pruneTargets :: [BackupBlob] -> [BackupBlob]
+pruneTargets blobs
+  | any ((== BackupFull) . (.kind)) blobs = filter (`notElem` currentBlobs blobs) blobs
+  | otherwise = []
 
--- | All files of an epoch as shown to clients: full files first, then incremental ones, each by
--- id. A full file whose lock exists is 'ready = False'. A lock without a file (upload started,
--- nothing stored yet) is shown as a not ready full file of size 0.
-epochFiles :: BackupEpochListing -> [BackupFile]
-epochFiles l =
-  map snd . sortOn fst $
-    [((b.kind, b.fileId), toFile (not (isLockedFull l b)) b) | b <- l.blobs]
-      <> [ ((BackupFull, fid), toFile False BackupBlob {kind = BackupFull, fileId = fid, size = 0})
-         | fid <- l.locks,
-           fid `notElem` [b.fileId | b <- l.blobs, b.kind == BackupFull]
-         ]
+-- | The epochs to delete: all but the two newest.
+staleEpochs :: Set BackupEpoch -> [BackupEpoch]
+staleEpochs = reverse . drop 2 . reverse . Set.toAscList
 
-toFile :: Bool -> BackupBlob -> BackupFile
-toFile ready b =
+toFile :: BackupBlob -> BackupFile
+toFile b =
   BackupFile
     { id = b.fileId,
       kind = b.kind,
       size = b.size,
-      createdAt = toUTCTimeMillis (uuidV7Time b.fileId.unBackupFileId),
-      ready
+      createdAt = toUTCTimeMillis (uuidV7Time b.fileId.unBackupFileId)
     }

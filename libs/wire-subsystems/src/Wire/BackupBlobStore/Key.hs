@@ -24,11 +24,9 @@ module Wire.BackupBlobStore.Key
     BackupLocation (..),
     BackupPrefix (..),
     renderKey,
-    renderLockKey,
     renderPrefix,
     parseEpochPrefix,
     parseFileKey,
-    parseLockKey,
   )
 where
 
@@ -104,14 +102,6 @@ renderKey k loc =
     <> "/"
     <> UUID.toText (unBackupFileId loc.fileId)
 
--- | Key of the lock marker of a full upload: the file key plus @.lock@. The file is not ready
--- as long as its lock exists. Only 'BackupFull' uploads take a lock.
-renderLockKey :: BackupHmacKey -> BackupLocation -> Text
-renderLockKey k loc = renderKey k loc <> lockSuffix
-
-lockSuffix :: Text
-lockSuffix = ".lock"
-
 -- | Parses a CommonPrefix returned for a 'ClientPrefix' listing, e.g. "<clientPrefix>7/".
 parseEpochPrefix :: Text -> Text -> Maybe BackupEpoch
 parseEpochPrefix clientPrefix cp = do
@@ -138,11 +128,3 @@ parseCanonicalEpoch seg = do
   e <- either (const Nothing) Just (parseUrlPiece seg)
   guard (toUrlPiece e == seg)
   pure e
-
--- | Parses a key returned for an 'EpochPrefix' listing as the lock of a full upload.
-parseLockKey :: Text -> Text -> Maybe BackupFileId
-parseLockKey epochPrefix key = do
-  withoutSuffix <- T.stripSuffix lockSuffix key
-  (kind, fileId) <- parseFileKey epochPrefix withoutSuffix
-  guard (kind == BackupFull)
-  pure fileId

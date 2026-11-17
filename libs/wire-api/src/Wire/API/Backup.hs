@@ -22,12 +22,15 @@ module Wire.API.Backup
     BackupFile (..),
     BackupEpochs (..),
     BackupFiles (..),
+    EpochBackups (..),
+    ClientBackups (..),
+    UserBackups (..),
   )
 where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Id (uuidSchema)
+import Data.Id (ClientId, uuidSchema)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -95,9 +98,7 @@ data BackupFile = BackupFile
   { id :: BackupFileId,
     kind :: BackupKind,
     size :: Word64,
-    createdAt :: UTCTimeMillis,
-    -- | 'False' for a full backup whose upload is in progress or was interrupted
-    ready :: Bool
+    createdAt :: UTCTimeMillis
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BackupFile)
@@ -111,7 +112,6 @@ instance ToSchema BackupFile where
         <*> (.kind) .= field "kind" schema
         <*> (.size) .= field "size" schema
         <*> (.createdAt) .= field "createdAt" schema
-        <*> (.ready) .= field "ready" schema
 
 newtype BackupEpochs = BackupEpochs {epochs :: [BackupEpoch]}
   deriving stock (Eq, Show)
@@ -132,3 +132,44 @@ instance ToSchema BackupFiles where
   schema =
     object $
       BackupFiles <$> (.files) .= field "files" (array schema)
+
+-- | The current files of one epoch: the newest full file and the incremental files after it.
+data EpochBackups = EpochBackups
+  { epoch :: BackupEpoch,
+    files :: [BackupFile]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EpochBackups)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema EpochBackups)
+
+instance ToSchema EpochBackups where
+  schema =
+    object $
+      EpochBackups
+        <$> (.epoch) .= field "epoch" schema
+        <*> (.files) .= field "files" (array schema)
+
+data ClientBackups = ClientBackups
+  { client :: ClientId,
+    epochs :: [EpochBackups]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientBackups)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ClientBackups)
+
+instance ToSchema ClientBackups where
+  schema =
+    object $
+      ClientBackups
+        <$> (.client) .= field "client" schema
+        <*> (.epochs) .= field "epochs" (array schema)
+
+newtype UserBackups = UserBackups {clients :: [ClientBackups]}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserBackups)
+
+instance ToSchema UserBackups where
+  schema =
+    object $
+      UserBackups <$> (.clients) .= field "clients" (array schema)

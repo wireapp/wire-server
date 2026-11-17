@@ -18,7 +18,9 @@ Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature rou
 | `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                              | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
 | `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                                     | `2026-11-12T10:15:30.123Z`             |
 | `<ByteCount>`      | number of bytes, non-negative integer                                                                              | `1048576`                              |
-| `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>, "ready": <Bool>}` | see below                              |
+| `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}`                  | see below                              |
+| `<EpochBackups>`   | `{"epoch": <BackupEpoch>, "files": [<BackupFile>]}`                                                                | see `GET /backups`                     |
+| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochBackups>]}`                                                               | see `GET /backups`                     |
 | `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                                     | `weekly`                               |
 | `<FeatureStatus>`  | `enabled` or `disabled`                                                                                            | `enabled`                              |
 | `<LockStatus>`     | `locked` or `unlocked`                                                                                             | `unlocked`                             |
@@ -30,8 +32,7 @@ Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature rou
   "id": "0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07",
   "kind": "full",
   "size": 1048576,
-  "createdAt": "2026-11-12T10:15:30.123Z",
-  "ready": true
+  "createdAt": "2026-11-12T10:15:30.123Z"
 }
 ```
 
@@ -40,23 +41,48 @@ Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature rou
 Rules shared by all routes under `/backups/clients/<ClientId>`:
 
 - Read routes (GET): `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. A client may read the backups of any client of the same user.
-- Write routes (POST, DELETE): `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`) and be a client of the caller (else 404 `backup-not-found`).
-- If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`, DELETE included: object keys are derived from the HMAC key, so the server can't locate stored backups to delete them. With a key configured, DELETE works for the own client independent of the team flag `automaticBackups`.
-- A file is _ready_ once its upload is committed. Only fulls can be not ready (upload in progress or interrupted).
+- Write routes (POST): `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`) and be a client of the caller (else 404 `backup-not-found`).
+- If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`.
+- There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig). The server keeps at most the two newest epochs of a client.
+- A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
+- _Newest full wins_: a full upload replaces the epoch's previous full and the incrementals of it. Files are ordered by `<BackupFileId>` (UUIDv7, i.e. server time); the current files of an epoch are the full with the greatest id and the incrementals with a greater id. A client must not upload incrementals while it uploads a new full of the same epoch: they are deleted when the full is stored.
 
 ---
 
-### `/backups/clients/<ClientId>`
+### `/backups`
 
-#### `DELETE /backups/clients/<ClientId>`
+#### `GET /backups`
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
-- **Response:** 204, empty
+- **Response:** 200 `{"clients": [<ClientBackups>]}`
 
-Delete all backups of the client (all epochs, files and locks, all object versions). Own client only; idempotent.
+List the restorable backups of all clients of the caller, e.g. for a new client that restores a backup. Per client its epochs (ascending), per epoch the current files (full first, then incrementals by `id`). Epochs without a full and clients without any epoch are omitted. Clients are ordered by their newest file, newest first. `Z-Client` must be a client of the caller (else 404 `backup-not-found`). No team flag check. No URLs: each file is fetched via the download route with the listed `client`, `epoch`, `kind` and `id`.
 
-Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
+Example: `GET /v19/backups` → `200`
+
+```json
+{
+  "clients": [
+    {
+      "client": "4b2f7a9c1d3e5f60",
+      "epochs": [
+        {
+          "epoch": 2,
+          "files": [
+            {
+              "id": "0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07",
+              "kind": "full",
+              "size": 1048576,
+              "createdAt": "2026-11-12T10:15:30.123Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -68,7 +94,7 @@ Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
 - **Request body:** none
 - **Response:** 200 `{"epochs": [<BackupEpoch>]}`, ascending
 
-List the epochs that have anything stored for the client. An epoch that only has a lock (full upload started, nothing stored) is listed too.
+List the epochs that have anything stored for the client (at most two).
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs` → `200`
 
@@ -86,7 +112,7 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs` → `200`
 - **Request body:** none
 - **Response:** 200 `{"files": [<BackupFile>]}`. Order: `full` first, then `incremental`, each by `id`.
 
-List the files of an epoch (metadata only, no URLs). A full whose upload is in progress or was interrupted is listed with `"ready": false`: `createdAt` is the start of its upload and `size` is 0 if nothing was stored yet. Incrementals are always `"ready": true`. The server can't tell in-progress from stale (no lock timeout): a client with no upload running deletes the epoch (`DELETE` below) and uploads a new full. 404 `backup-not-found` if the epoch has neither a file nor a lock.
+List the current files of an epoch (metadata only, no URLs). 404 `backup-not-found` if the epoch has no full.
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
 
@@ -97,29 +123,17 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
       "id": "0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07",
       "kind": "full",
       "size": 1048576,
-      "createdAt": "2026-11-12T10:15:30.123Z",
-      "ready": true
+      "createdAt": "2026-11-12T10:15:30.123Z"
     },
     {
       "id": "0195f2d4-1b02-7e55-9f10-2c3d4e5f6a7b",
       "kind": "incremental",
       "size": 2048,
-      "createdAt": "2026-11-12T10:35:30.456Z",
-      "ready": true
+      "createdAt": "2026-11-12T10:35:30.456Z"
     }
   ]
 }
 ```
-
-#### `DELETE /backups/clients/<ClientId>/epochs/<BackupEpoch>`
-
-- **Headers:** `Z-User`, `Z-Client`
-- **Request body:** none
-- **Response:** 204, empty
-
-Delete an epoch (files and lock, all object versions). Own client only; idempotent. Recovery from an interrupted full upload.
-
-Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `204`
 
 ---
 
@@ -129,19 +143,19 @@ Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `204`
 
 - **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxFullBytes`)
-- **Response:** 200 `<BackupFile>` with `"kind": "full"`, `"size"` = `Content-Length`, `"ready": true`
+- **Response:** 200 `<BackupFile>` with `"kind": "full"`, `"size"` = number of bytes stored
 
-Upload the full file of an epoch. Exactly one full per epoch.
+Upload the full file of an epoch. It replaces the previous full of the epoch and the incrementals of it (newest full wins, see Rules).
 
-Checked before any write, in this order: own client, team flag `automaticBackups` enabled (user has a team), epoch rule, ready full exists (409 `backup-full-exists`), `Content-Length` over the cap (413), any lock in the epoch (409 `backup-full-locked`: another full upload in progress, or one was interrupted).
+Checked before any write, in this order: own client, team flag `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over the cap (413).
 
-Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; with one stored epoch `N` only `N` or `N+1`; with two consecutive epochs `N`, `N+1` only `N+1`; otherwise none (409 `backup-epoch-not-allowed`). Delete old epochs to proceed.
+Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`). After a successful upload all but the two newest epochs are deleted by the server.
 
-Concurrency: the server puts a lock marker, lists the epoch again and aborts (removing its lock) if a foreign ready full (`backup-full-exists`) or lock (`backup-full-locked`) appeared. A tight race can fail both uploads with `backup-full-locked`; the client retries. The lock is removed after the file is stored: that is the commit that makes the full ready.
+After storing, the server lists the epoch and deletes every full and incremental the new full superseded (older full, incrementals with a smaller id). Concurrent full uploads delete each other, a late older one deletes itself; the newest wins.
 
-A failed upload (fewer bytes than `Content-Length` arrive, client disconnect, storage error, client removed meanwhile) removes file and lock and surfaces the error; a short body or disconnect gives 400 `incomplete-body`. After a hard server crash, or if the final lock removal fails (500), the full stays `ready: false` until the epoch is deleted.
+A failed upload (fewer bytes than `Content-Length` arrive, client disconnect, storage error, client removed meanwhile) removes the file and surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
 
-Size subtlety: the server stores exactly the first `Content-Length` bytes and ignores any excess, because the HTTP layer hands the handler no more than that. Too many bytes can't be detected and give a successful upload of a truncated file; too few give 400 `incomplete-body`. The response `size` is the number of bytes stored, so clients should compare it with the number of bytes they sent and, if it differs, delete the epoch and retry.
+Size subtlety: the server stores exactly the first `Content-Length` bytes and ignores any excess, because the HTTP layer hands the handler no more than that. Too many bytes can't be detected and give a successful upload of a truncated file; too few give 400 `incomplete-body`. The response `size` is the number of bytes stored, so clients should compare it with the number of bytes they sent and, if it differs, upload a new full.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with `Content-Length: 1048576` and 1048576 body bytes → `200`
 
@@ -150,8 +164,7 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with `Conten
   "id": "0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07",
   "kind": "full",
   "size": 1048576,
-  "createdAt": "2026-11-12T10:15:30.123Z",
-  "ready": true
+  "createdAt": "2026-11-12T10:15:30.123Z"
 }
 ```
 
@@ -163,11 +176,11 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with `Conten
 
 - **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxIncrementalBytes`)
-- **Response:** 200 `<BackupFile>` with `"kind": "incremental"`, `"ready": true`
+- **Response:** 200 `<BackupFile>` with `"kind": "incremental"`
 
-Upload an incremental file. Needs a ready full in the epoch: otherwise 409 `backup-full-locked` if the epoch has a lock (unfinished full), else 409 `backup-full-missing`. Then epoch rule (as for full), size cap (413), and file count cap `maxFilesPerEpoch` counting ready files including the full (409 `backup-too-many-files`). No lock; concurrent incrementals can slightly exceed the file cap. A failed upload leaves no file (400 `incomplete-body` for a short body or disconnect).
+Upload an incremental file. Needs a full in the epoch (else 409 `backup-full-missing`). Then epoch rule (as for full), size cap (413), and file count cap `maxFilesPerEpoch` counting the current files including the full (409 `backup-too-many-files`). Concurrent incrementals can slightly exceed the file cap. A failed upload leaves no file (400 `incomplete-body` for a short body or disconnect). Do not upload while a new full of the epoch is uploaded: the incremental is deleted when the full is stored.
 
-Size subtlety: the server stores exactly the first `Content-Length` bytes and ignores any excess, because the HTTP layer hands the handler no more than that. Too many bytes can't be detected and give a successful upload of a truncated file; too few give 400 `incomplete-body`. The response `size` is the number of bytes stored, so clients should compare it with the number of bytes they sent and, if it differs, delete the epoch and retry (or upload the incremental again, which is a new file).
+Size subtlety: the server stores exactly the first `Content-Length` bytes and ignores any excess, because the HTTP layer hands the handler no more than that. Too many bytes can't be detected and give a successful upload of a truncated file; too few give 400 `incomplete-body`. The response `size` is the number of bytes stored, so clients should compare it with the number of bytes they sent and, if it differs, upload the incremental again (a new file) or a new full.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/incremental` with `Content-Length: 2048` and 2048 body bytes → `200`
 
@@ -176,8 +189,7 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/incremental` with 
   "id": "0195f2d4-1b02-7e55-9f10-2c3d4e5f6a7b",
   "kind": "incremental",
   "size": 2048,
-  "createdAt": "2026-11-12T10:35:30.456Z",
-  "ready": true
+  "createdAt": "2026-11-12T10:35:30.456Z"
 }
 ```
 
@@ -191,7 +203,7 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/incremental` with 
 - **Request body:** none
 - **Response:** 302, empty body, `Location: <Url>` (presigned S3 URL, bearer link valid for `downloadLinkTTL` seconds)
 
-Download one file via redirect. 404 `backup-not-found` if no such file exists (a lock-only full has no file, so it is 404, also for a wrong `<BackupKind>`). 409 `backup-full-locked` for a full that exists but is not ready (costs one extra lookup of its lock).
+Download one file via redirect. 404 `backup-not-found` if no such file exists(also for a wrong `<BackupKind>`).
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/files/full/0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` → `302`, `Location: https://s3.example.com/backup/…?X-Amz-Signature=…`
 
@@ -255,12 +267,10 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 | Status | Label                                | Raised by                                                                                                                                                                                                                                 |
 | ------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (fewer bytes than `Content-Length` arrive, or disconnect)                                                                                                                                             |
-| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups/…` route (backups not configured on the server, i.e. no HMAC key)                                                                       |
-| 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental`, `DELETE …/epochs/<BackupEpoch>`, `DELETE /backups/clients/<ClientId>` (`<ClientId>` is not `Z-Client`)                                                                                               |
-| 404    | `backup-not-found`                   | `GET …/epochs`, `GET …/epochs/<BackupEpoch>`, `GET …/files/…` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s and `DELETE`s (`<ClientId>` is not a client of the caller) |
+| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups` route (backups not configured on the server, i.e. no HMAC key)                                                                       |
+| 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental` (`<ClientId>` is not `Z-Client`)                                                                                               |
+| 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller); `GET …/epochs`, `GET …/epochs/<BackupEpoch>`, `GET …/files/…` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s (`<ClientId>` is not a client of the caller) |
 | 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                       |
-| 409    | `backup-full-exists`                 | `POST …/full` (a ready full exists, or one appeared during the upload)                                                                                                                                                                    |
-| 409    | `backup-full-locked`                 | `POST …/full` (a lock exists, or appeared during the upload); `POST …/incremental` (only an unfinished full); `GET …/files/…` (full not ready)                                                                                            |
 | 409    | `backup-full-missing`                | `POST …/incremental`                                                                                                                                                                                                                      |
 | 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                      |
 | 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap; checked on the declared value, before any byte is read)                                                                                                      |

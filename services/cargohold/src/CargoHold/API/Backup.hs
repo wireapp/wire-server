@@ -34,12 +34,11 @@ import Wire.BackupSubsystem
 -- backup feature is disabled (no HMAC key configured).
 backupServer :: (Member BackupSubsystem r) => ServerT BackupAPI (Sem r)
 backupServer =
-  Named @"backup-list-epochs" listEpochs
+  Named @"backup-list" listUserBackups
+    :<|> Named @"backup-list-epochs" listEpochs
     :<|> Named @"backup-upload-full" (upload BackupFull)
     :<|> Named @"backup-upload-incremental" (upload BackupIncremental)
     :<|> Named @"backup-list-files" listFiles
     :<|> Named @"backup-download" (\u z c e k fid -> Just . AssetLocation <$> downloadUrl u z c e k fid)
-    :<|> Named @"backup-delete-epoch" deleteEpochBackups
-    :<|> Named @"backup-delete-client" deleteClientBackups
   where
     upload kind u z c e len body = uploadBackup u z c e kind len body.getAssetSource

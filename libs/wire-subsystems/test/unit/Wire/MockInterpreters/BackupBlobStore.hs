@@ -17,7 +17,6 @@
 
 module Wire.MockInterpreters.BackupBlobStore
   ( BlobVersions,
-    BlobLocks,
     versionsOf,
     inMemoryBackupBlobStoreInterpreter,
     countingBackupBlobStoreInterpreter,
@@ -46,16 +45,12 @@ import Wire.BackupBlobStore.Key
 -- version id. 'Nothing' is a delete marker.
 type BlobVersions = Map BackupLocation [(Int, Maybe ByteString)]
 
--- | Locks of full uploads, see 'renderLockKey'. Only 'BackupFull' locations are locked.
-type BlobLocks = Set BackupLocation
-
 -- | All versions of a key (including delete markers), newest first.
 versionsOf :: BackupLocation -> BlobVersions -> [Maybe ByteString]
 versionsOf l = map snd . Map.findWithDefault [] l
 
 inMemoryBackupBlobStoreInterpreter ::
   ( Member (State BlobVersions) r,
-    Member (State BlobLocks) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -64,7 +59,6 @@ inMemoryBackupBlobStoreInterpreter = interpreter (const (pure ()))
 
 countingBackupBlobStoreInterpreter ::
   ( Member (State BlobVersions) r,
-    Member (State BlobLocks) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -75,7 +69,6 @@ countingBackupBlobStoreInterpreter consumed =
 
 interpreter ::
   ( Member (State BlobVersions) r,
-    Member (State BlobLocks) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -95,29 +88,20 @@ interpreter onChunk = interpret $ \case
       $ "https://blob.test/" <> UUID.toText (unBackupFileId l.fileId)
   ListBlobEpochs u c -> do
     files <- gets (Map.keys . live)
-    locks <- gets Set.toList
     pure
       . Set.toDescList
       . Set.fromList
       . map (.epoch)
-      $ filter (\l -> l.user == u && l.client == c) (files <> locks)
-  ListBlobs u c e -> do
-    blobs <-
-      gets $
-        reverse
-          . map (\(l, b) -> BackupBlob {kind = l.kind, fileId = l.fileId, size = fromIntegral (BS.length b)})
-          . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
-          . Map.toList
-          . live
-    locks <- gets (map (.fileId) . filter (\l -> l.user == u && l.client == c && l.epoch == e) . Set.toList)
-    pure BackupEpochListing {blobs, locks}
-  PutLock l -> modify (Set.insert l)
-  LockExists l -> gets (Set.member l)
-  DeleteLock l -> modify (Set.delete l)
+      $ filter (\l -> l.user == u && l.client == c) files
+  ListBlobs u c e ->
+    gets $
+      reverse
+        . map (\(l, b) -> BackupBlob {kind = l.kind, fileId = l.fileId, size = fromIntegral (BS.length b)})
+        . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
+        . Map.toList
+        . live
   DeleteBlob l -> modify (Map.delete l)
-  DeleteBlobs p -> do
-    modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
-    modify (Set.filter (not . inPrefix p))
+  DeleteBlobs p -> modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
   where
     addVersion l v = do
       h <- gets (Map.findWithDefault [] l)

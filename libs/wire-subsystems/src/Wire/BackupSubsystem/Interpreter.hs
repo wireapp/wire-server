@@ -19,6 +19,7 @@ module Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem) where
 
 import Conduit (ConduitT, ResourceT)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
@@ -56,6 +57,17 @@ interpretBackupSubsystem ::
   ) =>
   InterpreterFor BackupSubsystem r
 interpretBackupSubsystem = interpret $ \case
+  ListUserBackups luid zcid -> do
+    let uid = tUnqualified luid
+    cs <- clientsOf uid
+    unless (zcid `Set.member` cs) $ throw BackupErrNotFound
+    clients <- fmap catMaybes . forM (Set.toAscList cs) $ \cid -> do
+      epochs <- Set.toAscList . Set.fromList <$> listBlobEpochs uid cid
+      eps <- fmap catMaybes . forM epochs $ \e -> do
+        files <- map toFile . currentBlobs <$> listBlobs uid cid e
+        pure (EpochBackups e files <$ listToMaybe files)
+      pure (ClientBackups cid eps <$ listToMaybe eps)
+    pure . UserBackups $ sortOn (Down . newestFile) clients
   ListEpochs luid zcid cid -> do
     let uid = tUnqualified luid
     checkRead uid zcid cid
@@ -65,7 +77,7 @@ interpretBackupSubsystem = interpret $ \case
   ListFiles luid zcid cid e -> do
     let uid = tUnqualified luid
     checkRead uid zcid cid
-    files <- epochFiles <$> listBlobs uid cid e
+    files <- map toFile . currentBlobs <$> listBlobs uid cid e
     when (null files) $ throw BackupErrNotFound
     pure (BackupFiles files)
   DownloadUrl luid zcid cid e kind fid -> do
@@ -73,17 +85,7 @@ interpretBackupSubsystem = interpret $ \case
         l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
     checkRead uid zcid cid
     unlessM (blobExists l) $ throw BackupErrNotFound
-    -- a full file whose lock still exists is not ready
-    when (kind == BackupFull) $ whenM (lockExists l) $ throw BackupErrFullLocked
     signedDownloadUrl l
-  DeleteEpochBackups luid zcid cid e -> do
-    let uid = tUnqualified luid
-    checkWrite uid zcid cid
-    deleteBlobs (EpochPrefix uid cid e)
-  DeleteClientBackups luid zcid cid -> do
-    let uid = tUnqualified luid
-    checkWrite uid zcid cid
-    deleteBlobs (ClientPrefix uid cid)
   InternalDeleteClientBackups uid cid -> deleteBlobs (ClientPrefix uid cid)
   InternalDeleteUserBackups uid -> deleteBlobs (UserPrefix uid)
 
@@ -101,8 +103,10 @@ interpretBackupSubsystem = interpret $ \case
 -- This assumes brig client reads are consistent with its writes and the store has strong
 -- list-after-write consistency.
 --
--- Full files additionally take a lock ('withFullLock'), so that at most one full file exists
--- per epoch.
+-- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
+-- new full file replaces the previous one. The newest full file (greatest id) wins; after storing,
+-- the full file and the incremental files it superseded are deleted, and so are all but the two
+-- newest epochs. Concurrent full uploads prune each other, a late older one deletes itself.
 uploadBackupImpl ::
   ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
@@ -129,23 +133,20 @@ uploadBackupImpl uid zcid cid e kind len src = do
   unless (feat.status == FeatureStatusEnabled) $ throw BackupErrFeatureDisabled
   limits <- input
   epochs <- Set.fromList <$> listBlobEpochs uid cid
-  listing <- listBlobs uid cid e
-  let ready = readyBlobs listing
-      hasFull = any ((== BackupFull) . (.kind)) ready
-  -- an unfinished full is reported as locked, not as missing
-  when (kind == BackupIncremental && not hasFull && not (null listing.locks)) $
-    throw BackupErrFullLocked
+  blobs <- listBlobs uid cid e
+  let current = currentBlobs blobs
+      hasFull = any ((== BackupFull) . (.kind)) current
   either (throw . rejectionError) pure $
-    checkUpload limits kind epochs hasFull (fromIntegral (length ready)) e len
+    checkUpload limits kind epochs hasFull (fromIntegral (length current)) e len
   fid <- BackupFileId <$> (uuidV7 <$> Now.get <*> Random.uuid)
   let l = BackupLocation {user = uid, client = cid, epoch = e, kind, fileId = fid}
-  case kind of
-    BackupFull -> do
-      unless (null listing.locks) $ throw BackupErrFullLocked
-      withFullLock l (store l)
-    BackupIncremental -> store l
-  pure (toFile True BackupBlob {kind, fileId = fid, size = len})
+  store l
+  when (kind == BackupFull) $
+    listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
+  traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $ Set.insert e epochs
+  pure (toFile BackupBlob {kind, fileId = fid, size = len})
   where
+    location b = BackupLocation {user = uid, client = cid, epoch = e, kind = b.kind, fileId = b.fileId}
     store l = do
       let put = void (putBlob l len src) `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
           recheck = do
@@ -156,44 +157,16 @@ uploadBackupImpl uid zcid cid e kind len src = do
       -- discarded by the 'Resource' interpreter, so it never masks the original failure.
       (put *> recheck) `onException` deleteBlob l
 
--- | Runs a full upload under the lock of its file id, which also marks the file as not ready.
---
--- 1. Put the lock.
--- 2. List the epoch again: another ready full file means 'BackupErrFullExists', any other lock
---    (including one of a full file that is still locked) means 'BackupErrFullLocked'. With strong
---    list-after-write consistency at most one contender sees only its own lock. A contender that
---    finished before our listing put its file before it deleted its lock, so we see its file.
--- 3. Run the upload. The lock is deleted on any failure, after the upload removed its file.
--- 4. Commit: delete the lock. The file is ready from then on.
---
--- There is no lock timeout (the speed of the client's connection is unknown): after a crash the
--- lock stays, the epoch can't get a new full file and the not ready full is shown to clients
--- until they delete the epoch. Both contenders of a tight race may fail, clients retry.
-withFullLock ::
-  ( Member BackupBlobStore r,
-    Member (Error BackupError) r,
-    Member Resource r
-  ) =>
-  BackupLocation ->
-  Sem r () ->
-  Sem r ()
-withFullLock l upload = do
-  putLock l
-  let guarded = do
-        other <- listBlobs l.user l.client l.epoch
-        when (any ((== BackupFull) . (.kind)) (readyBlobs other)) $ throw BackupErrFullExists
-        unless (all (== l.fileId) other.locks) $ throw BackupErrFullLocked
-        upload
-  guarded `onException` deleteLock l
-  deleteLock l
-
 rejectionError :: UploadRejection -> BackupError
 rejectionError = \case
   EpochNotAllowed -> BackupErrEpochNotAllowed
-  FullExists -> BackupErrFullExists
   FullMissing -> BackupErrFullMissing
   TooManyFiles -> BackupErrTooManyFiles
   TooLarge -> BackupErrTooLarge
+
+-- | Time of the newest file of a client's backups, i.e. of its last epoch.
+newestFile :: ClientBackups -> Maybe UTCTimeMillis
+newestFile c = foldr (max . Just) Nothing [f.createdAt | ep <- c.epochs, f <- ep.files]
 
 clientsOf :: (Member BrigAPIAccess r) => UserId -> Sem r (Set ClientId)
 clientsOf uid = Map.findWithDefault mempty uid . userClients <$> lookupClients [uid]

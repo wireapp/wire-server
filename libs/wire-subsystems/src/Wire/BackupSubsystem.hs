@@ -39,8 +39,6 @@ data BackupError
   | BackupErrTooLarge
   | BackupErrFeatureDisabled
   | BackupErrIncompleteBody
-  | BackupErrFullExists
-  | BackupErrFullLocked
   | BackupErrFullMissing
   deriving stock (Eq, Show)
 
@@ -53,12 +51,12 @@ backupErrorToWai = \case
   BackupErrTooLarge -> errorToWai @E.BackupTooLarge
   BackupErrFeatureDisabled -> errorToWai @E.BackupFeatureDisabled
   BackupErrIncompleteBody -> errorToWai @E.IncompleteBody
-  BackupErrFullExists -> errorToWai @E.BackupFullExists
-  BackupErrFullLocked -> errorToWai @E.BackupFullLocked
   BackupErrFullMissing -> errorToWai @E.BackupFullMissing
 
 -- | Public operations take the caller (user and @Z-Client@) and the target client @cid@.
 data BackupSubsystem m a where
+  -- | Takes the caller (user and @Z-Client@) only.
+  ListUserBackups :: Local UserId -> ClientId -> BackupSubsystem m UserBackups
   ListEpochs :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m BackupEpochs
   UploadBackup ::
     Local UserId ->
@@ -79,8 +77,6 @@ data BackupSubsystem m a where
     BackupKind ->
     BackupFileId ->
     BackupSubsystem m URI
-  DeleteEpochBackups :: Local UserId -> ClientId -> ClientId -> BackupEpoch -> BackupSubsystem m ()
-  DeleteClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ()
   InternalDeleteClientBackups :: UserId -> ClientId -> BackupSubsystem m ()
   InternalDeleteUserBackups :: UserId -> BackupSubsystem m ()
 
