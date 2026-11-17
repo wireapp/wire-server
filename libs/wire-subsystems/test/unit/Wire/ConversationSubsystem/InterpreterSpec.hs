@@ -667,8 +667,7 @@ interpretProposalStore ::
 interpretProposalStore =
   interpret $ \case
     StoreProposal {} -> pure ()
-    GetProposal {} -> pure Nothing
-    GetAllPendingProposalRefs _ _ -> pure []
+    StoreProposals {} -> pure ()
     GetAllPendingProposals _ _ -> pure []
     DeleteAllProposals _ -> pure ()
 

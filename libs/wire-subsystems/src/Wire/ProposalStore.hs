@@ -38,15 +38,14 @@ data ProposalStore m a where
     Epoch ->
     StoredProposal ->
     ProposalStore m ()
-  GetProposal ::
+  -- | Store several proposals in bulk. If the same ref appears more than once,
+  -- the last occurrence wins (as if 'StoreProposal' was called for each
+  -- element in order).
+  StoreProposals ::
     GroupId ->
     Epoch ->
-    ProposalRef ->
-    ProposalStore m (Maybe (RawMLS Proposal))
-  GetAllPendingProposalRefs ::
-    GroupId ->
-    Epoch ->
-    ProposalStore m [ProposalRef]
+    [StoredProposal] ->
+    ProposalStore m ()
   GetAllPendingProposals ::
     GroupId ->
     Epoch ->
