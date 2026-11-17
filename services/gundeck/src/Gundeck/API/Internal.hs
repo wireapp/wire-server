@@ -48,6 +48,10 @@ servantSitemap =
              :<|> Named @"i-presences-post" Presence.addH
              :<|> Named @"i-presences-delete" Presence.removeH
          )
+    -- TODO: Implement fan-in ingestion and membership handlers.
+    :<|> ( Named @"i-fan-in-push" (\_ -> undefined)
+             :<|> Named @"i-fan-in-membership" (\_ -> undefined)
+         )
     :<|> Named @"i-clients-delete" unregisterClientH
     :<|> Named @"i-user-delete" removeUserH
     :<|> Named @"i-push-tokens-get" getPushTokensH
