@@ -2386,6 +2386,7 @@ galley:
       conversation: postgresql
       conversationCodes: postgresql
       teamFeatures: postgresql
+      teamStore: postgresql
       domainRegistration: postgresql
       user: postgresql
       blockList: postgresql
@@ -2441,6 +2442,10 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
+- `teamStore` -> none. There is no migration of existing team data (teams,
+  team members and their legal hold status, user -> team index), and
+  `migration-to-postgresql` is treated like `postgresql`. Only use a
+  PostgreSQL setting on installations without team data in Cassandra.
 
 **Migration pattern per migration setting**
 

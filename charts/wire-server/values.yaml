@@ -101,6 +101,7 @@ galley:
       domainRegistration: cassandra
       user: cassandra
       blockList: cassandra
+      teamStore: cassandra
       passwordReset: cassandra
       customBackend: cassandra
       budget: cassandra

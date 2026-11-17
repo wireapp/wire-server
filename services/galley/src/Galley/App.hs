@@ -134,6 +134,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.LegalHoldStore.Postgres (interpretLegalHoldStoreWithPostgresTeamMembers)
 import Wire.Licensing.Effect (Licensing)
 import Wire.Licensing.Interpreter (runLicense)
 import Wire.Licensing.License qualified as Licensing
@@ -189,10 +190,15 @@ import Wire.TeamMemberStore.Cassandra
   ( interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
   )
+import Wire.TeamMemberStore.Postgres
+  ( interpretTeamMemberStoreToPostgres,
+    interpretTeamMemberStoreToPostgresWithPaging,
+  )
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
+import Wire.TeamStore.Postgres (interpretTeamStoreToPostgres)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter
 import Wire.UserClientIndexStore (UserClientIndexStore)
@@ -451,6 +457,31 @@ evalGalley e =
           CassandraStorage -> interpretCustomBackendStoreToCassandra
           MigrationToPostgresql -> interpretCustomBackendStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCustomBackendStoreToPostgres
+      -- The team store has no dual-write interpreter: 'MigrationToPostgresql'
+      -- is treated as 'PostgresqlStorage'. Teams, team members (including
+      -- their legal hold status) and the user -> team index are all stored
+      -- in the location selected by this setting.
+      teamStoreOnPostgres =
+        case (e ^. options . postgresMigration).teamStore of
+          CassandraStorage -> False
+          MigrationToPostgresql -> True
+          PostgresqlStorage -> True
+      teamStoreInterpreter =
+        if teamStoreOnPostgres
+          then interpretTeamStoreToPostgres
+          else interpretTeamStoreToCassandra
+      teamMemberStoreInterpreter =
+        if teamStoreOnPostgres
+          then interpretTeamMemberStoreToPostgres lh
+          else interpretTeamMemberStoreToCassandra lh
+      teamMemberStoreWithPagingInterpreter =
+        if teamStoreOnPostgres
+          then interpretTeamMemberStoreToPostgresWithPaging lh
+          else interpretTeamMemberStoreToCassandraWithPaging lh
+      legalHoldStoreInterpreter =
+        if teamStoreOnPostgres
+          then interpretLegalHoldStoreWithPostgresTeamMembers lh
+          else interpretLegalHoldStoreToCassandra lh
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -555,8 +586,8 @@ evalGalley e =
         . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
-        . interpretTeamMemberStoreToCassandraWithPaging lh
-        . interpretTeamMemberStoreToCassandra lh
+        . teamMemberStoreWithPagingInterpreter
+        . teamMemberStoreInterpreter
         . teamFeatureStoreInterpreter
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
@@ -564,9 +595,9 @@ evalGalley e =
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
-        . interpretLegalHoldStoreToCassandra lh
+        . legalHoldStoreInterpreter
         . interpretTeamJournal (e ^. aEnv)
-        . interpretTeamStoreToCassandra
+        . teamStoreInterpreter
         . customBackendStoreInterpreter
         . randomToIO
         . runHashPassword e._options._settings._passwordHashingOptions

@@ -411,6 +411,7 @@ library
     Wire.LegalHoldStore.Cassandra
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
+    Wire.LegalHoldStore.Postgres
     Wire.ListItems
     Wire.ListItems.Team.Cassandra
     Wire.MeetingNotifier
@@ -501,11 +502,13 @@ library
     Wire.TeamJournal.Aws
     Wire.TeamMemberStore
     Wire.TeamMemberStore.Cassandra
+    Wire.TeamMemberStore.Postgres
     Wire.TeamNotificationStore
     Wire.TeamNotificationStore.Cassandra
     Wire.TeamStore
     Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries
+    Wire.TeamStore.Postgres
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
     Wire.TeamSubsystem.Interpreter
