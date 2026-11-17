@@ -2311,7 +2311,7 @@ server, verification can be turned off by settings `insecureSkipVerifyTls` to
 
 ## Configure PostgreSQL
 
-`brig`, `galley`, and `background-worker` require a PostgreSQL database. The configured user needs to
+`brig`, `galley`, `spar`, and `background-worker` require a PostgreSQL database. The configured user needs to
 be able to write data and change the schema (e.g. create and alter tables.)
 
 The internal configuration YAML file format and the Helm charts for `brig` and
@@ -2368,8 +2368,8 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
-used as `password` field.
+The `postgresqlPassword` file is read by `brig`, `galley`, `spar`, and
+`background-worker`. Its content is used as `password` field.
 
 ### Using PostgreSQL for storing Cassandra-backed data
 
@@ -2406,6 +2406,11 @@ background-worker:
     migrateNonce: false
     migrateConnections: false
 ```
+
+`spar` additionally exposes its own `spar.config.postgresMigration` block, using the
+same shared storage-location type. Spar-owned stores (e.g. SAML users, SCIM tokens,
+external ids) are added to it by their respective migration tasks; until then the
+block mirrors the shared defaults and stays on Cassandra.
 
 #### Migration for existing installations
 
