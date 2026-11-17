@@ -29,7 +29,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Imports
 import UnliftIO (mapConcurrently)
-import Wire.API.Password as Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag (QueryAllTags (..), QueryAnyTags (..))
@@ -41,20 +40,20 @@ type RangedServiceTags = Range 0 3 (Set.Set ServiceTag)
 --------------------------------------------------------------------------------
 -- Providers
 
+-- | Insert the account data of a new provider. The password is not stored
+-- here, but in the 'Wire.PasswordStore.PasswordStore'.
 insertAccount ::
   (MonadClient m) =>
+  ProviderId ->
   Name ->
-  Password ->
   HttpsUrl ->
   Text ->
-  m ProviderId
-insertAccount name pass url descr = do
-  pid <- randomId
-  retry x5 $ write cql $ params LocalQuorum (pid, name, pass, url, descr)
-  pure pid
+  m ()
+insertAccount pid name url descr =
+  retry x5 $ write cql $ params LocalQuorum (pid, name, url, descr)
   where
-    cql :: PrepQuery W (ProviderId, Name, Password, HttpsUrl, Text) ()
-    cql = "INSERT INTO provider (id, name, password, url, descr) VALUES (?, ?, ?, ?, ?)"
+    cql :: PrepQuery W (ProviderId, Name, HttpsUrl, Text) ()
+    cql = "INSERT INTO provider (id, name, url, descr) VALUES (?, ?, ?, ?)"
 
 updateAccountProfile ::
   (MonadClient m) =>
@@ -111,17 +110,6 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
   where
     cql :: PrepQuery W (Identity ProviderId) ()
     cql = "DELETE FROM provider WHERE id = ?"
-
-updateAccountPassword ::
-  (MonadClient m) =>
-  ProviderId ->
-  Password ->
-  m ()
-updateAccountPassword pid pwd = do
-  retry x5 $ write cql $ params LocalQuorum (pwd, pid)
-  where
-    cql :: PrepQuery W (Password, ProviderId) ()
-    cql = "UPDATE provider SET password = ? where id = ?"
 
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys

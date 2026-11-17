@@ -30,3 +30,5 @@ runInMemoryPasswordStoreInterpreter = evalState (mempty :: Map UserId Password) 
 inMemoryPasswordStoreInterpreter :: InterpreterFor PasswordStore r
 inMemoryPasswordStoreInterpreter = interpret $ \case
   LookupHashedProviderPassword _uid -> error ("Implement as needed" :: String)
+  InsertHashedProviderPassword _ _pw -> pure ()
+  DeleteHashedProviderPassword _ -> pure ()
