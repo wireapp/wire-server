@@ -8,50 +8,36 @@ Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature rou
 
 ### Types
 
-| Type               | JSON / URL form                                                                                                    | Example                                |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                                | `4b2f7a9c1d3e5f60`                     |
-| `<UserId>`         | as in the rest of the Wire API (UUID)                                                                              | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
-| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                               | `2`                                    |
-| `<BackupKind>`     | `full` or `incremental`                                                                                            | `full`                                 |
-| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                                    | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
-| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                              | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
-| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                                     | `2026-11-12T10:15:30.123Z`             |
-| `<ByteCount>`      | number of bytes, non-negative integer                                                                              | `1048576`                              |
-| `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}`                  | see below                              |
-| `<EpochBackups>`   | `{"epoch": <BackupEpoch>, "files": [<BackupFile>]}`                                                                | see `GET /backups`                     |
-| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochBackups>]}`                                                               | see `GET /backups`                     |
-| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                                     | `weekly`                               |
-| `<FeatureStatus>`  | `enabled` or `disabled`                                                                                            | `enabled`                              |
-| `<LockStatus>`     | `locked` or `unlocked`                                                                                             | `unlocked`                             |
-
-`<BackupFile>` example:
-
-```json
-{
-  "id": "0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07",
-  "kind": "full",
-  "size": 1048576,
-  "createdAt": "2026-11-12T10:15:30.123Z"
-}
-```
-
-### Rules
-
-Rules shared by all routes under `/backups/clients/<ClientId>`:
-
-- Read routes (GET): `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. A client may read the backups of any client of the same user.
-- Write routes (POST): `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`) and be a client of the caller (else 404 `backup-not-found`).
-- If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`.
-- There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig). The server keeps at most the two newest epochs of a client.
-- A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
-- _Newest full wins_: a full upload replaces the epoch's previous full and the incrementals of it. Files are ordered by `<BackupFileId>` (UUIDv7, i.e. server time); the current files of an epoch are the full with the greatest id and the incrementals with a greater id. A client must not upload incrementals while it uploads a new full of the same epoch: they are deleted when the full is stored.
+| Type               | JSON / URL form                                                                                   | Example                                |
+| ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                               | `4b2f7a9c1d3e5f60`                     |
+| `<UserId>`         | as in the rest of the Wire API (UUID)                                                             | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
+| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                              | `2`                                    |
+| `<BackupKind>`     | `full` or `incremental`                                                                           | `full`                                 |
+| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                   | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
+| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                             | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
+| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                    | `2026-11-12T10:15:30.123Z`             |
+| `<ByteCount>`      | number of bytes, non-negative integer                                                             | `1048576`                              |
+| `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}` | see below                              |
+| `<EpochBackups>`   | `{"epoch": <BackupEpoch>, "files": [<BackupFile>]}`                                               | see `GET /backups`                     |
+| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochBackups>]}`                                              | see `GET /backups`                     |
+| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                    | `weekly`                               |
+| `<FeatureStatus>`  | `enabled` or `disabled`                                                                           | `enabled`                              |
+| `<LockStatus>`     | `locked` or `unlocked`                                                                            | `unlocked`                             |
 
 ---
 
-### `/backups`
+### `/backups/…`
 
-#### `GET /backups`
+Rules shared by all routes under `/backups`:
+
+- If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`.
+- There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig).
+- The server keeps at most the two newest epochs of a client: after a successful upload it deletes all older ones.
+
+#### `/backups`
+
+##### `GET /backups`
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
@@ -86,9 +72,18 @@ Example: `GET /v19/backups` → `200`
 
 ---
 
-### `/backups/clients/<ClientId>/epochs`
+#### `/backups/clients/<ClientId>/…`
 
-#### `GET /backups/clients/<ClientId>/epochs`
+Rules shared by all routes under `/backups/clients/<ClientId>`:
+
+- Read routes (GET): `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. A client may read the backups of any client of the same user.
+- Write routes (POST): `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`) and be a client of the caller (else 404 `backup-not-found`).
+- A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
+- _Newest full wins_: a full upload replaces the epoch's previous full and the incrementals of it. Files are ordered by `<BackupFileId>` (UUIDv7, i.e. server time); the current files of an epoch are the full with the greatest id and the incrementals with a greater id. A client must not upload incrementals while it uploads a new full of the same epoch: they are deleted when the full is stored.
+
+##### `/backups/clients/<ClientId>/epochs`
+
+###### `GET /backups/clients/<ClientId>/epochs`
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
@@ -104,9 +99,9 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs` → `200`
 
 ---
 
-### `/backups/clients/<ClientId>/epochs/<BackupEpoch>`
+##### `/backups/clients/<ClientId>/epochs/<BackupEpoch>`
 
-#### `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>`
+###### `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>`
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
@@ -137,15 +132,15 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
 
 ---
 
-### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
+##### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
 
-#### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
+###### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
 
 - **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxFullBytes`)
 - **Response:** 200 `<BackupFile>` with `"kind": "full"`, `"size"` = number of bytes stored
 
-Upload the full file of an epoch. It replaces the previous full of the epoch and the incrementals of it (newest full wins, see Rules).
+Upload the full file of an epoch. It replaces the previous full of the epoch and the incrementals of it (newest full wins, see `/backups/clients/<ClientId>/…`).
 
 Checked before any write, in this order: own client, team flag `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over the cap (413).
 
@@ -170,9 +165,9 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with `Conten
 
 ---
 
-### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/incremental`
+##### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/incremental`
 
-#### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/incremental`
+###### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/incremental`
 
 - **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxIncrementalBytes`)
@@ -195,9 +190,9 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/incremental` with 
 
 ---
 
-### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/files/<BackupKind>/<BackupFileId>`
+##### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/files/<BackupKind>/<BackupFileId>`
 
-#### `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>/files/<BackupKind>/<BackupFileId>`
+###### `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>/files/<BackupKind>/<BackupFileId>`
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
@@ -264,16 +259,16 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 
 ### Errors
 
-| Status | Label                                | Raised by                                                                                                                                                                                                                                 |
-| ------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (fewer bytes than `Content-Length` arrive, or disconnect)                                                                                                                                             |
-| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups` route (backups not configured on the server, i.e. no HMAC key)                                                                       |
-| 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental` (`<ClientId>` is not `Z-Client`)                                                                                               |
+| Status | Label                                | Raised by                                                                                                                                                                                                                                                                              |
+| ------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (fewer bytes than `Content-Length` arrive, or disconnect)                                                                                                                                                                                          |
+| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups` route (backups not configured on the server, i.e. no HMAC key)                                                                                                                      |
+| 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental` (`<ClientId>` is not `Z-Client`)                                                                                                                                                                                                                   |
 | 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller); `GET …/epochs`, `GET …/epochs/<BackupEpoch>`, `GET …/files/…` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s (`<ClientId>` is not a client of the caller) |
-| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                       |
-| 409    | `backup-full-missing`                | `POST …/incremental`                                                                                                                                                                                                                      |
-| 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                      |
-| 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap; checked on the declared value, before any byte is read)                                                                                                      |
-| 403    | `operation-denied`, `no-team-member` | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                    |
-| 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                    |
-| 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                           |
+| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                                                                    |
+| 409    | `backup-full-missing`                | `POST …/incremental`                                                                                                                                                                                                                                                                   |
+| 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                   |
+| 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap; checked on the declared value, before any byte is read)                                                                                                                                                   |
+| 403    | `operation-denied`, `no-team-member` | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                 |
+| 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                 |
+| 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                        |
