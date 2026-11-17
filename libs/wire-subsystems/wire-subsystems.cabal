@@ -476,8 +476,6 @@ library
     Wire.ScimUserMetaStore
     Wire.ScimUserMetaStore.Cassandra
     Wire.ScimUserMetaStore.Mem
-    Wire.ServiceStore
-    Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SFT

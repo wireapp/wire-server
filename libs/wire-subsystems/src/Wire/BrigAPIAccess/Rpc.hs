@@ -46,6 +46,7 @@ import Util.Options
 import Web.Cookie (SetCookie, parseSetCookie)
 import Web.HttpApiData
 import Web.Scim.Filter as Scim
+import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Locale
@@ -105,6 +106,8 @@ interpretBrigAccess brigEndpoint =
         getContactList uid
       GetUserExportData uid -> do
         getUserExportData uid
+      GetServiceConn pid sid -> do
+        getServiceConn pid sid
       GetSize tid -> do
         getSize tid
       LookupClients uids -> do
@@ -393,6 +396,24 @@ getUserExportData uid = do
   if statusCode resp == 404
     then pure Nothing
     else decodeBodyOrThrow "brig" resp
+
+-- | Calls the @get-service-conn@ internal endpoint. Brig encodes an unknown
+-- (provider, service) pair as 200 with a @null@ body, which is the only way
+-- to get 'Nothing'. Any other status, including 404, is an error: during a
+-- rolling deploy an older brig without this endpoint answers 404, and
+-- treating that as "service gone" would make callers delete the bots.
+getServiceConn ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  ProviderId ->
+  ServiceId ->
+  Sem r (Maybe Bot.Service)
+getServiceConn pid sid = do
+  resp <-
+    brigRequest $
+      check [status200]
+        . method GET
+        . paths ["i", "provider", toByteString' pid, "services", toByteString' sid, "connection"]
+  decodeBodyOrThrow "brig" resp
 
 getAccountConferenceCallingConfigClient ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>

@@ -45,8 +45,7 @@ import GHC.TypeLits (AppendSymbol)
 import Imports
 import Servant
 import Servant.OpenApi
-import Wire.API.Bot
-import Wire.API.Bot.Service
+import Wire.API.Bot (AddBot, RemoveBot)
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Role
@@ -56,7 +55,6 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
 import Wire.API.MLS.Group (MLSMemberClientList)
-import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.CSV
 import Wire.API.Routes.Features
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -595,24 +593,6 @@ type IMiscAPI =
            ( "clients"
                :> ZUser
                :> Capture "cid" ClientId
-               :> MultiVerb1
-                    'DELETE
-                    '[JSON]
-                    (RespondEmpty 200 "OK")
-           )
-    :<|> Named
-           "add-service"
-           ( "services"
-               :> ReqBody '[JSON] Service
-               :> MultiVerb1
-                    'POST
-                    '[JSON]
-                    (RespondEmpty 200 "OK")
-           )
-    :<|> Named
-           "delete-service"
-           ( "services"
-               :> ReqBody '[JSON] ServiceRef
                :> MultiVerb1
                     'DELETE
                     '[JSON]

@@ -125,6 +125,7 @@ import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
+import Wire.ProviderServiceStore (ProviderServiceStore)
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
@@ -195,7 +196,8 @@ servantSitemap ::
     Member ClientStore r,
     Member ClientSubsystem r,
     Member MlsKeyPackageSubsystem r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member ProviderServiceStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
