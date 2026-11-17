@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,23 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.SAMLUserStore.Mem
+module Wire.SAMLUserStore.Mem
   ( samlUserStoreToMem,
     UserRefOrd,
   )
 where
 
-import Cassandra (Page (..), emptyPage)
 import Control.Lens (view)
-import qualified Data.Bifunctor
 import Data.Id
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State (gets, modify, runState)
 import SAML2.WebSSO (uidTenant)
-import qualified SAML2.WebSSO as SAML
-import Spar.Sem.SAMLUserStore
+import SAML2.WebSSO qualified as SAML
+import Wire.SAMLUserStore
 
 newtype UserRefOrd = UserRefOrd {unUserRefOrd :: SAML.UserRef}
   deriving (Eq, Show)
@@ -49,17 +47,11 @@ samlUserStoreToMem = (runState @(Map UserRefOrd UserId) mempty .) $
     Get ur -> gets $ M.lookup $ UserRefOrd ur
     DeleteByIssuer is -> modify $ M.filterWithKey (\ref _ -> not $ eqIssuer is ref)
     Delete _uid ur -> modify $ M.delete $ UserRefOrd ur
-    -- 'GetAllByIssuerPaginated' and 'NextPage' are workarounds, please also see docs at
-    -- 'Spar.Sem.SAMLUserStore.Cassandra.getAllSAMLUsersByIssuerPaginated'
-    --
-    -- This mock only returns one `Page` for all results. This should be fine
+    -- This mock only returns all results in one go. This should be fine
     -- for tests with small test samples.
-    GetAllByIssuerPaginated is -> gets $ \userMap ->
-      let entries =
-            Data.Bifunctor.first unUserRefOrd
-              <$> M.assocs (M.filterWithKey (\ref _ -> eqIssuer is ref) userMap)
-       in emptyPage {result = entries}
-    NextPage _ -> pure emptyPage
+    GetAllByIssuer is -> gets $ \userMap ->
+      M.assocs (M.filterWithKey (\ref _ -> eqIssuer is ref) userMap)
+        & map (\(UserRefOrd ur, uid) -> (ur, uid))
   where
     eqIssuer :: SAML.Issuer -> UserRefOrd -> Bool
     eqIssuer is = (== is) . view uidTenant . unUserRefOrd

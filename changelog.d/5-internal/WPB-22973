@@ -1,0 +1,1 @@
+Spar SAML user store can be stored in PostgreSQL (`spar.config.postgresMigration.samlUsers`)

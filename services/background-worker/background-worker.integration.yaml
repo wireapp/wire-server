@@ -113,3 +113,4 @@ postgresMigration:
   connections: postgresql
   scimTokens: postgresql
   scimExternalIds: postgresql
+  samlUsers: postgresql

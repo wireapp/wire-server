@@ -278,3 +278,4 @@ postgresMigration:
   connections: postgresql
   scimTokens: cassandra
   scimExternalIds: cassandra
+  samlUsers: cassandra
