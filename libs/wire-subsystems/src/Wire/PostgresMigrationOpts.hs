@@ -67,6 +67,10 @@ data PostgresMigrationOpts = PostgresMigrationOpts
   }
   deriving (Show)
 
+-- NOTE: there is deliberately no @teamMembers@ storage location: member
+-- writes and reads are migrated together with the team metadata under the
+-- @team@ key.
+
 instance FromJSON PostgresMigrationOpts where
   parseJSON = withObject "PostgresMigrationOpts" $ \o ->
     PostgresMigrationOpts

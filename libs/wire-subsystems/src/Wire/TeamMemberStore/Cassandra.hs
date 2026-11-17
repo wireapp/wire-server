@@ -18,6 +18,7 @@
 module Wire.TeamMemberStore.Cassandra
   ( interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
+    maybeGrantImplicitConsent,
   )
 where
 
@@ -85,15 +86,21 @@ newTeamMember' ::
   (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
   Client TeamMember
 newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  mk minvu minvt >>= maybeGrant
+  mk minvu minvt >>= maybeGrantImplicitConsent lh tid
   where
-    maybeGrant :: TeamMember -> Client TeamMember
-    maybeGrant m =
-      ifM
-        (isTeamLegalholdWhitelisted lh tid)
-        (pure (grantImplicitConsent m))
-        (pure m)
+    mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
+    mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
+    mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
+-- | If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set
+-- UserLegalHoldDisabled if team is whitelisted.
+maybeGrantImplicitConsent :: FeatureDefaults LegalholdConfig -> TeamId -> TeamMember -> Client TeamMember
+maybeGrantImplicitConsent lh tid m =
+  ifM
+    (isTeamLegalholdWhitelisted lh tid)
+    (pure (grantImplicitConsent m))
+    (pure m)
+  where
     grantImplicitConsent :: TeamMember -> TeamMember
     grantImplicitConsent =
       legalHoldStatus %~ \case
@@ -103,10 +110,6 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
         UserLegalHoldDisabled -> UserLegalHoldDisabled
         UserLegalHoldPending -> UserLegalHoldPending
         UserLegalHoldEnabled -> UserLegalHoldEnabled
-
-    mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
-    mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
-    mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 isTeamLegalholdWhitelisted :: FeatureDefaults LegalholdConfig -> TeamId -> Client Bool
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
