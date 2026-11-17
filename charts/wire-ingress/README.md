@@ -601,8 +601,9 @@ make kube-ingress-test profile=tr-02102-2
 bash charts/wire-ingress/test/check-scan-tests.sh  # local checks, no cluster
 ```
 
-Set `KUBECONFIG` to select the cluster. Standalone runs otherwise use
-`tmp/kubeconfig` when present, then kubectl's normal context. Tests assume V2 xDS
+Tests use the environment's Kubernetes configuration, like the other `kube-*`
+targets. To select a cluster for a local run, use
+`KUBECONFIG=/path/to/kubeconfig make kube-ingress-test`. Tests assume V2 xDS
 naming; set `WIRE_INGRESS_XDS_NAME_SCHEME_V2=false` for a legacy controller.
 Non-default installations can set `WIRE_INGRESS_GATEWAY_CLASS` and
 `ENVOY_GATEWAY_NAMESPACE`.

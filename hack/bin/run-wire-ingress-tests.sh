@@ -2,7 +2,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-if [[ -z "${NAMESPACE:-}" && -z "${KUBECONFIG:-}" && -f tmp/kubeconfig ]]; then export KUBECONFIG="$PWD/tmp/kubeconfig"; fi
 chart=charts/wire-ingress
 if [[ -z "${1:-}" ]]; then
     "$chart/test/check-scan-tests.sh"
