@@ -2,26 +2,26 @@
 
 Public endpoints only. Grouped by path. `<type>` marks a value of that type (see Types), the examples show filled-in values.
 
-Auth for all routes: `Authorization: Bearer <AccessToken>`. nginz sets `Z-User` (`<UserId>`) and `Z-Client` (`<ClientId>`) from the token. Clients don't send them.
+Auth for all routes: `Authorization: Bearer <AccessToken>`. nginz sets `Z-User` (`<UserId>`) and `Z-Client` (`<ClientId>`) headers from the token. Clients don't send them.
 
-Backup routes exist from API version V19, i.e. `/v19/backups/...` (nginz routes `/backups` with or without version prefix). Feature routes have no version bound (any `/v{n}/teams/...`).
+Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature routes have no version bound (any `/v{n}/teams/...`).
 
 ### Types
 
-| Type               | JSON / URL form                                                                                                 | Example                                |
-| ------------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                             | `4b2f7a9c1d3e5f60`                     |
-| `<UserId>`         | as in the rest of the Wire API (UUID)                                                                           | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
-| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                            | `2`                                    |
-| `<BackupKind>`     | `full` or `incremental`                                                                                         | `full`                                 |
-| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                                 | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
-| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                           | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
-| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                                  | `2026-11-12T10:15:30.123Z`             |
-| `<ByteCount>`      | number of bytes, non-negative integer                                                                                          | `1048576`                              |
+| Type               | JSON / URL form                                                                                                    | Example                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                                | `4b2f7a9c1d3e5f60`                     |
+| `<UserId>`         | as in the rest of the Wire API (UUID)                                                                              | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
+| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                               | `2`                                    |
+| `<BackupKind>`     | `full` or `incremental`                                                                                            | `full`                                 |
+| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                                    | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
+| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                              | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
+| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                                     | `2026-11-12T10:15:30.123Z`             |
+| `<ByteCount>`      | number of bytes, non-negative integer                                                                              | `1048576`                              |
 | `<BackupFile>`     | `{"id": <BackupFileId>, "kind": <BackupKind>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>, "ready": <Bool>}` | see below                              |
-| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                                  | `weekly`                               |
-| `<FeatureStatus>`  | `enabled` or `disabled`                                                                                         | `enabled`                              |
-| `<LockStatus>`     | `locked` or `unlocked`                                                                                          | `unlocked`                             |
+| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                                     | `weekly`                               |
+| `<FeatureStatus>`  | `enabled` or `disabled`                                                                                            | `enabled`                              |
+| `<LockStatus>`     | `locked` or `unlocked`                                                                                             | `unlocked`                             |
 
 `<BackupFile>` example:
 
