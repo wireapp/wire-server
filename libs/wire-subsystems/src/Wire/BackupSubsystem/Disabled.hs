@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Used when no backup HMAC key is configured: no backup can exist, so reads and uploads
--- are rejected and deletes succeed as no-ops (brig's client/user deletion keeps working).
+-- are rejected, and so are the public deletes (the keys of stored backups can't be derived, so
+-- they can't be deleted). The internal deletes succeed as no-ops, so brig's client/user deletion
+-- keeps working.
 module Wire.BackupSubsystem.Disabled (interpretBackupSubsystemDisabled) where
 
 import Imports
@@ -30,7 +32,7 @@ interpretBackupSubsystemDisabled = interpret $ \case
   UploadBackup {} -> throw BackupErrFeatureDisabled
   ListFiles {} -> throw BackupErrFeatureDisabled
   DownloadUrl {} -> throw BackupErrFeatureDisabled
-  DeleteEpochBackups {} -> pure ()
-  DeleteClientBackups {} -> pure ()
+  DeleteEpochBackups {} -> throw BackupErrFeatureDisabled
+  DeleteClientBackups {} -> throw BackupErrFeatureDisabled
   InternalDeleteClientBackups {} -> pure ()
   InternalDeleteUserBackups {} -> pure ()

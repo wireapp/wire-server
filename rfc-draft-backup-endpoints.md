@@ -41,7 +41,7 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
 
 - Read routes (GET): `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. A client may read the backups of any client of the same user.
 - Write routes (POST, DELETE): `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`) and be a client of the caller (else 404 `backup-not-found`).
-- If the server has no HMAC key configured (backups not configured), GET and POST answer 403 `backup-feature-disabled`; the DELETE routes answer 204 without effect.
+- If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`, DELETE included: object keys are derived from the HMAC key, so the server can't locate stored backups to delete them. With a key configured, DELETE works for the own client independent of the team flag `automaticBackups`.
 - A file is _ready_ once its upload is committed. Only fulls can be not ready (upload in progress or interrupted).
 
 ---
@@ -251,7 +251,7 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 | Status | Label                                | Raised by                                                                                                                                                                                                                                 |
 | ------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (body length differs from `Content-Length`, or disconnect)                                                                                                                                            |
-| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); all `GET /backups/…` and both `POST`s (backups not configured on the server, i.e. no HMAC key)                                                          |
+| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups/…` route (backups not configured on the server, i.e. no HMAC key)                                                          |
 | 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental`, `DELETE …/epochs/<BackupEpoch>`, `DELETE /backups/clients/<ClientId>` (`<ClientId>` is not `Z-Client`)                                                                                               |
 | 404    | `backup-not-found`                   | `GET …/epochs`, `GET …/epochs/<BackupEpoch>`, `GET …/files/…` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s and `DELETE`s (`<ClientId>` is not a client of the caller) |
 | 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                       |

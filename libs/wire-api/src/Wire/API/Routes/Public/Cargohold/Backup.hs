@@ -182,6 +182,7 @@ type BackupAPI =
            ( Summary "Delete all backup files of an epoch"
                :> From 'V19
                :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFeatureDisabled
                :> CanThrow 'BackupForbidden
                :> ZLocalUser
                :> ZClient
@@ -197,6 +198,7 @@ type BackupAPI =
            ( Summary "Delete all backup files of a client"
                :> From 'V19
                :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupFeatureDisabled
                :> CanThrow 'BackupForbidden
                :> ZLocalUser
                :> ZClient

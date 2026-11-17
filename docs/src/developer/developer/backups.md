@@ -7,9 +7,9 @@ feature `automaticBackups`.
 ## Requirements
 
 - Optional secret `backupHmacKey` (see `config-options.md`). Without it backups
-  are not configured: upload and read routes return 403
-  `backup-feature-disabled`; delete routes succeed as no-ops, so client and
-  user deletion in brig keep working.
+  are not configured: all public backup routes (upload, read and delete) return
+  403 `backup-feature-disabled`. The internal deletes succeed as no-ops, so
+  client and user deletion in brig keep working.
 - The S3 store must give strong list-after-write consistency (see
   [Store requirements](#store-requirements)).
 
