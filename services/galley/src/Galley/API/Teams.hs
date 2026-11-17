@@ -1284,8 +1284,12 @@ removeTeamCollaborator lusr tid rusr = do
               FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
           )
         . (.status)
-  uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
+  -- The collaboration has to be gone before the conversations are cleaned up:
+  -- whether an MLS 1:1 conversation with a team member is still justified is
+  -- decided by what is left (see
+  -- 'Wire.ConversationSubsystem.Update.deleteUserFromTeamOne2OneConversations').
   internalRemoveTeamCollaborator rusr tid
+  uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
   now <- Now.get
   let e = newEvent tid now (EdCollaboratorRemove rusr)
   admins <- E.getTeamAdmins tid
