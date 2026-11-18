@@ -44,7 +44,7 @@ Rules shared by all routes under `/backups`:
 
 - If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`.
 - There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig).
-- The server keeps at most the two newest epochs of a client: after a full file is stored (`POST …/full`) it deletes all files of all older epochs. Storing an incremental file deletes nothing.
+- The server keeps at most the two newest epochs of a client: after a full file is stored (`POST …/full`) it deletes all files of every epoch except the two newest, i.e. the oldest one when a third epoch starts. Storing an incremental file deletes nothing.
 
 #### `/backups`
 
