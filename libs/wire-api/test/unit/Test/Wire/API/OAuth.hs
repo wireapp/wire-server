@@ -20,6 +20,8 @@
 module Test.Wire.API.OAuth where
 
 import Data.Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Id
 import Data.Set qualified as Set
 import Imports
 import Test.Tasty
@@ -35,8 +37,24 @@ tests =
       testGroup "scopes" $
         [ testCase "only known scopes parse" testScopesParseOnlyKnown,
           testCase "stored scopes cover the deprecated ones" testStoredScopes
-        ]
+        ],
+      testCase "access token claims carry an optional client_id" testClaimsClientId
     ]
+
+-- | The @client_id@ claim names the OAuth client a token was issued to.
+-- Tokens issued before the claim existed lack it and must still parse.
+testClaimsClientId :: Assertion
+testClaimsClientId = do
+  let cid :: OAuthClientId = Id (read "1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8c")
+  legacy :: OAuthClaimsSet <- either assertFailure pure (eitherDecode "{\"sub\":\"u\",\"scope\":\"write-only:meetings\"}")
+  legacy.clientId @?= Nothing
+  current :: OAuthClaimsSet <- either assertFailure pure (eitherDecode "{\"sub\":\"u\",\"scope\":\"write-only:meetings\",\"client_id\":\"1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8c\"}")
+  current.clientId @?= Just cid
+  current.scope @?= OAuthScopes (Set.singleton WriteOnlyMeetings)
+  for_ [legacy, current] $ \claims -> eitherDecode (encode claims) @?= Right claims
+  case toJSON legacy of
+    Object o -> KeyMap.member "client_id" o @?= False
+    other -> assertFailure $ "expected an object, got " <> show other
 
 -- | Rows outlive renamings, so what we read from the database is not what a
 -- client may ask for.  A deprecated scope was cumulative and can be worth more

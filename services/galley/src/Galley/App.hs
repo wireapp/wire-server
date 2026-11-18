@@ -52,6 +52,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock (secondsToDiffTime)
 import Galley.Env
@@ -318,7 +319,8 @@ meetingSystemConfig o =
     { legacyTimeZone = fromMaybe defaultLegacyTimeZone (m >>= view legacyTimeZone >>= parseTimeZone),
       validityPeriod = realToFrac $ maybe (secondsToDiffTime (48 * 3600)) (.duration) (m >>= view validityPeriod),
       pastEditPeriod = realToFrac $ maybe (secondsToDiffTime (24 * 3600)) (.duration) (m >>= view pastEditPeriod),
-      emailsEnabled = fromMaybe False (m >>= (^. O.emailsEnabled))
+      emailsEnabled = fromMaybe False (m >>= (^. O.emailsEnabled)),
+      calendarOAuthClients = foldMap Set.fromList (m >>= (^. O.calendarOAuthClients))
     }
   where
     m = o ^. settings . meetings

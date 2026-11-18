@@ -249,6 +249,9 @@ createAccessTokenWithAuthorizationCode req = do
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
   luid <- qualifyLocal uid
   oauthClient <- getOAuthClient luid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  -- The code was issued to 'cid', which ends up in the token's client_id
+  -- claim: it may only be redeemed by that same (registered) client.
+  unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   unless (uri == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (oauthClient.redirectUrl == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
@@ -285,11 +288,11 @@ createAccessToken key uid cid scope = do
     mkAccessToken = do
       domain <- asks (.settings.federationDomain)
       exp <- fromIntegral . Opt.oAuthAccessTokenExpirationTimeSecs <$> asks (.settings)
-      claims <- mkAccessTokenClaims uid domain scope exp
+      claims <- mkAccessTokenClaims uid cid domain scope exp
       OAuthToken <$> signAccessToken claims
 
-    mkAccessTokenClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimsSet
-    mkAccessTokenClaims u domain scopes ttl = do
+    mkAccessTokenClaims :: (Member Now r) => UserId -> OAuthClientId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimsSet
+    mkAccessTokenClaims u c domain scopes ttl = do
       iat <- lift (liftSem Now.get)
       uri <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure $ domainText domain ^? stringOrUri
       sub <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure $ idToText u ^? stringOrUri
@@ -301,7 +304,7 @@ createAccessToken key uid cid scope = do
               & claimIat ?~ NumericDate iat
               & claimSub ?~ sub
               & claimExp ?~ NumericDate exp
-      pure $ OAuthClaimsSet claimSet scopes
+      pure $ OAuthClaimsSet claimSet scopes (Just c)
 
     signAccessToken :: OAuthClaimsSet -> (Handler r) SignedJWT
     signAccessToken claims = do

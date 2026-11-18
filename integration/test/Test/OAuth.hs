@@ -246,6 +246,34 @@ testOAuthDeprecatedScopesInCassandra (TaggedBool oldScopeSyntax) = do
       scopes <- claims %. "scope" & asString
       words scopes `shouldMatchSet` expectedScopes
 
+-- | Access tokens name the OAuth client they were issued to (RFC 9068
+-- @client_id@), both when minted from an authorization code and when
+-- refreshed: nginz forwards it as @Z-OAuth-Client@.
+testOAuthAccessTokenNamesClient :: (HasCallStack) => App ()
+testOAuthAccessTokenNamesClient = do
+  user <- randomUser OwnDomain def
+  cid <- oauthClient user
+  session <- generateAccessToken user cid ["read:self"] redirectUri
+  token <- session %. "access_token" & asString
+  accessTokenClaims token >>= (%. "client_id") >>= (`shouldMatch` cid)
+
+  refreshToken <- session %. "refresh_token" & asString
+  refreshed <- createOAuthAccessTokenWithRefreshToken user cid refreshToken >>= getJSON 200
+  refreshedToken <- refreshed %. "access_token" & asString
+  accessTokenClaims refreshedToken >>= (%. "client_id") >>= (`shouldMatch` cid)
+
+-- | An authorization code can only be redeemed by the client it was issued
+-- to, since that client ends up in the token's @client_id@ claim.
+testOAuthCodeRedeemedByOtherClient :: (HasCallStack) => App ()
+testOAuthCodeRedeemedByOtherClient = do
+  user <- randomUser OwnDomain def
+  cid <- oauthClient user
+  otherCid <- oauthClient user
+  authCodeResponse <- generateOAuthAuthorizationCode user cid ["read:self"] redirectUri
+  let location = fromMaybe (error "no location header") $ parseURI . cs . snd =<< locationHeader authCodeResponse
+      code = maybe "no code query param" cs $ join $ lookup (cs "code") $ parseQuery $ cs location.uriQuery
+  createOAuthAccessToken user otherCid code redirectUri >>= assertLabel 403 "forbidden"
+
 --------------------------------------------------------------------------------
 -- helpers
 

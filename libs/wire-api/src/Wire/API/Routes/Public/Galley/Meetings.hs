@@ -31,6 +31,11 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 
+-- | Pairing requirements shared by the seven V19 meeting mutation routes.
+type CalendarPairingDocs =
+  Description
+    "Externally-managed meetings (externally_managed_by (e.g. google_calendar or outlook)) must be created and mutated by the calendar integration: an OAuth bearer caller whose OAuth client is listed in the deployment's calendar OAuth clients (galley setting settings.meetings.calendarOAuthClients). The calendar integration may only create and mutate externally-managed meetings. Violations of the externally_managed_by/caller/calendar-field pairing return 400 invalid-op; mutating an externally-managed meeting with a Z-Connection returns 403 externally-managed-by-calendar. Creating an externally-managed meeting returns 403 id-feature-error when the deployment's license does not cover calendar integration."
+
 type MeetingsAPI =
   Named
     "create-meeting@v15"
@@ -73,7 +78,9 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
                :> CanThrow MeetingError
@@ -130,7 +137,9 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -150,7 +159,9 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'DeleteOnlyMeetings
                :> From 'V15
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -242,8 +253,12 @@ type MeetingsAPI =
     :<|> Named
            "add-meeting-invitation"
            ( Summary "Add an email to the invited emails"
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V16
                :> ZLocalUser
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -261,8 +276,12 @@ type MeetingsAPI =
     :<|> Named
            "remove-meeting-invitation"
            ( Summary "Remove emails from the invited emails"
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V16
                :> ZLocalUser
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -281,8 +300,12 @@ type MeetingsAPI =
     :<|> Named
            "replace-meeting-invitation"
            ( Summary "Replace the invited emails"
+               :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V17
                :> ZLocalUser
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
@@ -303,7 +326,9 @@ type MeetingsAPI =
                :> DescriptionOAuthScope 'WriteOnlyMeetings
                :> From 'V19
                :> ZLocalUser
-               :> ZConn
+               :> ZOptConn
+               :> ZOptOAuthClient
+               :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId

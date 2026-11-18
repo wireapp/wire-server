@@ -66,6 +66,7 @@ module Wire.Options.Galley
     legacyTimeZone,
     pastEditPeriod,
     emailsEnabled,
+    calendarOAuthClients,
     postgresMigration,
     PostgresMigrationOpts (..),
     StorageLocation (..),
@@ -79,7 +80,7 @@ import Control.Lens hiding (Level, from, (.=))
 import Data.Aeson (FromJSON (..))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
-import Data.Id (TeamId)
+import Data.Id (OAuthClientId, TeamId)
 import Data.Misc
 import Data.Range
 import Hasql.Pool.Extended
@@ -199,7 +200,11 @@ data MeetingsConfig = MeetingsConfig
     -- clients (< V17) create meetings that carry no @tzid@ (V17 adds it).
     -- Resolved in 'Galley.App' via 'parseTimeZone'; defaults
     -- to @"Europe/Berlin"@ when unset or invalid.
-    _legacyTimeZone :: !(Maybe Text)
+    _legacyTimeZone :: !(Maybe Text),
+    -- | OAuth clients (brig @client_id@s) that act as the calendar
+    -- integration: only their access tokens may create and mutate
+    -- externally-managed meetings. Unset or empty means no caller can.
+    _calendarOAuthClients :: !(Maybe [OAuthClientId])
   }
   deriving (Show, Generic)
 

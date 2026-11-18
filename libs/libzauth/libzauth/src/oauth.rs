@@ -21,6 +21,22 @@ use jwt_simple::prelude::*;
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct OAuthToken {
     pub scope: String,
+    /// The OAuth client the token was issued to (RFC 9068 `client_id`).
+    /// Tokens issued before brig added the claim do not carry it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+}
+
+/// What a successfully verified OAuth token tells about its bearer.
+#[derive(Debug, PartialEq, Eq)]
+pub struct OAuthVerified {
+    /// The user the token was issued for.
+    pub subject: String,
+    /// The OAuth client the token was issued to, if the token names one and
+    /// it is a well-formed UUID.  Other strings are dropped rather than
+    /// forwarded, so a downstream header only ever carries a UUID (a
+    /// non-string claim fails deserialisation; only brig signs tokens).
+    pub client_id: Option<String>,
 }
 
 /// Verify a token against the deprecated `oauth_scope` directive, which names
@@ -31,10 +47,10 @@ pub fn verify_oauth_token(
     token: &str,
     required_scope: &str,
     method: &str,
-) -> Result<String, OauthError> {
-    let (subject, scopes) = verify_token(jwk, token)?;
+) -> Result<OAuthVerified, OauthError> {
+    let (verified, scopes) = verify_token(jwk, token)?;
     verify_scope(&scopes, required_scope, method)?;
-    Ok(subject)
+    Ok(verified)
 }
 
 /// Verify a token against the `oauth_scopes` directive, which lists whole
@@ -45,14 +61,14 @@ pub fn verify_oauth_token_scopes(
     token: &str,
     required_scopes: &str,
     method: &str,
-) -> Result<String, OauthError> {
-    let (subject, scopes) = verify_token(jwk, token)?;
+) -> Result<OAuthVerified, OauthError> {
+    let (verified, scopes) = verify_token(jwk, token)?;
     verify_scopes(&scopes, required_scopes, method)?;
-    Ok(subject)
+    Ok(verified)
 }
 
-/// Check the signature and return `(subject, scope claim)`.
-fn verify_token(jwk: &str, token: &str) -> Result<(String, String), OauthError> {
+/// Check the signature and return the bearer and the scope claim.
+fn verify_token(jwk: &str, token: &str) -> Result<(OAuthVerified, String), OauthError> {
     let jwk = serde_json::from_str::<Jwk>(jwk)?;
     let key = try_from_jwk(&jwk)?;
     let options = VerificationOptions {
@@ -61,7 +77,18 @@ fn verify_token(jwk: &str, token: &str) -> Result<(String, String), OauthError> 
     };
     let claims = key.verify_token::<OAuthToken>(token, Some(options))?;
     let subject = claims.subject.ok_or(OauthError::InvalidJwtNoSubject)?;
-    Ok((subject, claims.custom.scope))
+    let client_id = claims.custom.client_id.filter(|c| is_uuid(c));
+    Ok((OAuthVerified { subject, client_id }, claims.custom.scope))
+}
+
+/// Canonical textual UUID: 36 characters, hex digits with dashes at
+/// positions 8, 13, 18 and 23.
+fn is_uuid(s: &str) -> bool {
+    s.len() == 36
+        && s.bytes().enumerate().all(|(i, b)| match i {
+            8 | 13 | 18 | 23 => b == b'-',
+            _ => b.is_ascii_hexdigit(),
+        })
 }
 
 /// Compatibility: `authorized_scopes` must be new syntax,
@@ -288,14 +315,16 @@ mod tests {
         let token = Claims::with_custom_claims(
             OAuthToken {
                 scope: "write:foo read:test admin:bar".to_string(),
+                client_id: None,
             },
             Duration::from_secs(3600),
         )
         .with_subject(uid);
         let jwt = key.sign::<OAuthToken>(token).unwrap();
-        let subject =
+        let verified =
             verify_oauth_token(&serde_json::to_string(&jwk).unwrap(), &jwt, "test", "GET").unwrap();
-        assert_eq!(&subject, uid);
+        assert_eq!(&verified.subject, uid);
+        assert_eq!(verified.client_id, None);
     }
 
     #[test]
@@ -306,17 +335,72 @@ mod tests {
         let token = Claims::with_custom_claims(
             OAuthToken {
                 scope: "write-only:foo read:test".to_string(),
+                client_id: None,
             },
             Duration::from_secs(3600),
         )
         .with_subject(uid);
         let jwt = key.sign::<OAuthToken>(token).unwrap();
         let jwk = serde_json::to_string(&jwk).unwrap();
-        let subject =
+        let verified =
             verify_oauth_token_scopes(&jwk, &jwt, "read:test write-only:test", "GET").unwrap();
-        assert_eq!(&subject, uid);
+        assert_eq!(&verified.subject, uid);
         assert!(verify_oauth_token_scopes(&jwk, &jwt, "read:test write-only:test", "POST").is_err());
         assert!(verify_oauth_token_scopes(&jwk, &jwt, "write-only:foo", "POST").is_ok());
+    }
+
+    fn sign_with_client_id(key: &Ed25519KeyPair, client_id: Option<&str>) -> String {
+        let token = Claims::with_custom_claims(
+            OAuthToken {
+                scope: "write-only:meetings".to_string(),
+                client_id: client_id.map(str::to_string),
+            },
+            Duration::from_secs(3600),
+        )
+        .with_subject("842ddbc8-56ec-408d-9fa8-7a8c37ad22a7");
+        key.sign::<OAuthToken>(token).unwrap()
+    }
+
+    #[test]
+    fn should_return_client_id() {
+        let cid = "1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8c";
+        let key = Ed25519KeyPair::generate();
+        let jwk = serde_json::to_string(&mk_jwk(key.public_key())).unwrap();
+        let jwt = sign_with_client_id(&key, Some(cid));
+        let verified = verify_oauth_token_scopes(&jwk, &jwt, "write-only:meetings", "POST").unwrap();
+        assert_eq!(verified.client_id.as_deref(), Some(cid));
+    }
+
+    // Tokens minted before the claim existed still verify, without a client.
+    #[test]
+    fn should_accept_token_without_client_id() {
+        let key = Ed25519KeyPair::generate();
+        let jwk = serde_json::to_string(&mk_jwk(key.public_key())).unwrap();
+        let jwt = sign_with_client_id(&key, None);
+        let verified = verify_oauth_token_scopes(&jwk, &jwt, "write-only:meetings", "POST").unwrap();
+        assert_eq!(verified.client_id, None);
+    }
+
+    // Only a UUID ever reaches a header; anything else is dropped.
+    #[test]
+    fn should_drop_malformed_client_id() {
+        let key = Ed25519KeyPair::generate();
+        let jwk = serde_json::to_string(&mk_jwk(key.public_key())).unwrap();
+        for bad in [
+            "",
+            "Calendar",
+            "1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8",
+            "1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8cd",
+            "1e9bd1b6x3d55-4f4b-a3d0-3c4e5f6a7b8c",
+            "1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8\r",
+            "1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b\r\n",
+            "ge9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8c",
+        ] {
+            let jwt = sign_with_client_id(&key, Some(bad));
+            let verified =
+                verify_oauth_token_scopes(&jwk, &jwt, "write-only:meetings", "POST").unwrap();
+            assert_eq!(verified.client_id, None, "{:?} must be dropped", bad);
+        }
     }
 
     fn mk_jwk(key: Ed25519PublicKey) -> Jwk {

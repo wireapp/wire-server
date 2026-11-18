@@ -175,6 +175,11 @@ galley:
         # When true, galley asks brig to send meeting emails; rendering and
         # transport are brig's (emailSMS, emailSMS.general.meeting.replyTo).
         emailsEnabled: false
+        # OAuth client ids (as returned by brig's POST /i/oauth/clients) of
+        # the calendar integration. Only access tokens issued to these clients
+        # may create and mutate externally-managed (calendar) meetings; nginz
+        # forwards the token's client as Z-OAuth-Client. Empty: no caller can.
+        calendarOAuthClients: []
 
       # To disable proteus for new federated conversations:
       # federationProtocols: ["mls"]

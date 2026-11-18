@@ -26,6 +26,7 @@ module Wire.API.Routes.Public
     ZOptUser,
     ZOptClient,
     ZOptConn,
+    ZOptOAuthClient,
     ZBot,
     ZConversation,
     ZProvider,
@@ -95,6 +96,9 @@ data ZType
   | ZAuthProvider
   | -- | (Typically short-lived) access token.
     ZAuthAccess
+  | -- | The OAuth client an OAuth access token was issued to, from the
+    -- token's @client_id@ claim.  Absent for every other kind of caller.
+    ZAuthOAuthClient
 
 class HasTokenType (ztype :: ZType) where
   -- | The expected value of the "Z-Type" header.
@@ -189,6 +193,15 @@ instance IsZType 'ZAuthAccess ctx where
 
   qualifyZParam _ = id
 
+instance HasTokenType 'ZAuthOAuthClient
+
+instance IsZType 'ZAuthOAuthClient ctx where
+  type ZHeader 'ZAuthOAuthClient = "Z-OAuth-Client"
+  type ZParam 'ZAuthOAuthClient = OAuthClientId
+  type ZQualifiedParam 'ZAuthOAuthClient = OAuthClientId
+
+  qualifyZParam _ = id
+
 data ZAuthServant (ztype :: ZType) (opts :: [Type])
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
@@ -220,6 +233,10 @@ type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
 type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
+
+-- | Optional @Z-OAuth-Client@ header, set by @nginz@ from a verified OAuth
+-- token and stripped from every other request.
+type ZOptOAuthClient = ZAuthServant 'ZAuthOAuthClient '[Servant.Optional, Servant.Strict]
 
 -- | Optional @Z-Host@ header (added by @nginz@)
 data ZHostOpt
