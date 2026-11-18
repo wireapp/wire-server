@@ -200,7 +200,7 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
 
 ###### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
 
-- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
+- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>`, `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxFullBytes`)
 - **Response:** 200 `<BackupFile>`, `"size"` = number of bytes stored. Its `id` is the `<FullId>` of the incrementals that extend this full
 
@@ -250,13 +250,30 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 
 ###### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full/<FullId>/incremental`
 
-- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>` (required), `Content-Type: application/octet-stream`
+- **Headers:** `Z-User`, `Z-Client`, `Content-Length: <ByteCount>`, `Content-Type: application/octet-stream`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxIncrementalBytes`)
 - **Response:** 200 `<BackupFile>`
 
-Upload an incremental file under the full `<FullId>`, which must be the epoch's current full (else 409 `backup-full-missing`: no such full, or it was replaced; upload a new full). `<FullId>` is the `id` of a finished full upload. Then epoch rule (as for full), size cap (413), and file count cap `maxFilesPerEpoch` counting the current files including the full (409 `backup-too-many-files`). Concurrent incrementals can slightly exceed the file cap. A failed upload leaves no file (400 `incomplete-body` for a short body or disconnect).
+Upload an incremental file under the full `<FullId>`, which must be the epoch's
+current full. If no full exists you get 409 `backup-full-missing`, meaning
+there's no such full or it was replaced. Upload a new full or refer to the
+correct existing one in these cases, respectively.
 
-Size subtlety: the server stores exactly the first `Content-Length` bytes and ignores any excess, because the HTTP layer hands the handler no more than that. Too many bytes can't be detected and give a successful upload of a truncated file; too few give 400 `incomplete-body`. The response `size` is the number of bytes stored, so clients should compare it with the number of bytes they sent and, if it differs, upload the incremental again (a new file) or a new full.
+`<FullId>` is the `id` of a finished full upload.
+
+These rules apply: The epoch rule (as for full), size cap (HTTP 413), and file
+count cap `maxFilesPerEpoch` counting the current files including the full (409
+`backup-too-many-files`). Concurrent incrementals can slightly exceed the file
+amount cap. A failed upload leaves no file (400 `incomplete-body` for a short
+body or disconnect).
+
+Size subtlety: the server stores exactly the first `Content-Length` bytes and
+ignores any excess, because the HTTP layer hands the handler no more than that.
+Too many bytes can't be detected and give a successful upload of a truncated
+file; too few give 400 `incomplete-body`. The response `size` is the number of
+bytes stored, so clients should compare it with the number of bytes they sent
+and, if it differs, upload the incremental again (a new file) or a new full,
+respectively.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07/incremental` with `Content-Length: 2048` and 2048 body bytes → `200`
 
@@ -278,7 +295,8 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e
 - **Request body:** none
 - **Response:** 302, empty body, `Location: <Url>` (presigned S3 URL, bearer link valid for `downloadLinkTTL` seconds)
 
-Download the full file via redirect. 404 `backup-not-found` if no such file exists (e.g. it was replaced by a newer full).
+Download the full file via redirect. 404 `backup-not-found` if no such file
+exists (e.g. it was replaced by a newer full).
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` → `302`, `Location: https://s3.example.com/backup/…?X-Amz-Signature=…`
 
@@ -292,7 +310,8 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-
 - **Request body:** none
 - **Response:** 302, empty body, `Location: <Url>` (as above)
 
-Download an incremental file via redirect. 404 `backup-not-found` if no such file exists under that full.
+Download an incremental file via redirect. 404 `backup-not-found` if no such
+file exists under that full.
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07/incremental/0195f2d4-1b02-7e55-9f10-2c3d4e5f6a7b` → `302`, `Location: https://s3.example.com/backup/…?X-Amz-Signature=…`
 
@@ -300,7 +319,15 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-
 
 ### `/teams/<TeamId>/features/automaticBackups`
 
-Generic team feature API. `<ConfigBody>` is `{"schedule": <BackupSchedule>, "enforced": <Bool>, "serverOnly": <Bool>}`. Defaults: `status` `disabled`, `lockStatus` `unlocked`, `schedule` `weekly`, `enforced` and `serverOnly` `false`. The flag is checked on uploads only.
+Generic team feature API. `<ConfigBody>` is `{"schedule": <BackupSchedule>, "enforced": <Bool>, "serverOnly": <Bool>}`.
+
+Defaults:
+
+- `status`: `disabled`
+- `lockStatus`: `unlocked`
+- `schedule`: `weekly`
+- `enforced`: `false`
+- `serverOnly`: `false` (This flag is checked on uploads only.)
 
 #### `GET /teams/<TeamId>/features/automaticBackups`
 
@@ -327,7 +354,9 @@ Example: `GET /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 - **Request body:** `{"status": <FeatureStatus>, "config": <ConfigBody>, "ttl": <FeatureTTL>}`. `ttl` is optional (`"unlimited"`, `"0"` or positive integer).
 - **Response:** 200, same body as `GET`
 
-Set the team feature config. Needs the permission to change team features. 409 `feature-locked` if `lockStatus` is `locked`. `ttl` is ignored; the response always has `"ttl": "unlimited"`.
+Set the team feature config. Needs the permission to change team features. 409
+`feature-locked` if `lockStatus` is `locked`. `ttl` (*T*ime *T*o *L*ive) is
+ignored; the response always has `"ttl": "unlimited"`.
 
 Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automaticBackups`
 
