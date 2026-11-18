@@ -24,6 +24,7 @@ import Servant
 import Wire.API.Error
 import Wire.API.Error.Gundeck as E
 import Wire.API.Notification
+import Wire.API.Notification.FanIn (FanInAcknowledgements)
 import Wire.API.Push.V2.Token
 import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
@@ -31,7 +32,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 
-type GundeckAPI = PushAPI :<|> NotificationAPI :<|> TimeAPI
+type GundeckAPI = PushAPI :<|> NotificationAPI :<|> TimeAPI :<|> FanInAcknowledgementAPI
 
 type PushAPI =
   Named
@@ -146,3 +147,10 @@ data GundeckAPITag
 
 instance ServiceAPI GundeckAPITag v where
   type ServiceAPIRoutes GundeckAPITag = GundeckAPI
+
+-- | Reset selected fan-in cursors for a client owned by the authenticated user.
+type FanInAcknowledgementAPI =
+  ZUser
+    :> "notifications"
+    :> "acks"
+    :> Named "reset-fan-in-acknowledgements" (Summary "Reset fan-in acknowledgements" :> Description "Set selected acknowledgement cursors for a client owned by the authenticated user. Cursors may be moved backwards to replay retained notifications; omitted cursors are unchanged. This endpoint currently has a placeholder handler." :> Capture "client_id" ClientId :> ReqBody '[JSON] FanInAcknowledgements :> Put '[JSON] NoContent)
