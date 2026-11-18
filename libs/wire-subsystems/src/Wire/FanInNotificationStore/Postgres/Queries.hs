@@ -1,5 +1,4 @@
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -87,7 +86,7 @@ userStatements =
       |],
       notificationExists =
         lmap
-          (\(key, nid) -> (toUUID key, toUUID nid))
+          (Data.Bifunctor.bimap toUUID toUUID)
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM user_notifications
           WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
@@ -187,7 +186,7 @@ teamStatements =
       |],
       notificationExists =
         lmap
-          (\(key, nid) -> (toUUID key, toUUID nid))
+          (Data.Bifunctor.bimap toUUID toUUID)
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM team_notifications
           WHERE team_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
@@ -287,7 +286,7 @@ localConnectionStatements =
       |],
       notificationExists =
         lmap
-          (\(key, nid) -> (toUUID key, toUUID nid))
+          (Data.Bifunctor.bimap toUUID toUUID)
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM local_connection_notifications
           WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
@@ -330,7 +329,7 @@ remoteConnectionStatements =
       |],
       selectLast =
         dimap
-          (\(domain, uid) -> (domainText domain, toUUID uid))
+          (Data.Bifunctor.bimap domainText toUUID)
           (fmap Id)
           [maybeStatement|
         SELECT notification_id :: uuid FROM last_remote_connection_notifications WHERE user_domain = ($1 :: text) AND user_id = ($2 :: uuid)
