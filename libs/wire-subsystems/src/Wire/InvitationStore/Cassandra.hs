@@ -93,7 +93,8 @@ updateInvitationRoleImpl tid iid role = do
   remaining <- retry x1 $ query1 ttlQuery (params LocalQuorum (tid, iid))
   for_ (remaining >>= runIdentity) $ \ttl ->
     when (ttl > 0) $
-      void . retry x5 $ trans updateQuery (params LocalQuorum (ttl, role, tid, iid))
+      void . retry x5 $
+        trans updateQuery (params LocalQuorum (ttl, role, tid, iid))
   where
     ttlQuery :: PrepQuery R (TeamId, InvitationId) (Identity (Maybe Int32))
     ttlQuery = "SELECT TTL(code) FROM team_invitation WHERE team = ? AND id = ?"

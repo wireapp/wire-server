@@ -940,26 +940,26 @@ type TeamInvitations =
 
 type GetInvitationRole =
   Named
-           "get-invitation-role"
-           ( "teams"
-               :> Capture "tid" TeamId
-               :> "invitations"
-               :> Capture "iid" InvitationId
-               :> "role"
-               :> Get '[JSON] Role
-           )
+    "get-invitation-role"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> Capture "iid" InvitationId
+        :> "role"
+        :> Get '[JSON] Role
+    )
 
 type UpdateInvitationRole =
   Named
-           "update-invitation-role"
-           ( "teams"
-               :> Capture "tid" TeamId
-               :> "invitations"
-               :> Capture "iid" InvitationId
-               :> "role"
-               :> Servant.ReqBody '[JSON] Role
-               :> PutNoContent
-           )
+    "update-invitation-role"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> Capture "iid" InvitationId
+        :> "role"
+        :> Servant.ReqBody '[JSON] Role
+        :> PutNoContent
+    )
 
 type GetScimUsersPaginated =
   Named
