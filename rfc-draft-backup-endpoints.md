@@ -1,29 +1,40 @@
 ## API endpoints
 
-Public endpoints only. Grouped by path. `<type>` marks a value of that type (see Types), the examples show filled-in values.
+Only public endpoints are described here. They are grouped by path. `<type>`
+marks a value of that type (see Types), the examples show filled-in values.
 
-Auth for all routes: `Authorization: Bearer <AccessToken>`. nginz sets `Z-User` (`<UserId>`) and `Z-Client` (`<ClientId>`) headers from the token. Clients don't send them.
+All routes are authenticated via an access token in the header: `Authorization:
+Bearer <AccessToken>`. nginz extracts and sets the internal `Z-User`
+(`<UserId>`) and `Z-Client` (`<ClientId>`) headers from the token. Clients
+don't (and cannot) provide those.
 
-Backup routes exist from API version `V19`, i.e. `/v19/backups/...`. Feature routes have no version bound (any `/v{n}/teams/...`).
+Backup routes exist from the development API version, which is `V19` at the
+time of writing (this may change due to deferred finishing/merging of this
+feature). I.e. all described the endpoints need a `/v19` (or later) prefix in
+their path: `/v19/backups/...`. Feature routes are not version bound and can be
+access with any version prefix (e.g. `/v{n}/teams/...`).
 
 ### Types
 
-| Type               | JSON / URL form                                                                                   | Example                                |
-| ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                               | `4b2f7a9c1d3e5f60`                     |
-| `<UserId>`         | as in the rest of the Wire API (UUID)                                                             | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
-| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                              | `2`                                    |
+This table describes the `<type>` placeholders used in described HTTP routes
+(paths) and payloads.
+
+| Type               | JSON / URL form                                                                                          | Example                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                      | `4b2f7a9c1d3e5f60`                     |
+| `<UserId>`         | as in the rest of the Wire API (UUID)                                                                    | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
+| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                     | `2`                                    |
 | `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`). The id of a full file is its `<FullId>` | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
-| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                             | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
-| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                    | `2026-11-12T10:15:30.123Z`             |
-| `<ByteCount>`      | number of bytes, non-negative integer                                                             | `1048576`                              |
-| `<BackupFile>`     | `{"id": <BackupFileId>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}`                       | see below                              |
-| `<BackupFiles>`    | `{"full": <BackupFile>, "incrementals": [<BackupFile>]}`                                          | see `GET …/epochs/<BackupEpoch>`       |
-| `<EpochSummary>`   | `{"epoch": <BackupEpoch>, "createdAt": <UTCTimeMillis>, "fileCount": <Word32>, "size": <ByteCount>}` | see `GET /backups`                  |
-| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochSummary>]}`                                              | see `GET /backups`                     |
-| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                    | `weekly`                               |
-| `<FeatureStatus>`  | `enabled` or `disabled`                                                                           | `enabled`                              |
-| `<LockStatus>`     | `locked` or `unlocked`                                                                            | `unlocked`                             |
+| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                    | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
+| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                           | `2026-11-12T10:15:30.123Z`             |
+| `<ByteCount>`      | number of bytes, non-negative integer                                                                    | `1048576`                              |
+| `<BackupFile>`     | `{"id": <BackupFileId>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}`                              | see below                              |
+| `<BackupFiles>`    | `{"full": <BackupFile>, "incrementals": [<BackupFile>]}`                                                 | see `GET …/epochs/<BackupEpoch>`       |
+| `<EpochSummary>`   | `{"epoch": <BackupEpoch>, "createdAt": <UTCTimeMillis>, "fileCount": <Word32>, "size": <ByteCount>}`     | see `GET /backups`                     |
+| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochSummary>]}`                                                     | see `GET /backups`                     |
+| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                           | `weekly`                               |
+| `<FeatureStatus>`  | `enabled` or `disabled`                                                                                  | `enabled`                              |
+| `<LockStatus>`     | `locked` or `unlocked`                                                                                   | `unlocked`                             |
 
 ---
 
@@ -274,16 +285,16 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 
 ### Errors
 
-| Status | Label                                | Raised by                                                                                                                                                                                                                                                                              |
-| ------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (fewer bytes than `Content-Length` arrive, or disconnect)                                                                                                                                                                                          |
-| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups` route (backups not configured on the server, i.e. no HMAC key)                                                                                                                      |
-| 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental` (`<ClientId>` is not `Z-Client`)                                                                                                                                                                                                                   |
+| Status | Label                                | Raised by                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `incomplete-body`                    | `POST …/full`, `POST …/incremental` (fewer bytes than `Content-Length` arrive, or disconnect)                                                                                                                                                                                                                                                |
+| 403    | `backup-feature-disabled`            | `POST …/full`, `POST …/incremental` (team flag not enabled, or user has no team); every `/backups` route (backups not configured on the server, i.e. no HMAC key)                                                                                                                                                                            |
+| 403    | `backup-forbidden`                   | `POST …/full`, `POST …/incremental` (`<ClientId>` is not `Z-Client`)                                                                                                                                                                                                                                                                         |
 | 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller); `GET /backups/clients/<ClientId>`, `GET …/epochs/<BackupEpoch>`, `GET …/full/<FullId>[/incremental/<BackupFileId>]` (`Z-Client` or `<ClientId>` is not a client of the caller; for the last two also no such epoch or file); `POST`s (`<ClientId>` is not a client of the caller) |
-| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                                                                    |
-| 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)                                                                                                                                                                                                                                                                 |
-| 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                   |
-| 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap; checked on the declared value, before any byte is read)                                                                                                                                                   |
-| 403    | `operation-denied`, `no-team-member` | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                 |
-| 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                 |
-| 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                        |
+| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                                                                                                                          |
+| 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)                                                                                                                                                                                                                                                              |
+| 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                                                                         |
+| 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap; checked on the declared value, before any byte is read)                                                                                                                                                                                                         |
+| 403    | `operation-denied`, `no-team-member` | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                       |
+| 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                       |
+| 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                              |
