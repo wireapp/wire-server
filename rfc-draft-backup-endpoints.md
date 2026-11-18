@@ -171,7 +171,9 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60` → `200`
 - **Request body:** none
 - **Response:** 200 `<BackupFiles>`: the current full and the incrementals under it, by `id`.
 
-List the current files of an epoch (metadata only, no URLs). `full.id` is the `<FullId>` in the paths of the upload and download routes of all of these files. 404 `backup-not-found` if the epoch has no full.
+List the current files of an epoch (metadata only, no URLs). `full.id` is the
+`<FullId>` in the paths of the upload and download routes of all of these
+files. 404 `backup-not-found` if the epoch has no full.
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
 
@@ -202,19 +204,37 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
 - **Request body:** raw backup bytes (`Content-Length` ≤ `maxFullBytes`)
 - **Response:** 200 `<BackupFile>`, `"size"` = number of bytes stored. Its `id` is the `<FullId>` of the incrementals that extend this full
 
-Upload the full file of an epoch. It replaces the previous full of the epoch and the incrementals of it (newest full wins, see `/backups/clients/<ClientId>/…`).
+Upload the full file of an epoch. It replaces the previous full of the epoch
+and the incrementals of it.
 
-Checked before any write, in this order: own client, team flag `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over the cap (413).
+Checked before any write, in this order: own client, team flag
+`automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over
+the cap (413).
 
-Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`). After a full file is stored, the server deletes all files of all but the two newest epochs; storing an incremental file deletes nothing.
+Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise
+only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`).
+After a full file is stored, the server deletes all files of all but the two
+newest epochs; storing an incremental file deletes nothing (this happens via
+another endpoint anyways).
 
-After storing, the server lists the epoch and deletes everything the new full superseded: older fulls and all incrementals stored under them. Concurrent full uploads delete each other, a late older one deletes itself; the newest wins.
+After storing, the server lists the epoch and deletes everything the new full
+superseded: older fulls (according to the mentioned rule) and all incrementals
+stored under them. Concurrent full uploads delete each other, a late older one
+deletes itself and responds with error; the newest wins.
 
-A failed upload (fewer bytes than `Content-Length` arrive, client disconnect, storage error, client removed meanwhile) removes the file and surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
+A failed upload (fewer bytes than `Content-Length` arrive, client disconnect,
+storage error, client removed meanwhile) removes the file and surfaces the
+error; a short body or disconnect gives 400 `incomplete-body`.
 
-Size subtlety: the server stores exactly the first `Content-Length` bytes and ignores any excess, because the HTTP layer hands the handler no more than that. Too many bytes can't be detected and give a successful upload of a truncated file; too few give 400 `incomplete-body`. The response `size` is the number of bytes stored, so clients should compare it with the number of bytes they sent and, if it differs, upload a new full.
+Size subtlety: the server stores exactly the first `Content-Length` bytes and
+ignores any excess, because the HTTP layer hands the handler no more than that.
+Too many bytes can't be detected and give a successful upload of a truncated
+file; too few give 400 `incomplete-body`. The response `size` is the number of
+bytes stored, so clients should compare it with the number of bytes they sent
+and, if it differs, upload a new full.
 
-Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with `Content-Length: 1048576` and 1048576 body bytes → `200`
+Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
+`Content-Length: 1048576` and 1048576 body bytes → `200`
 
 ```json
 {
