@@ -1021,8 +1021,8 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetOtherMember lcid quid upd -> do
     logEffect "ConversationStore.SetOtherMember"
     embedClient client $ updateOtherMemberLocalConv lcid quid upd
-  DeleteMembers cnv ul -> do
-    logEffect "ConversationStore.DeleteMembers"
+  DeleteMemberRowsOnly reason cnv ul -> do
+    logMemberRowRemoval reason cnv
     embedClient client $ removeMembersFromLocalConv cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
@@ -1425,12 +1425,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres (tUnqualified lcid) >>= \case
         False -> embedClient client $ updateOtherMemberLocalConv lcid quid upd
         True -> interpretConversationStoreToPostgres (ConvStore.setOtherMember lcid quid upd)
-  DeleteMembers cid ul -> do
-    logEffect "ConversationStore.DeleteMembers"
+  DeleteMemberRowsOnly reason cid ul -> do
+    logMemberRowRemoval reason cid
     withMigrationLockAndCleanup client LockShared (Left cid) $ do
       -- No need to check where these are, we just delete them from both places
       embedClient client $ removeMembersFromLocalConv cid ul
-      interpretConversationStoreToPostgres $ ConvStore.deleteMembers cid ul
+      interpretConversationStoreToPostgres $ ConvStore.deleteMemberRowsOnly reason cid ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
     withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
@@ -1685,3 +1685,13 @@ interpretConversationStoreByMigration storageLocation client =
     CassandraStorage -> interpretConversationStoreToCassandra client
     MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres client
     PostgresqlStorage -> interpretConversationStoreToPostgres
+
+-- | Like 'logEffect', but also says why the call site may delete member rows
+-- without signing MLS remove proposals, so that a stale leaf in an MLS group
+-- can be traced back to the deletion that caused it.
+logMemberRowRemoval :: (Member TinyLog r) => ConvStore.MemberRowRemovalReason -> ConvId -> Sem r ()
+logMemberRowRemoval reason cid =
+  debug $
+    Log.msg (Log.val "ConversationStore.DeleteMemberRowsOnly")
+      . Log.field "conversation_id" (idToText cid)
+      . Log.field "reason" (show reason)

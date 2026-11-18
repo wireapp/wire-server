@@ -77,7 +77,7 @@ module Wire.ConversationSubsystem.Update
 where
 
 import Control.Error.Util (hush)
-import Control.Lens
+import Control.Lens ((^.))
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.Code
@@ -89,6 +89,7 @@ import Data.List.NonEmpty (NonEmpty (..), appendList, nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock (NominalDiffTime, addUTCTime)
@@ -122,9 +123,10 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
+import Wire.API.Team.Collaborator qualified as Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
-import Wire.API.Team.Member
+import Wire.API.Team.Member as Mem
 import Wire.API.User qualified as User
 import Wire.API.User.Client
 import Wire.API.UserGroup
@@ -136,7 +138,7 @@ import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
-import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
+import Wire.ConversationSubsystem (RemoveMemberResponseMode (..), TeamOne2Ones (..))
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember, kickMemberWith)
 import Wire.ConversationSubsystem.AdminlessGroups (selectAutopromotionCandidate)
@@ -159,6 +161,7 @@ import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation
@@ -216,7 +219,7 @@ blockConvUnqualified zusr cnv = do
     throw ConversationSubsystemErrorInvalidOperation
   let mems = conv.localMembers
   when (zusr `isMember` mems) $
-    E.deleteMembers cnv (UserList [zusr] [])
+    E.deleteMemberRowsOnly E.ReversibleHide cnv (UserList [zusr] [])
 
 blockRemoteConv ::
   ( Member (Error ConversationSubsystemError) r,
@@ -877,7 +880,7 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
     $ \tid -> do
       forM_ users $ \u -> do
         mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
-        forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+        forM_ (mTeamMembership >>= permissionsRole . Mem.getPermissions) $
           permissionCheckCSE JoinRegularConversations . Just
 
   let joinType = mkJoinType conv
@@ -967,7 +970,7 @@ replaceMembers responseMode lusr zcon qcnv (InviteQualified invitedUsers role) =
     $ \tid -> do
       forM_ invitedUsers $ \u -> do
         mTeamMembership <- TeamSubsystem.internalGetTeamMember (qUnqualified u) tid
-        forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+        forM_ (mTeamMembership >>= permissionsRole . Mem.getPermissions) $
           permissionCheckCSE JoinRegularConversations . Just
 
   ugs <- getUserGroupsForConv conv.id_
@@ -1611,6 +1614,8 @@ deleteUserFromTeamConversationsImpl ::
     Member E.ExternalAccess r,
     Member Now r,
     Member Random r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamStore r,
     Member TeamSubsystem r,
     Member JobSubsystem r,
     Member ProposalStore r,
@@ -1619,10 +1624,11 @@ deleteUserFromTeamConversationsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  TeamOne2Ones ->
   TeamId ->
   UserId ->
   Sem r ()
-deleteUserFromTeamConversationsImpl lusr conn tid remove = do
+deleteUserFromTeamConversationsImpl lusr conn one2ones tid remove = do
   cc <- E.getTeamConversations tid
   for_ cc $
     ( E.getConversation
@@ -1647,31 +1653,166 @@ deleteUserFromTeamConversationsImpl lusr conn tid remove = do
                             -- and @performAction \@'ConversationRemoveMembersTag@);
                             -- doing it by hand here is what left MLS groups with a
                             -- stale leaf for the removed member.
-                            --
-                            -- Federation errors are logged rather than propagated:
-                            -- this is a loop over every conversation of the team, and
-                            -- one unreachable backend must not abort the removal from
-                            -- the remaining conversations.
-                            try @FederationError
-                              ( kickMemberWith
-                                  (tUntagged lusr)
-                                  conn
-                                  EdReasonDeleted
-                                  (qualifyAs lusr dc)
-                                  (convBotsAndMembers dc)
-                                  (tUntagged (qualifyAs lusr remove))
-                              )
-                              >>= \case
-                                Right () -> pure ()
-                                Left e ->
-                                  warn $
-                                    Log.msg (Log.val "failed to remove user from team conversation")
-                                      . Log.field "conversation_id" (idToText dc.id_)
-                                      . Log.field "user_id" (idToText remove)
-                                      . Log.field "error" (show e)
+                            kickLoggingFederationErrors
+                              lusr
+                              conn
+                              "failed to remove user from team conversation"
+                              dc
+                              remove
                   | otherwise -> pure ()
             )
     )
+  case one2ones of
+    CleanUpTeamOne2Ones -> deleteUserFromTeamOne2OneConversations lusr conn tid remove
+    AccountDeletionHandlesOne2Ones -> pure ()
+
+-- | Remove a user from a local conversation the way a backend-initiated
+-- removal does: 'kickMemberWith' deletes the member, notifies the remaining
+-- members and, for MLS conversations, signs the external remove proposals.
+--
+-- The leave reason is always 'EdReasonDeleted', so that a user removed from a
+-- team gets the same reason in every conversation they lose.  Federation
+-- errors are logged rather than propagated: the callers loop over many
+-- conversations, and one unreachable backend must not abort the removal from
+-- the others.
+kickLoggingFederationErrors ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member E.ConversationStore r,
+    Member E.ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  -- | Log message if the removal fails.
+  ByteString ->
+  StoredConversation ->
+  -- | The user to remove.
+  UserId ->
+  Sem r ()
+kickLoggingFederationErrors lusr conn failureMsg dc remove =
+  try @FederationError
+    ( kickMemberWith
+        (tUntagged lusr)
+        conn
+        EdReasonDeleted
+        (qualifyAs lusr dc)
+        (convBotsAndMembers dc)
+        (tUntagged (qualifyAs lusr remove))
+    )
+    >>= \case
+      Right () -> pure ()
+      Left e ->
+        warn $
+          Log.msg (Log.val failureMsg)
+            . Log.field "conversation_id" (idToText dc.id_)
+            . Log.field "user_id" (idToText remove)
+            . Log.field "error" (show e)
+
+-- | Remove a user from the MLS 1:1 conversations that were only justified by
+-- their relationship with a team that has just ended.
+-- ('deleteUserFromTeamConversationsImpl' above walks
+-- 'E.getTeamConversations', which does not enumerate them: an MLS 1:1
+-- conversation never carries a team id.)
+--
+-- Must be called after the relationship has been removed from the stores
+-- (team membership or collaboration), because whether a 1:1 is still
+-- justified is decided by looking at what is left.
+--
+-- A 1:1 is only considered if the other party is related to the team
+-- (a member or a collaborator of it): no other 1:1 can have been justified by
+-- this team.  Such a 1:1 is kept as long as either party could still reach the
+-- other, with exactly the rule that 'getMLSOne2OneConversation' applies
+-- ('ensureConnectedToLocalsOrSameTeam'): an accepted connection, a shared
+-- team, or another collaboration in either direction (see
+-- 'notReachableEitherWay', which checks a whole page of them at once).  Otherwise the user is
+-- kicked, and the remaining party keeps the conversation and its history.
+--
+-- Left alone:
+--
+-- * Proteus 1:1 conversations.  Those that belong to a team carry the team id
+--   and are handled by the team conversation loop above; the others are
+--   backed by a connection and have nothing to do with the team.
+-- * Conversations hosted on another backend, and remote other parties, the
+--   same way the team conversation loop above only looks at local
+--   conversations.
+deleteUserFromTeamOne2OneConversations ::
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAPIAccess r,
+    Member (Error FederationError) r,
+    Member E.ConversationStore r,
+    Member E.ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamStore r,
+    Member TeamSubsystem r,
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  TeamId ->
+  UserId ->
+  Sem r ()
+deleteUserFromTeamOne2OneConversations lusr conn tid remove = go Nothing
+  where
+    pageSize :: Range 1 1000 Int32
+    pageSize = unsafeRange 1000
+
+    go :: Maybe ConvId -> Sem r ()
+    go start = do
+      page <- E.getLocalConversationIds remove start pageSize
+      let cids = page.resultSetResult
+      unless (null cids) $ do
+        convs <- E.getConversations cids
+        kickAll (mapMaybe withPeer convs)
+        case page.resultSetType of
+          ResultSetComplete -> pure ()
+          ResultSetTruncated -> go (Just (last cids))
+
+    -- MLS 1:1 conversations of 'remove', with their local other party.
+    withPeer :: StoredConversation -> Maybe (StoredConversation, UserId)
+    withPeer dc = do
+      guard $
+        dc.metadata.cnvmType == One2OneConv
+          && isNothing dc.metadata.cnvmTeam
+          && dc.protocol /= P.ProtocolProteus
+          && remove `isMember` dc.localMembers
+      case [m.id_ | m <- dc.localMembers, m.id_ /= remove] of
+        [peer] -> Just (dc, peer)
+        _ -> Nothing
+
+    kickAll :: [(StoredConversation, UserId)] -> Sem r ()
+    kickAll [] = pure ()
+    kickAll convs = do
+      let peers = nubOrd (map snd convs)
+      peersInTeam <-
+        fmap (^. Mem.userId)
+          <$> TeamSubsystem.internalSelectTeamMembers tid peers
+      peersCollaborating <-
+        fmap Collaborator.gUser
+          <$> internalGetTeamCollaboratorsWithIds (Set.singleton tid) (Set.fromList peers)
+      let relatedToTeam = Set.fromList (peersInTeam <> peersCollaborating)
+      notJustified <-
+        Set.fromList
+          <$> notReachableEitherWay remove (filter (`Set.member` relatedToTeam) peers)
+      for_ convs $ \(dc, peer) ->
+        when (Set.member peer notJustified) $
+          kickLoggingFederationErrors
+            lusr
+            conn
+            "failed to remove user from 1:1 conversation after leaving a team"
+            dc
+            remove
 
 -- | if the public member leave api was called, we can assume that
 --   it was called by a user
@@ -2146,7 +2287,7 @@ rmBot lusr zcon b = do
                 conn = zcon
               }
           ]
-        E.deleteMembers c.id_ (UserList [botUserId (b ^. rmBotId)] [])
+        E.deleteBotMemberRow c.id_ (b ^. rmBotId)
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)
         pure $ Updated e

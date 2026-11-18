@@ -58,6 +58,7 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol (Protocol (ProtocolProteus))
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -377,6 +378,16 @@ rmUser lusr conn = do
   -- 'EdMembersLeave' member-leave event). This smells like our
   -- architecture is a bit lopsided, but would need further
   -- investigation.
+  --
+  -- MLS 1:1 conversations are the exception to that partition: they never
+  -- carry a team id, so they are not team conversations, and they are not
+  -- all about the team either (a 1:1 backed by a connection has nothing to do
+  -- with it, and a user without a team has 1:1s too).  When a user merely
+  -- leaves a team, 'deleteUserFromTeamConversations' cleans up the ones the
+  -- team no longer justifies; here it is told not to
+  -- ('AccountDeletionHandlesOne2Ones'), because 'goConvPages' removes the
+  -- user from all of them anyway.  That way they are handled in one place
+  -- and one pass, and not looked at twice.
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
   allConvIds <- conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
@@ -404,7 +415,7 @@ rmUser lusr conn = do
                     FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
                 )
               . (.status)
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+      uncheckedDeleteTeamMember lusr conn AccountDeletionHandlesOne2Ones tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
@@ -426,41 +437,59 @@ rmUser lusr conn = do
 
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
-      let qUser = tUntagged lusr
       cc <- ConversationStore.getConversations ids
       now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
-        One2OneConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv
-          | tUnqualified lusr `isMember` c.localMembers -> do
-              runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
-                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-                Right _ -> pure ()
-              ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
-              let e =
-                    Event
-                      { evtConv = tUntagged (qualifyAs lusr c.id_),
-                        evtSubConv = Nothing,
-                        evtFrom = EventFromUser (tUntagged lusr),
-                        evtTime = now,
-                        evtTeam = Nothing,
-                        evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
-                      }
-              for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
-              pure . Just $
-                def
-                  { origin = Just (tUnqualified lusr),
-                    json = toJSONObject e,
-                    recipients = map localMemberToRecipient c.localMembers,
-                    isCellsEvent = shouldPushToCells c.metadata e,
-                    conn,
-                    route = PushV2.RouteDirect
-                  }
-          | otherwise -> pure Nothing
+        One2OneConv
+          -- A Proteus 1:1 conversation has no MLS group, and its remaining
+          -- party is told about the deletion by the user-deleted event, so the
+          -- member row is all there is to remove.
+          | c.protocol == ProtocolProteus ->
+              ConversationStore.deleteMemberRowsOnly ConversationStore.ProteusOnlyConversation c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+          -- An MLS 1:1 conversation is left like a regular one: without the
+          -- remove proposal, the remaining party's MLS group keeps a stale leaf
+          -- for a user that does not exist any more, and without the
+          -- member-leave event, the proposal would refer to a member that the
+          -- remaining party's conversation state still lists.  This is the
+          -- only place that removes a deleted user from their MLS 1:1
+          -- conversations (see the comment at the top of 'rmUser').
+          | otherwise -> leaveWithEvent now c
+        ConnectConv -> ConversationStore.deleteMemberRowsOnly ConversationStore.ProteusOnlyConversation c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        RegularConv -> leaveWithEvent now c
 
       pushNotifications (catMaybes pp)
+
+    -- Remove the user from the conversation (and its MLS group, if any), and
+    -- tell the remaining members, local and remote.
+    leaveWithEvent :: UTCTime -> StoredConversation -> Sem r (Maybe Push)
+    leaveWithEvent now c
+      | tUnqualified lusr `isMember` c.localMembers = do
+          let qUser = tUntagged lusr
+          runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain qUser) >>= \case
+            Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+            Right _ -> pure ()
+          ConversationStore.deleteMemberRowsOnly ConversationStore.MlsHandledByCaller c.id_ (UserList [tUnqualified lusr] [])
+          let e =
+                Event
+                  { evtConv = tUntagged (qualifyAs lusr c.id_),
+                    evtSubConv = Nothing,
+                    evtFrom = EventFromUser qUser,
+                    evtTime = now,
+                    evtTeam = Nothing,
+                    evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
+                  }
+          for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
+          pure . Just $
+            def
+              { origin = Just (tUnqualified lusr),
+                json = toJSONObject e,
+                recipients = map localMemberToRecipient c.localMembers,
+                isCellsEvent = shouldPushToCells c.metadata e,
+                conn,
+                route = PushV2.RouteDirect
+              }
+      | otherwise = pure Nothing
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

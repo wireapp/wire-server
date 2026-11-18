@@ -1,0 +1,1 @@
+Fix: remove collaborators from MLS 1:1 conversations with team members when the collaboration ends, unless the two users can still reach each other in another way.

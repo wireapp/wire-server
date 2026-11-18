@@ -85,6 +85,17 @@ data RemoveMemberResponseMode
   = RemoveMemberLegacyResponse
   | RemoveMemberEligibleMembersResponse
 
+-- | What to do with the MLS 1:1 conversations of a user who leaves a team.
+-- (They never carry a team id, so they are not team conversations.)
+data TeamOne2Ones
+  = -- | Remove the user from those that the team no longer justifies.
+    CleanUpTeamOne2Ones
+  | -- | Leave them alone: the user's account is being deleted, and the
+    -- account deletion removes the user from all their 1:1 conversations
+    -- anyway, in a single pass.
+    AccountDeletionHandlesOne2Ones
+  deriving (Eq, Show)
+
 data ConversationSubsystem m a where
   NotifyConversationAction ::
     Sing tag ->
@@ -593,6 +604,7 @@ data ConversationSubsystem m a where
   DeleteUserFromTeamConversations ::
     Local UserId ->
     Maybe ConnId ->
+    TeamOne2Ones ->
     TeamId ->
     UserId ->
     ConversationSubsystem m ()

@@ -96,7 +96,6 @@ import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingSt
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import Wire.API.Team qualified as Public
-import Wire.API.Team.Collaborator qualified as Collaborator
 import Wire.API.Team.Collaborator qualified as TeamCollaborator
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
@@ -804,10 +803,10 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       case feat.status of
         FeatureStatusEnabled -> do
           admins <- E.getTeamAdmins tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
+          uncheckedDeleteTeamMember lusr (Just zcon) CleanUpTeamOne2Ones tid remove (Left admins)
         FeatureStatusDisabled -> do
           mems <- TeamSubsystem.getTeamMembersForFanout tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
+          uncheckedDeleteTeamMember lusr (Just zcon) CleanUpTeamOne2Ones tid remove (Right mems)
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
@@ -820,16 +819,17 @@ uncheckedDeleteTeamMember ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  TeamOne2Ones ->
   TeamId ->
   UserId ->
   Either [UserId] TeamMemberList ->
   Sem r ()
-uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
+uncheckedDeleteTeamMember lusr zcon one2ones tid remove (Left admins) = do
   now <- Now.get
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  deleteUserFromTeamConversations lusr zcon tid remove
+  deleteUserFromTeamConversations lusr zcon one2ones tid remove
   where
     -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
@@ -847,12 +847,12 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
               transient = True
             }
         ]
-uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
+uncheckedDeleteTeamMember lusr zcon one2ones tid remove (Right mems) = do
   now <- Now.get
   pushMemberLeaveEventToAll now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  deleteUserFromTeamConversations lusr zcon tid remove
+  deleteUserFromTeamConversations lusr zcon one2ones tid remove
   where
     -- notify all team members. This is to maintain compatibility with clients
     -- relying on these events, but eventually they will catch up and this
@@ -1223,14 +1223,22 @@ checkAdminLimit adminCount =
   when (adminCount > 2000) $
     throwS @'TooManyTeamAdmins
 
--- | Updating a team collaborator permissions eventually cleaning their conversations
+-- | Update a team collaborator's permissions.
+--
+-- Permissions do not affect which conversations a collaborator is a member of.
+-- They say what the collaborator may do (create team conversations, reach out
+-- to team members without a connection); losing them does not end the
+-- collaboration, and a team member can always talk to a collaborator of their
+-- team whatever the collaborator's permissions are (see
+-- 'Wire.ConversationSubsystem.Util.ensureConnectedToLocalsOrSameTeam').  So
+-- nothing is cleaned up here; that happens in 'removeTeamCollaborator', where
+-- the collaboration actually ends.
 updateTeamCollaborator ::
   forall r.
   ( Member P.TinyLog r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamCollaboratorsSubsystem r,
-    Member ConversationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1244,8 +1252,6 @@ updateTeamCollaborator lusr tid rusr perms = do
       . Log.field "action" (Log.val "Teams.updateTeamCollaborator")
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   void $ TeamSubsystem.permissionCheck UpdateTeamCollaborator zusrMember
-  when (Set.null $ Set.intersection (Set.fromList [Collaborator.CreateTeamConversation, Collaborator.ImplicitConnection]) perms) $
-    deleteUserFromTeamConversations lusr Nothing tid rusr
   internalUpdateTeamCollaborator rusr tid perms
 
 -- | Removing a team collaborator and clean their conversations
@@ -1279,8 +1285,12 @@ removeTeamCollaborator lusr tid rusr = do
               FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
           )
         . (.status)
-  uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
+  -- The collaboration has to be gone before the conversations are cleaned up:
+  -- whether an MLS 1:1 conversation with a team member is still justified is
+  -- decided by what is left (see
+  -- 'Wire.ConversationSubsystem.Update.deleteUserFromTeamOne2OneConversations').
   internalRemoveTeamCollaborator rusr tid
+  uncheckedDeleteTeamMember lusr Nothing CleanUpTeamOne2Ones tid rusr toNotify
   now <- Now.get
   let e = newEvent tid now (EdCollaboratorRemove rusr)
   admins <- E.getTeamAdmins tid

@@ -67,6 +67,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
+import Wire.API.Routes.Internal.Brig.Connection qualified as BConn
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
 import Wire.API.Team.Collaborator
@@ -164,7 +165,32 @@ ensureConnectedToLocalsOrSameTeam ::
   [UserId] ->
   Sem r ()
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
-ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
+ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids =
+  -- Do not check connections for team members and collaborators
+  notReachableThroughTeams OneWay u uids >>= ensureConnectedToLocals u
+
+-- | Which way 'notReachableThroughTeams' looks.
+data Reachability
+  = -- | Can `u` reach the others?  This is what
+    -- 'ensureConnectedToLocalsOrSameTeam' checks.
+    OneWay
+  | -- | Can `u` reach the others, or can the others reach `u`?
+    EitherWay
+
+-- | The users of @uids@ that a team membership or a collaboration does not
+-- allow to talk to `u` (in the given 'Reachability').  Connections are not
+-- looked at.
+notReachableThroughTeams ::
+  ( Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  Reachability ->
+  UserId ->
+  [UserId] ->
+  Sem r [UserId]
+notReachableThroughTeams _ _ [] = pure []
+notReachableThroughTeams reachability u uids = do
   -- own team
   uTeams <- getUserTeams u
   -- teams with which `u` collaborates
@@ -174,22 +200,61 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   -- Subset of uids from same team as `u` (the user who wants to connect)
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
     fmap (view Mem.userId) <$> TeamSubsystem.internalSelectTeamMembers team uids
-  -- Do not check connections for team members and collaborators
-  ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
+  pure ((uids \\ join sameTeamUids) \\ icUsers)
   where
     -- Teams in which `u` (the user who wants to connect) is
     -- collaborator with `ImplicitConnection` permission.
+    --
+    -- The other way round, a team member can reach `u` if `u` collaborates
+    -- with their team whatever `u`'s permissions are (see
+    -- 'getTeamCollaborators'), so then all of them count.
     getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r') => Sem r' [TeamId]
     getUserCollaborationTeams =
       gTeam
-        <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations u)
+        <$$> (filter permitted <$> internalGetTeamCollaborations u)
+      where
+        permitted = case reachability of
+          OneWay -> flip hasPermission CollaboratorPermission.ImplicitConnection
+          EitherWay -> const True
 
     -- We do not check the permissions of team collaborators if a user
     -- tries to reach out to them (if they are in the same team.) The
     -- reasoning behind this is that team collaborators have
     -- implicitly agreed to be collaborated with.
+    --
+    -- The other way round, a collaborator with `ImplicitConnection` in `u`s
+    -- team can reach `u`, and is already one of these.
     getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
     getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds (Set.fromList teams) (Set.fromList uids)
+
+-- | The users of @uids@ that can neither reach `u` nor be reached by `u`, by
+-- the rules of 'ensureConnectedToLocalsOrSameTeam': no accepted connection
+-- (connections are symmetric), no shared team, and no collaboration in either
+-- direction.  One batch of lookups for all of @uids@.
+notReachableEitherWay ::
+  ( Member BrigAPIAccess r,
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  [UserId] ->
+  Sem r [UserId]
+notReachableEitherWay u uids = do
+  candidates <- notReachableThroughTeams EitherWay u uids
+  connected <- connectedLocals u candidates
+  pure (filter (`Set.notMember` connected) candidates)
+
+-- | The users of @uids@ with a bidirectionally accepted connection to `u`, cf.
+-- 'ensureConnectedToLocals'.
+connectedLocals :: (Member BrigAPIAccess r) => UserId -> [UserId] -> Sem r (Set UserId)
+connectedLocals _ [] = pure mempty
+connectedLocals u uids = do
+  (connsFrom, connsTo) <-
+    getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
+  pure $
+    Set.fromList (BConn.csTo <$> connsFrom)
+      `Set.intersection` Set.fromList (BConn.csFrom <$> connsTo)
 
 -- | Check that the user is connected to everybody else.
 --
@@ -404,7 +469,7 @@ convDeleteMembers ::
   StoredConversation ->
   Sem r StoredConversation
 convDeleteMembers ul conv = do
-  deleteMembers conv.id_ ul
+  deleteMemberRowsOnly MlsHandledByCaller conv.id_ ul
   let locals = Set.fromList (ulLocals ul)
       remotes = Set.fromList (ulRemotes ul)
   -- update in-memory view of the conversation

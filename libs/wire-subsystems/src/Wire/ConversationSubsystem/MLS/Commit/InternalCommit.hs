@@ -29,6 +29,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -51,6 +52,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
+import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
@@ -68,6 +70,7 @@ import Wire.ProposalStore
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserList (toUserList)
 
 processInternalCommit ::
   forall r.
@@ -221,6 +224,60 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                         }
                       def
                   pure [update]
+            -- The other party of an existing 1-1 conversation is being added
+            -- back.  They can only have left it because the backend removed
+            -- them when the relationship that justified the conversation ended
+            -- (see
+            -- 'Wire.ConversationSubsystem.Update.deleteUserFromTeamOne2OneConversations'),
+            -- and the conversation was kept for the remaining party.  Adding
+            -- members is not allowed in 1-1 conversations in general (see
+            -- 'checkConversationType'), so this is checked here instead: the
+            -- added user must be the one this conversation is the 1-1 with, and
+            -- the two must be allowed to talk again, by the same rule as for
+            -- getting the conversation in the first place.
+            Conv cnvId
+              | convOrSub.meta.cnvmType == One2OneConv,
+                null membersToRemove,
+                [otherUser] <-
+                  filter
+                    (`Set.notMember` existingMembers (fmap (mcConv . (.conv)) lConvOrSub))
+                    (map fst newUserClients) -> do
+                  let senderUser = cidQualifiedUser senderIdentity.client
+                      lconv = fmap (mcConv . (.conv)) lConvOrSub
+                  unless
+                    ( otherUser /= senderUser
+                        && one2OneConvId BaseProtocolMLSTag senderUser otherUser
+                          == tUntagged (qualifyAs lConvOrSub cnvId)
+                    )
+                    $ throw
+                      ( mlsProtocolError
+                          "Only the other party of a 1-1 conversation can be added to it"
+                      )
+                  lsender <-
+                    foldQualified
+                      lConvOrSub
+                      pure
+                      (const (throw ConversationSubsystemErrorConvAccessDenied))
+                      senderUser
+                  ensureConnectedOrSameTeam lsender [otherUser]
+                  handleNoChanges $ do
+                    (extraTargets, joinAction) <-
+                      addMembersToLocalConversation
+                        (fmap (.id_) lconv)
+                        (toUserList lconv [otherUser])
+                        roleNameWireMember
+                        def
+                    update <-
+                      sendConversationActionNotifications
+                        SConversationJoinTag
+                        senderUser
+                        False
+                        con
+                        lconv
+                        (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
+                        joinAction
+                        def
+                    pure [update]
             SubConv _ _ -> pure []
             Conv _ -> do
               -- remove users from the conversation and send events
