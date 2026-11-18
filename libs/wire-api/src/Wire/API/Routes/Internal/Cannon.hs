@@ -26,6 +26,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Error
 import Wire.API.Error.Cannon
 import Wire.API.Internal.BulkPush
+import Wire.API.Notification.FanIn (FanInCannonRequest)
 import Wire.API.RawJson
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -61,6 +62,7 @@ type API =
                       :> ReqBody '[JSON] BulkPushRequest
                       :> Post '[JSON] BulkPushResponse
                   )
+           :<|> FanInCannonAPI
            :<|> Named
                   "check-presence"
                   ( "presences"
@@ -80,3 +82,6 @@ swaggerDoc :: OpenApi
 swaggerDoc =
   toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal cannon API"
+
+-- | Background delivery endpoint under the internal /i prefix.
+type FanInCannonAPI = Named "fan-in-notifications" (Summary "Notify connected clients of fan-in events" :> Description "Wake fan-in WebSocket sessions to fetch pending persistent notifications from the database. Forward transient events directly to fan-in WebSocket sessions. This endpoint currently has a placeholder handler." :> "fan-in" :> ReqBody '[JSON] FanInCannonRequest :> Post '[JSON] NoContent)
