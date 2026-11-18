@@ -1,14 +1,15 @@
-cabal-version: 3.0
-name:          gundeck
-version:       1.45.0
-synopsis:      Push Notification Hub
-category:      Network
-author:        Wire Swiss GmbH
-maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3.0-only
-license-file:  LICENSE
-build-type:    Simple
+cabal-version:      3.0
+name:               gundeck
+version:            1.45.0
+synopsis:           Push Notification Hub
+category:           Network
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2017 Wire Swiss GmbH
+license:            AGPL-3.0-only
+license-file:       LICENSE
+build-type:         Simple
+extra-source-files: postgres-migrations/*.sql
 
 flag static
   description: Enable static linking
