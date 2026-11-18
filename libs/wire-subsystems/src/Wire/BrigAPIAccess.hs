@@ -147,6 +147,8 @@ data BrigAPIAccess m a where
     Role ->
     BrigAPIAccess m UserId
   UpdateEmail :: UserId -> EmailAddress -> EmailActivation -> BrigAPIAccess m ()
+  GetInvitationRole :: TeamId -> InvitationId -> BrigAPIAccess m Role
+  UpdateInvitationRole :: TeamId -> InvitationId -> Role -> BrigAPIAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAPIAccess m (Maybe User)
   GetAccountByHandle :: Handle -> BrigAPIAccess m (Maybe User)
   GetByEmail :: EmailAddress -> BrigAPIAccess m (Maybe User)

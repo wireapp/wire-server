@@ -1742,10 +1742,10 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
   checkUpdateDisplayNameByUserFails user
   su2 <- checkUpdateDisplayNameByScimSucceeds tok uid su1
 
-  -- the following should not be part of the e2eid certification, but are checked here anyway
-  checkUpdateLocaleByUserFails user
+  -- locale and email are not part of the e2eid certification: they are locked by
+  -- `managed_by == scim` alone, which is covered in 'Test.Spar.SCIM'.  Here we only check
+  -- that e2eid does not get in the way of SCIM writing them.
   su3 <- checkUpdateLocaleByScimSucceeds tok uid su2
-  unless ssoEnabled $ checkUpdateEmailByUserFails user
   su4 <- checkUpdateEmailByScimSucceeds tok uid su3
   -- external ID cannot be updated by the user, only by SCIM
   void $ checkUpdateExternalIdByScimSucceeds tok uid su4
@@ -1824,12 +1824,6 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
         u %. "locale" `shouldMatch` "fr"
       pure su
 
-    checkUpdateLocaleByUserFails :: (HasCallStack, MakesValue user) => user -> App ()
-    checkUpdateLocaleByUserFails user = do
-      putSelfLocale user "de" `bindResponse` \res -> do
-        res.status `shouldMatchInt` 403
-        res.json %. "label" `shouldMatch` "managed-by-scim"
-
     checkUpdateEmailByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
     checkUpdateEmailByScimSucceeds tok uid scimUser = do
       newEmail <- randomEmail
@@ -1843,20 +1837,6 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
         u <- res.json & asList >>= assertOne
         u %. "email" `shouldMatch` newEmail
       pure su
-
-    checkUpdateEmailByUserFails :: (HasCallStack, MakesValue user) => user -> App ()
-    checkUpdateEmailByUserFails user = do
-      email <- make user %. "email" >>= asString
-      (cookie, token) <-
-        login OwnDomain email defPassword `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          token <- resp.json %. "access_token" & asString
-          let cookie = fromJust $ getCookie "zuid" resp
-          pure ("zuid=" <> cookie, token)
-      newEmail <- randomEmail
-      updateEmail user newEmail cookie token `bindResponse` \res -> do
-        res.status `shouldMatchInt` 403
-        res.json %. "label" `shouldMatch` "managed-by-scim"
 
     checkUpdateExternalIdByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
     checkUpdateExternalIdByScimSucceeds tok uid scimUser = do
@@ -1901,22 +1881,6 @@ testNoPasswordResetForSAMLUser = do
   getPasswordResetCode OwnDomain email `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-key"
-
-testScimUserIsNotAllowedToChangeName :: (HasCallStack) => App ()
-testScimUserIsNotAllowedToChangeName = do
-  (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
-  scimUser <- randomScimUser
-  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
-  void $ createScimUser OwnDomain tok scimUser >>= assertSuccess
-  registerInvitedUser OwnDomain tid email
-  user <- getUsersByEmail OwnDomain [email] >>= getJSON 200 >>= asList >>= assertOne
-  putHandle user "foo" `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "managed-by-scim"
-  putSelf user def {name = Just "foo"} `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "managed-by-scim"
 
 testScimUserIsNotAllowedToChangeNameOnRegistering :: (HasCallStack) => App ()
 testScimUserIsNotAllowedToChangeNameOnRegistering = do

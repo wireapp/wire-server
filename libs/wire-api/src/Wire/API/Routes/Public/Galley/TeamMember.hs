@@ -174,6 +174,7 @@ type TeamMemberAPI =
                :> CanThrow 'TeamNotFound
                :> CanThrow 'TeamMemberNotFound
                :> CanThrow 'TooManyTeamAdmins
+               :> CanThrow 'RoleManagedByScim
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> ZLocalUser

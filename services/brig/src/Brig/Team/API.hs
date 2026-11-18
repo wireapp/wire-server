@@ -19,6 +19,8 @@ module Brig.Team.API
   ( servantAPI,
     getInvitationByEmail,
     getInvitationCode,
+    getInvitationRole,
+    updateInvitationRole,
     suspendTeam,
     unsuspendTeam,
     createInvitationViaScim,
@@ -65,6 +67,7 @@ import Wire.API.Team.Invitation qualified as Public (Invitation (..))
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
+import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
@@ -157,6 +160,20 @@ getInvitationCode ::
 getInvitationCode t r = do
   inv <- Store.lookupInvitation t r
   maybe (throw UserSubsystemInvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
+
+getInvitationRole ::
+  (Member InvitationStore r, Member (Error UserSubsystemError) r) =>
+  TeamId -> InvitationId -> Sem r Role
+getInvitationRole tid iid = do
+  inv <- Store.lookupInvitation tid iid >>= note UserSubsystemInvalidInvitationCode
+  pure $ fromMaybe defaultRole inv.role
+
+updateInvitationRole ::
+  (Member InvitationStore r, Member (Error UserSubsystemError) r) =>
+  TeamId -> InvitationId -> Role -> Sem r ()
+updateInvitationRole tid iid role = do
+  void $ getInvitationRole tid iid
+  Store.updateInvitationRole tid iid role
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,

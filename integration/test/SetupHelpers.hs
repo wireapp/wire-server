@@ -810,6 +810,16 @@ activateEmail domain email = do
       <*> (res.json %. "code" >>= asString)
   API.Brig.activate domain actkey code >>= assertSuccess
 
+-- | Log in and return the @(cookie, access token)@ pair that end-points like
+-- @PUT \/access\/self\/email@ require.
+loginWithCookieAndToken :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App (String, String)
+loginWithCookieAndToken domain email password =
+  login domain email password `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    token <- resp.json %. "access_token" & asString
+    let cookie = fromJust $ getCookie "zuid" resp
+    pure ("zuid=" <> cookie, token)
+
 registerInvitedUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerInvitedUser domain tid email = do
   code <- getInvitationByEmail domain email >>= getJSON 200 >>= getInvitationCodeForTeam domain tid >>= getJSON 200 >>= (%. "code") >>= asString

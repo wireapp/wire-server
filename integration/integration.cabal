@@ -227,6 +227,7 @@ library
     Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
+    Test.Spar.SCIM
     Test.Spar.STM
     Test.Swagger
     Test.SystemSettings

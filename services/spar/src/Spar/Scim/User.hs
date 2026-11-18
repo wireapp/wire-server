@@ -60,7 +60,7 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Handle (Handle, fromHandle, parseHandle)
-import Data.Id (Id (..), TeamId, UserId, idToText)
+import Data.Id (Id (..), TeamId, UserId, idToText, userIdToInvitationId)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.Proxy
 import Data.Range hiding (errorMsg)
@@ -789,7 +789,10 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
 
             forM_ (newValidScimUser.role) $ \newRole -> do
               when (oldValidScimUser.role /= Just newRole) $ do
-                GalleyAPIAccess.updateTeamMember uid stiTeam newRole
+                BrigAPIAccess.getStatusMaybe uid >>= \case
+                  Just PendingInvitation ->
+                    BrigAPIAccess.updateInvitationRole stiTeam (userIdToInvitationId uid) newRole
+                  _ -> GalleyAPIAccess.updateTeamMember uid stiTeam newRole
 
             BrigAPIAccess.getStatusMaybe uid >>= \case
               Nothing -> pure ()
@@ -1154,7 +1157,11 @@ synthesizeStoredUser acc veid mEmailMeta =
     getRole :: Sem r Role
     getRole = do
       let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
-      maybe (pure defaultRole) (fmap tmRoleOrDefault . GalleyAPIAccess.getTeamMember (userId acc)) (userTeam acc)
+      case (acc.userStatus, acc.userTeam) of
+        (PendingInvitation, Just tid) ->
+          BrigAPIAccess.getInvitationRole tid (userIdToInvitationId (userId acc))
+        (_, team) ->
+          maybe (pure defaultRole) (fmap tmRoleOrDefault . GalleyAPIAccess.getTeamMember (userId acc)) team
 
 synthesizeStoredUser' ::
   (MonadError Scim.ScimError m) =>

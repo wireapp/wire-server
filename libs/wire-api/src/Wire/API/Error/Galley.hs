@@ -102,6 +102,7 @@ data GalleyError
   | NoAddToBinding
   | TooManyTeamMembers
   | TooManyTeamAdmins
+  | RoleManagedByScim
   | -- FUTUREWORK: possibly make MissingPermission take a list of Perm
     MissingPermission (Maybe Perm)
   | ActionDenied Action
@@ -236,6 +237,8 @@ type instance MapError 'NoAddToBinding = 'StaticError 403 "binding-team" "Cannot
 type instance MapError 'TooManyTeamMembers = 'StaticError 403 "too-many-team-members" "Maximum number of members per team reached"
 
 type instance MapError 'TooManyTeamAdmins = 'StaticError 403 "too-many-team-admins" "Maximum number of admins per team reached"
+
+type instance MapError 'RoleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating role is not allowed, because it is managed by SCIM"
 
 type instance MapError ('MissingPermission mperm) = 'StaticError 403 "operation-denied" (MissingPermissionMessage mperm)
 
