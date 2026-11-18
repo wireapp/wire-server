@@ -17,6 +17,10 @@ import qualified API.GalleyInternal as I
 import Control.Applicative
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.ByteString.Base16.Lazy as B16L
 import qualified Data.ByteString.Base64.Lazy as B64L
 import qualified Data.ByteString.Lazy as BSL
 import Data.IntMap (IntMap)
@@ -24,7 +28,6 @@ import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
 import Data.String.Conversions (cs)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
@@ -240,60 +243,62 @@ testGhostSubConvMemberRowRepairAfterMigration = do
       clients <- memberClientIds alice subConvId
       clients `shouldContain` [(bob1.user, bob1.client)]
 
--- | WPB-29949: a conversation that is already in Postgres when it is migrated
--- again (a previous migration committed but its Cassandra delete was lost)
--- keeps its Postgres data: stale Cassandra member-client rows are not merged
--- into the live group. The first migration already deleted alice1's and
--- bob1's Cassandra rows, so without the guard the stale row would be inserted
--- without any conflict.
+-- | WPB-29949: a conversation that is already in Postgres when the migration
+-- reaches a Cassandra copy of it (a previous migration committed but crashed
+-- before deleting the Cassandra data) keeps its Postgres data: stale Cassandra
+-- member-client rows are not merged into the live group. Without the guard
+-- they would be inserted without any conflict.
+--
+-- The conversation is created in Postgres and stale Cassandra rows are written
+-- for it. Restoring the rows of a migrated conversation would not work:
+-- Cassandra conversation rows are deleted with a far-future timestamp, which
+-- hides any later write of the row from the migration.
 testRemigrationDoesNotMergeStaleCassandraData :: (HasCallStack) => App ()
 testRemigrationDoesNotMergeStaleCassandraData = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
     let domainM = migratingBackend.berDomain
         galleyKeyspace = migratingBackend.berGalleyKeyspace
-        insertMemberClient :: Cql.PrepQuery Cql.W (Blob, Text, UUID, Text, Int32) ()
-        insertMemberClient = fromString $ "INSERT INTO " <> galleyKeyspace <> ".mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) VALUES (?, ?, ?, ?, ?, false)"
 
-    (alice, alice1, bob1, convId) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+    (alice, bob, alice1, bob1, templateRow) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
       [alice, bob] <- createAndConnectUsers [domainM, domainM]
       [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+      templateRow <- mlsConvTemplateRow galleyKeyspace alice1
+      pure (alice, bob, alice1, bob1, templateRow)
+
+    -- Galley creates new conversations in Postgres from phase 2 on.
+    convId <- runCodensity (startDynamicBackend migratingBackend phase2Overrides) $ \_ -> do
       void $ uploadNewKeyPackage def bob1
       convId <- createNewGroup def alice1
       void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
-      pure (alice, alice1, bob1, convId)
+      pure convId
 
     convUuid <- convUuidOf convId
     gidBytes <- groupIdBytes convId
-    let selectConvRows = selectRowsJson galleyKeyspace "conversation" "conv" (Identity convUuid)
-    -- Snapshot the Cassandra conversation row (with its group info, which the
-    -- migration needs to copy MLS client rows) before the migration deletes it.
-    convRows <- selectConvRows
-
-    runPhase3Migration migratingBackend
-
-    -- Simulate a lost Cassandra delete: the conversation reappears in
-    -- Cassandra, with a member-client row that Postgres does not have.
-    -- The stale user, client id and leaf index are arbitrary.
+    let staleRows =
+          [ selectRowsJson galleyKeyspace "conversation" "conv" (Identity convUuid),
+            selectRowsJson galleyKeyspace "mls_group_member_client" "group_id" (Identity (Blob gidBytes))
+          ]
+    -- Stale Cassandra copy: the conversation, with a member-client row that
+    -- Postgres does not have. The stale user, client id and leaf index are
+    -- arbitrary.
     staleUser <- liftIO UUID.nextRandom
-    insertRowsJson galleyKeyspace "conversation" convRows
-    Cql.write
-      insertMemberClient
-      (Cql.defQueryParams Cql.LocalQuorum (Blob gidBytes, Text.pack domainM, staleUser, Text.pack "5ca1ab1e", 7))
+    insertConvRow galleyKeyspace templateRow ["conv" .= convUuid, "group_id" .= blobJson gidBytes]
+    insertMemberClient galleyKeyspace gidBytes domainM staleUser "5ca1ab1e" 7
+    assertRowsPresent staleRows
 
     runPhase3Migration migratingBackend
-    -- The stale Cassandra copy is cleaned up rather than left behind.
-    selectConvRows >>= assertBool "stale Cassandra conversation row was left behind" . null
+    assertRowsGone staleRows
 
     runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
       clients <- memberClientIds alice convId
       clients `shouldMatchSet` [(alice1.user, alice1.client), (bob1.user, bob1.client)]
 
 -- | Subconversation variant of 'testRemigrationDoesNotMergeStaleCassandraData':
--- a subconversation reset in Postgres after the migration keeps its new group,
--- and the member-client rows of its old group, still in the stale Cassandra
--- copy, are not merged back. The reset deleted those rows from Postgres, so
--- without the guard they would be inserted without any conflict.
+-- the member-client rows of a stale Cassandra subconversation, in a group
+-- Postgres does not know, are not merged. The subconversation row itself does
+-- nothing on conflict anyway, so the member-client check is the one the guard
+-- is needed for.
 testRemigrationDoesNotMergeStaleSubConvData :: (HasCallStack) => App ()
 testRemigrationDoesNotMergeStaleSubConvData = do
   resourcePool <- asks (.resourcePool)
@@ -301,56 +306,60 @@ testRemigrationDoesNotMergeStaleSubConvData = do
     let domainM = migratingBackend.berDomain
         galleyKeyspace = migratingBackend.berGalleyKeyspace
 
-    (alice, convId, subConvId) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+    (alice, alice1, templateRow) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
       alice <- randomUser domainM def
       alice1 <- createMLSClient def alice
+      templateRow <- mlsConvTemplateRow galleyKeyspace alice1
+      pure (alice, alice1, templateRow)
+
+    (convId, sub) <- runCodensity (startDynamicBackend migratingBackend phase2Overrides) $ \_ -> do
       convId <- createNewGroup def alice1
       void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
       createSubConv def convId alice1 "conference"
-      subConvId <- getSubConvId alice convId "conference"
-      pure (alice, convId, subConvId)
+      sub <- getSubConversation alice convId "conference" >>= getJSON 200
+      pure (convId, sub)
 
     convUuid <- convUuidOf convId
-    subGidBytes <- groupIdBytes subConvId
-    let selectConvRows = selectRowsJson galleyKeyspace "conversation" "conv" (Identity convUuid)
-        selectSubConvRows = selectRowsJson galleyKeyspace "subconversation" "conv_id" (Identity convUuid)
-        selectSubConvClientRows = selectRowsJson galleyKeyspace "mls_group_member_client" "group_id" (Identity (Blob subGidBytes))
-    convRows <- selectConvRows
-    subConvRows <- selectSubConvRows
-    subConvClientRows <- selectSubConvClientRows
-    assertBool "subconversation has no member-client rows in Cassandra" (not (null subConvClientRows))
+    gidBytes <- groupIdBytes convId
+    aliceUuid <- assertJust "invalid user id" (UUID.fromString alice1.user)
+    staleGid <- liftIO $ UUID.toByteString <$> UUID.nextRandom
+    let staleGroup =
+          ConvId
+            { domain = convId.domain,
+              id_ = convId.id_,
+              groupId = Just (cs (B64L.encode staleGid)),
+              subconvId = Just "conference"
+            }
+        staleRows =
+          [ selectRowsJson galleyKeyspace "conversation" "conv" (Identity convUuid),
+            selectRowsJson galleyKeyspace "subconversation" "conv_id" (Identity convUuid),
+            selectRowsJson galleyKeyspace "mls_group_member_client" "group_id" (Identity (Blob staleGid))
+          ]
+    -- Stale Cassandra copy: the conversation with its subconversation in
+    -- another group, which has a member-client row.
+    insertConvRow galleyKeyspace templateRow ["conv" .= convUuid, "group_id" .= blobJson gidBytes]
+    insertRowJson galleyKeyspace "subconversation"
+      $ object
+        [ "conv_id" .= convUuid,
+          "subconv_id" .= "conference",
+          "cipher_suite" .= (1 :: Int),
+          "epoch" .= (1 :: Int),
+          "group_id" .= blobJson staleGid
+        ]
+    insertMemberClient galleyKeyspace staleGid domainM aliceUuid alice1.client 0
+    assertRowsPresent staleRows
 
     runPhase3Migration migratingBackend
-
-    -- Reset the subconversation in Postgres: it moves to a new group.
-    resetSub <- runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
-      sub <- getSubConversation alice convId "conference" >>= getJSON 200
-      void $ deleteSubConversation alice sub >>= getBody 200
-      getSubConversation alice convId "conference" >>= getJSON 200
-
-    -- Simulate a lost Cassandra delete: the conversation reappears in
-    -- Cassandra with its old subconversation and member-client rows.
-    insertRowsJson galleyKeyspace "conversation" convRows
-    insertRowsJson galleyKeyspace "subconversation" subConvRows
-    insertRowsJson galleyKeyspace "mls_group_member_client" subConvClientRows
-
-    runPhase3Migration migratingBackend
-    -- The second migration did process the stale copy (a failed or skipped
-    -- migration would leave it behind and make the checks below vacuous).
-    for_ [selectConvRows, selectSubConvRows, selectSubConvClientRows] $ \select ->
-      select >>= assertBool "stale Cassandra rows were left behind" . null
+    assertRowsGone staleRows
 
     runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
-      -- Sanity check only: the subconversation insert does nothing on conflict
-      -- anyway. The member-client check below is the one the guard is needed for.
-      getSubConversation alice convId "conference" >>= getJSON 200 >>= (`shouldMatch` resetSub)
-      -- 'subConvId' still carries the old group id.
-      memberClientIds alice subConvId >>= (`shouldMatch` ([] :: [(String, String)]))
+      getSubConversation alice convId "conference" >>= getJSON 200 >>= (`shouldMatch` sub)
+      memberClientIds alice staleGroup >>= (`shouldMatch` ([] :: [(String, String)]))
 
 -- | Remote member variant of 'testRemigrationDoesNotMergeStaleCassandraData':
--- a remote member removed in Postgres after the migration is not added back
--- from the stale Cassandra copy. The removal deleted the Postgres row, so
--- without the guard it would be inserted without any conflict.
+-- a remote member only present in the stale Cassandra copy is not added to
+-- the Postgres conversation. Without the guard it would be inserted without
+-- any conflict.
 testRemigrationDoesNotMergeStaleRemoteMembers :: (HasCallStack) => App ()
 testRemigrationDoesNotMergeStaleRemoteMembers = do
   resourcePool <- asks (.resourcePool)
@@ -358,39 +367,94 @@ testRemigrationDoesNotMergeStaleRemoteMembers = do
     let domainM = migratingBackend.berDomain
         galleyKeyspace = migratingBackend.berGalleyKeyspace
 
-    (alice, bob, conv) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
-      ownDomain <- make OwnDomain & asString
-      [alice, bob] <- createAndConnectUsers [domainM, ownDomain]
-      conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
-      pure (alice, bob, conv)
+    bob <- randomUser OwnDomain def
+    (alice, templateRow) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+      alice <- randomUser domainM def
+      template <- postConversation alice defProteus >>= getJSON 201
+      templateRow <- objConvId template >>= convUuidOf >>= convTemplateRow galleyKeyspace
+      pure (alice, templateRow)
 
-    convUuid <- conv %. "qualified_id.id" & asString >>= assertJust "invalid conversation id" . UUID.fromString
-    let selectConvRows = selectRowsJson galleyKeyspace "conversation" "conv" (Identity convUuid)
-        selectRemoteMemberRows = selectRowsJson galleyKeyspace "member_remote_user" "conv" (Identity convUuid)
-    convRows <- selectConvRows
-    remoteMemberRows <- selectRemoteMemberRows
-    assertBool "bob is not a remote member in Cassandra" (not (null remoteMemberRows))
+    conv <- runCodensity (startDynamicBackend migratingBackend phase2Overrides) $ \_ ->
+      postConversation alice defProteus >>= getJSON 201
+
+    convUuid <- objConvId conv >>= convUuidOf
+    (bobDomain, bobId) <- objQid bob
+    let staleRows =
+          [ selectRowsJson galleyKeyspace "conversation" "conv" (Identity convUuid),
+            selectRowsJson galleyKeyspace "member_remote_user" "conv" (Identity convUuid)
+          ]
+    -- Stale Cassandra copy: the conversation with bob as a remote member.
+    insertConvRow galleyKeyspace templateRow ["conv" .= convUuid]
+    insertRowJson galleyKeyspace "member_remote_user"
+      $ object
+        [ "conv" .= convUuid,
+          "user_remote_domain" .= bobDomain,
+          "user_remote_id" .= bobId,
+          "conversation_role" .= "wire_member"
+        ]
+    assertRowsPresent staleRows
 
     runPhase3Migration migratingBackend
-
-    runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ ->
-      removeMember alice conv bob >>= assertSuccess
-
-    -- Simulate a lost Cassandra delete: the conversation reappears in
-    -- Cassandra with bob as a remote member.
-    insertRowsJson galleyKeyspace "conversation" convRows
-    insertRowsJson galleyKeyspace "member_remote_user" remoteMemberRows
-
-    runPhase3Migration migratingBackend
-    -- The second migration did process the stale copy (see above).
-    for_ [selectConvRows, selectRemoteMemberRows] $ \select ->
-      select >>= assertBool "stale Cassandra rows were left behind" . null
+    assertRowsGone staleRows
 
     runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ ->
       getConversation alice conv
         >>= getJSON 200
         >>= (%. "members.others")
         >>= (`shouldMatch` ([] :: [Value]))
+
+-- | The Cassandra row of a conversation, as a template for stale rows of
+-- conversations created in Postgres.
+convTemplateRow :: (HasCallStack) => String -> UUID -> App Text
+convTemplateRow keyspace convUuid =
+  selectRowsJson keyspace "conversation" "conv" (Identity convUuid) >>= \case
+    [row] -> pure row
+    rows -> assertFailure ("expected one conversation row, got " <> show (length rows))
+
+-- | 'convTemplateRow' of a fresh MLS conversation with a group info, which
+-- the migration needs to copy the MLS client rows of a conversation.
+mlsConvTemplateRow :: (HasCallStack) => String -> ClientIdentity -> App Text
+mlsConvTemplateRow keyspace cid = do
+  conv <- createNewGroup def cid
+  -- The commit stores the group info.
+  void $ createPendingProposalCommit conv cid >>= sendAndConsumeCommitBundle
+  row <- convUuidOf conv >>= convTemplateRow keyspace
+  template <- assertJust "conversation row is not a JSON object" (Aeson.decodeStrict @Aeson.Object (cs row))
+  assertBool "template conversation has no group info"
+    $ maybe False (/= Aeson.Null) (KM.lookup (fromString "public_group_state") template)
+  pure row
+
+-- | Write a conversation row from a full template row (columns missing from
+-- it would be written as null), overriding some columns.
+insertConvRow :: (HasCallStack) => String -> Text -> [AesonTypes.Pair] -> App ()
+insertConvRow keyspace templateRow fields = do
+  template <- assertJust "conversation row is not a JSON object" (Aeson.decodeStrict @Aeson.Object (cs templateRow))
+  insertRowJson keyspace "conversation" (Aeson.Object (KM.fromList fields <> template))
+
+-- | Write a member-client row of an MLS group.
+insertMemberClient :: (HasCallStack) => String -> BSL.ByteString -> String -> UUID -> String -> Int -> App ()
+insertMemberClient keyspace gid domain user client idx =
+  insertRowJson keyspace "mls_group_member_client"
+    $ object
+      [ "group_id" .= blobJson gid,
+        "user_domain" .= domain,
+        "user" .= user,
+        "client" .= client,
+        "leaf_node_index" .= idx,
+        "removal_pending" .= False
+      ]
+
+-- | The stale rows were written (so that the migration can see them) ...
+assertRowsPresent :: (HasCallStack) => [App [Text]] -> App ()
+assertRowsPresent = traverse_ (>>= assertBool "stale Cassandra rows are not visible" . not . null)
+
+-- | ... and the migration processed and deleted them.
+assertRowsGone :: (HasCallStack) => [App [Text]] -> App ()
+assertRowsGone = traverse_ (>>= assertBool "stale Cassandra rows were left behind" . null)
+
+-- | A blob in Cassandra's JSON format.
+blobJson :: BSL.ByteString -> Value
+blobJson = toJSON . ("0x" <>) . (cs :: BSL.ByteString -> String) . B16L.encode
 
 -- | Parse the UUID of a conversation.
 convUuidOf :: (HasCallStack) => ConvId -> App UUID
@@ -412,10 +476,10 @@ selectRowsJson keyspace table keyColumn key =
     q :: Cql.PrepQuery Cql.R k (Identity Text)
     q = fromString $ "SELECT JSON * FROM " <> keyspace <> "." <> table <> " WHERE " <> keyColumn <> " = ?"
 
--- | Write back rows read with 'selectRowsJson'. The keyspace and table are
--- spliced into the query, so they must be trusted identifiers.
-insertRowsJson :: (HasCallStack) => String -> String -> [Text] -> App ()
-insertRowsJson keyspace table = traverse_ $ \row -> Cql.write q (Cql.defQueryParams Cql.LocalQuorum (Identity row))
+-- | Write a row of a galley Cassandra table given as JSON. The keyspace and
+-- table are spliced into the query, so they must be trusted identifiers.
+insertRowJson :: (HasCallStack) => String -> String -> Value -> App ()
+insertRowJson keyspace table row = Cql.write q (Cql.defQueryParams Cql.LocalQuorum (Identity (cs (Aeson.encode row) :: Text)))
   where
     q :: Cql.PrepQuery Cql.W (Identity Text) ()
     q = fromString $ "INSERT INTO " <> keyspace <> "." <> table <> " JSON ?"
