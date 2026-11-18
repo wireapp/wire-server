@@ -24,6 +24,7 @@ import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
@@ -126,6 +127,15 @@ deriveFromJSON toOptionFieldName ''RedisEndpoint
 
 makeLenses ''RedisEndpoint
 
+data NotificationFanInPostgres = NotificationFanInPostgres
+  { _connection :: !(Map Text Text),
+    _password :: !(Maybe FilePathSecrets),
+    _pool :: !PoolConfig
+  }
+  deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''NotificationFanInPostgres
+
 makeLenses ''Settings
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -139,6 +149,8 @@ data Opts = Opts
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,
     _rabbitmq :: !AmqpEndpoint,
+    -- | Separate PostgreSQL connection used by the notification fan-in path.
+    _notificationFanInPostgres :: !(Maybe NotificationFanInPostgres),
     _discoUrl :: !(Maybe Text),
     _settings :: !Settings,
     -- Logging

@@ -1,0 +1,23 @@
+# Build the extension from the PostgreSQL 17 Debian package, then copy its SQL
+# and shared-library files into the Bitnami image used by the Kubernetes
+# integration-test chart. PostgreSQL minor releases share the same extension
+# ABI, so the packaged 17.x module can be loaded by the PostgreSQL 17.5
+# runtime image currently used by the CI mirror.
+FROM postgres:17-bookworm AS pg-partman
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-17-partman \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' postgresql-17-partman)" ge 5.5.0 \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM quay.io/wire/mirror-images/postgresql@sha256:42a8200d35971f931b869ef5252d996e137c6beb4b8f1b6d2181dc7d1b6f62e0
+
+USER 0
+
+COPY --from=pg-partman /usr/share/postgresql/17/extension/pg_partman* /opt/bitnami/postgresql/share/extension/
+COPY --from=pg-partman /usr/lib/postgresql/17/lib/pg_partman_bgw.so /opt/bitnami/postgresql/lib/
+
+RUN test -r /opt/bitnami/postgresql/share/extension/pg_partman.control \
+    && test -r /opt/bitnami/postgresql/lib/pg_partman_bgw.so
+
+USER 1001

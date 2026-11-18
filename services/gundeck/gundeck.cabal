@@ -30,6 +30,7 @@ library
     Gundeck.Notification
     Gundeck.Notification.Data
     Gundeck.Notification.Metrics
+    Gundeck.NotificationFanIn.Migrations
     Gundeck.Options
     Gundeck.Presence
     Gundeck.Presence.Data
@@ -134,7 +135,13 @@ library
     , exceptions                            >=0.4
     , extended
     , extra                                 >=1.1
+    , file-embed
     , foldl
+    , hasql
+    , hasql-migration
+    , hasql-resource-pool
+    , hasql-th
+    , hasql-transaction
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk

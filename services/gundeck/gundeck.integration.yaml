@@ -42,6 +42,18 @@ rabbitmq:
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
+notificationFanInPostgres:
+  connection:
+    host: 127.0.0.1
+    port: "55432"
+    user: wire-server
+    dbname: wire_fan_in
+    password: posty-the-gres
+  pool:
+    size: 5
+    acquisitionTimeout: 10s
+    idlenessTimeout: 10m
+
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
