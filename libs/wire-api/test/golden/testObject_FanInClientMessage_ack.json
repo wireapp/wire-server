@@ -1,0 +1,5 @@
+{
+    "delivery_tag": 123,
+    "multiple": false,
+    "type": "ack"
+}

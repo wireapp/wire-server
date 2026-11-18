@@ -1,0 +1,33 @@
+{
+    "apsData": {
+        "badge": true,
+        "loc_args": [
+            "example"
+        ],
+        "loc_key": "EXAMPLE_EVENT",
+        "sound": null
+    },
+    "conn": "example-connection",
+    "isCellsEvent": true,
+    "json": {
+        "type": "example.event"
+    },
+    "nativePriority": "high",
+    "notificationId": "019ef8d3-ed95-7781-9c19-df5c8dfa4c7a",
+    "origin": "00000001-0000-0000-0000-000000000001",
+    "route": "direct",
+    "targets": [
+        {
+            "contents": "00000002-0000-0000-0000-000000000002",
+            "tag": "FanInTargetTeam"
+        },
+        {
+            "contents": [
+                "ZmFuLWluLWV4YW1wbGUtZ3JvdXA=",
+                7
+            ],
+            "tag": "FanInTargetEpoch"
+        }
+    ],
+    "transient": true
+}
