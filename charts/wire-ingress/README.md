@@ -582,3 +582,40 @@ Federator mTLS is implemented using:
 - `X-SSL-Certificate` header forwarding is handled via an `EnvoyExtensionPolicy` with an inline
   Lua filter that reads the URL-encoded PEM client certificate from the connection and injects it
   as a request header, matching nginx's `$ssl_client_escaped_cert` behaviour
+
+## TLS regression tests
+
+The chart now has an opt-in Helm test hook that runs SSLyze inside the cluster.
+The [test profiles](test/) cover default TLS 1.3 settings, FIPS TLS 1.2/1.3 settings,
+and TR-02102-2 with FIPS parameters and ECDSA certificate signatures throughout
+the verified chain. Checks reject unexpected TLS settings, missing required TLS
+versions, and incomplete scans. They do not establish whole-system compliance.
+
+From the repository root, with the Nix development environment and an Envoy
+cluster configured:
+
+```sh
+make kube-ingress-test                         # all three profiles
+make kube-ingress-test profile=fips            # one profile
+make kube-ingress-test profile=tr-02102-2
+bash charts/wire-ingress/test/check-scan-tests.sh  # local checks, no cluster
+```
+
+Tests use the environment's Kubernetes configuration, like the other `kube-*`
+targets. To select a cluster for a local run, use
+`KUBECONFIG=/path/to/kubeconfig make kube-ingress-test`. Tests assume V2 xDS
+naming; set `WIRE_INGRESS_XDS_NAME_SCHEME_V2=false` for a legacy controller.
+Non-default installations can set `WIRE_INGRESS_GATEWAY_CLASS` and
+`ENVOY_GATEWAY_NAMESPACE`.
+
+Look for `<profile> TLS profile passed`; any failure returns a nonzero exit code.
+Each profile prints its results directory under `tmp/ingress-tests/`: inspect
+`scan.json` for scan results, or `scan.log`, `resources.yaml`, and `events.log`
+for failure diagnostics. Runs use isolated namespaces and remove them on exit;
+no Wire backend is required.
+
+The existing `kube-integration-setup`, `kube-integration-test`, and
+`kube-integration-teardown` flow includes these tests for Envoy setups
+(`WIRE_INGRESS_MODE=envoy` during setup). Results join the integration summary and
+log uploads; teardown also cleans up interrupted fixtures. The standalone command
+uses the same tests, and nginx-only setups skip them.

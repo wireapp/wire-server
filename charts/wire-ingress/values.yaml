@@ -12,6 +12,11 @@
 # See the README of this chart and deployment documentation for more details
 FIPS_202205_tls_profile: false
 
+# Opt-in synthetic TLS fixtures and Helm test hook; used by test/values.yaml.
+tests:
+  enabled: false
+  profile: default
+
 httpRoute:
   # Annotations added to every HTTPRoute created by this chart.
   annotations: {}

@@ -1,0 +1,2 @@
+# TR-02102-2 (2026-01): FIPS TLS parameters plus the shared ECDSA certificate chain.
+FIPS_202205_tls_profile: true

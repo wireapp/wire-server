@@ -1,0 +1,29 @@
+tests:
+  enabled: true
+gateway:
+  name: tls-test
+  className: envoy
+  manageServiceType: false
+  envoyProxy:
+    replicas: 1
+    spec:
+      provider:
+        kubernetes:
+          envoyService:
+            type: ClusterIP
+  listeners:
+    https:
+      hostname: ingress.example.test
+config:
+  dns:
+    https: ingress.example.test
+tls:
+  secret:
+    create: false
+    nameOverride: server-tls
+websockets:
+  enabled: false
+webapp:
+  enabled: false
+fakeS3:
+  enabled: false

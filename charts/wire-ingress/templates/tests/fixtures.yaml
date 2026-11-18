@@ -1,0 +1,25 @@
+{{- if .Values.tests.enabled }}
+{{- $host := .Values.gateway.listeners.https.hostname }}
+{{- $ca := genCAWithKey "wire-ingress-test-ca" 2 (genPrivateKey "ecdsa") }}
+{{- $cert := genSignedCertWithKey $host nil (list $host) 2 $ca (genPrivateKey "ecdsa") }}
+{{- $service := required "TLS tests require an explicit Envoy Service name" .Values.gateway.envoyProxy.spec.provider.kubernetes.envoyService.name }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "wire-ingress.certificateSecretName" . }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ $cert.Cert | b64enc | quote }}
+  tls.key: {{ $cert.Key | b64enc | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-tls-scan
+data:
+  ca.pem: |
+{{ $ca.Cert | indent 4 }}
+  policy.json: |
+{{ required "TLS test profile must contain tls.json" (.Files.Get (printf "test/%s/tls.json" .Values.tests.profile)) | indent 4 }}
+  target: {{ printf "%s.%s.svc:443" $service .Values.gateway.controllerNamespace | quote }}
+{{- end }}

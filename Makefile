@@ -493,6 +493,10 @@ kube-integration-test:
 	export UPLOAD_LOGS=${UPLOAD_LOGS}; \
 	./hack/bin/integration-test.sh
 
+.PHONY: kube-ingress-test
+kube-ingress-test:
+	./hack/bin/run-wire-ingress-tests.sh "$(profile)"
+
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-teardown-federation.sh
