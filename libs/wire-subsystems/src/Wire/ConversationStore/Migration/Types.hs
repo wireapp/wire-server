@@ -27,13 +27,17 @@ import Wire.StoredConversation
 
 data ConvMLSDetails = ConvMLSDetails
   { groupInfoData :: GroupInfoData,
+    -- | See 'Wire.ConversationStore.GetGroupInfoValidatedHash'.
+    groupInfoValidatedHash :: Maybe ByteString,
     clientMap :: ClientMap LeafIndex,
     indexMap :: IndexMap
   }
 
 data AllSubConvData = AllSubConvData
   { subConv :: SubConversation,
-    groupInfoData :: Maybe GroupInfoData
+    groupInfoData :: Maybe GroupInfoData,
+    -- | See 'Wire.ConversationStore.GetGroupInfoValidatedHash'.
+    groupInfoValidatedHash :: Maybe ByteString
   }
 
 data AllConvData = AllConvData

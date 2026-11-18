@@ -263,7 +263,8 @@ saveConvToPostgres allConvData = do
           meta.cnvmChannelAddPermission,
           meta.cnvmCellsState,
           meta.cnvmParent,
-          fmap (.depth) (historyConfig meta.cnvmHistory)
+          fmap (.depth) (historyConfig meta.cnvmHistory),
+          (.groupInfoValidatedHash) =<< allConvData.mlsDetails
         )
   runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement convRow insertConv
@@ -297,21 +298,24 @@ saveConvToPostgres allConvData = do
           Maybe AddPermission,
           CellsState,
           Maybe ConvId,
-          Maybe HistoryDuration
+          Maybe HistoryDuration,
+          Maybe ByteString
         )
         ()
     insertConv =
-      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
                               group_id, epoch, epoch_timestamp, cipher_suite, public_group_state,
-                              group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth)
+                              group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth,
+                              group_info_validated_hash)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 :: bigint?, $13 :: timestamptz?, $14 :: integer?,  $15 :: bytea?,
-                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?, $20 :: bigint?)
+                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?, $20 :: bigint?,
+                              $21 :: bytea?)
                              ON CONFLICT (id) DO NOTHING
                             |]
 
@@ -429,31 +433,30 @@ saveConvToPostgres allConvData = do
     zeroTime :: UTCTime
     zeroTime = UTCTime (fromOrdinalDate 1970 1) 0
 
-    subConvRows :: [(ConvId, SubConvId, Maybe CipherSuiteTag, Epoch, UTCTime, GroupId, Maybe GroupInfoData)]
-    subConvRows =
-      flip map allConvData.subConvs $ \scData -> do
-        let mEpoch = (.epoch) <$> scData.subConv.scMLSData.cnvmlsActiveData
-            mEpochTimestamp = (.epochTimestamp) <$> scData.subConv.scMLSData.cnvmlsActiveData
-         in ( storedConv.id_,
-              scData.subConv.scSubConvId,
-              (.ciphersuite) <$> scData.subConv.scMLSData.cnvmlsActiveData,
-              fromMaybe (Epoch 0) mEpoch,
-              fromMaybe zeroTime mEpochTimestamp,
-              scData.subConv.scMLSData.cnvmlsGroupId,
-              scData.groupInfoData
-            )
+    subConvColumns :: ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData], [Maybe ByteString])
+    subConvColumns =
+      let scs = allConvData.subConvs
+          activeData scData = scData.subConv.scMLSData.cnvmlsActiveData
+       in ( map (const storedConv.id_) scs,
+            map (.subConv.scSubConvId) scs,
+            map (fmap (.ciphersuite) . activeData) scs,
+            map (maybe (Epoch 0) (.epoch) . activeData) scs,
+            map (maybe zeroTime (.epochTimestamp) . activeData) scs,
+            map (.subConv.scMLSData.cnvmlsGroupId) scs,
+            map (.groupInfoData) scs,
+            map (.groupInfoValidatedHash) scs
+          )
 
-    subConvColumns :: ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData])
-    subConvColumns = unzip7 subConvRows
-
-    insertSubConvs :: Hasql.Statement ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData]) ()
+    insertSubConvs :: Hasql.Statement ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData], [Maybe ByteString]) ()
     insertSubConvs =
-      lmapPG @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO subconversation
-                             (conv_id, subconv_id, cipher_suite, epoch, epoch_timestamp, group_id, public_group_state)
+                             (conv_id, subconv_id, cipher_suite, epoch, epoch_timestamp, group_id, public_group_state,
+                              group_info_validated_hash)
                              SELECT *
                              FROM UNNEST ($1 :: uuid[], $2 :: text[], $3 :: integer?[],
-                                          $4 :: bigint[], $5 :: timestamptz[], $6 :: bytea[], $7 :: bytea?[])
+                                          $4 :: bigint[], $5 :: timestamptz[], $6 :: bytea[], $7 :: bytea?[],
+                                          $8 :: bytea?[])
                             |]
 
 -- * Users

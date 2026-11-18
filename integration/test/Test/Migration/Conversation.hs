@@ -167,6 +167,44 @@ testMigrationToPostgresMLS = do
 
       replicateM n $ createTestConv convAdmin tid [melC]
 
+-- | WPB-29949: the group info validation digest is migrated with the
+-- conversation, so ghost member-client rows of a conversation created in
+-- Cassandra can still be healed from its ratchet tree once it lives in
+-- Postgres. Without the digest the repair would be skipped.
+testGhostMemberRowRepairAfterMigration :: (HasCallStack) => App ()
+testGhostMemberRowRepairAfterMigration = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
+    let domainM = migratingBackend.berDomain
+    (alice, bob, alice2, bob1, convId) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+      [alice, bob] <- createAndConnectUsers [domainM, domainM]
+      [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
+      -- No key package for alice2 yet: the first commit must cover all
+      -- MLS-capable clients of the creator that have key packages.
+      void $ uploadNewKeyPackage def bob1
+      convId <- createNewGroup def alice1
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+      pure (alice, bob, alice2, bob1, convId)
+
+    runCodensity (startDynamicBackend migratingBackend phase3Overrides) $ \_ -> do
+      waitForMigration domainM convMigrationFinishedCounterName
+      waitForMigration domainM userMigrationFinishedCounterName
+
+    runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
+      -- Inject the damage in Postgres: delete bob1's member-client row.
+      void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
+
+      -- Any commit bundle triggers the repair; it must come from a non-member.
+      void $ uploadNewKeyPackage def alice2
+      void $ createExternalCommit convId alice2 Nothing >>= sendAndConsumeCommitBundle
+
+      rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+      clients <- for rows $ \r -> do
+        uid <- r %. "client.user_id" & asString
+        cid <- r %. "client.client_id" & asString
+        pure (uid, cid)
+      clients `shouldContain` [(bob1.user, bob1.client)]
+
 testMigrationToPostgresProteus :: App ()
 testMigrationToPostgresProteus = do
   resourcePool <- asks (.resourcePool)
