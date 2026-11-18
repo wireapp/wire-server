@@ -409,9 +409,9 @@ instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :
 type instance MapError 'CodeStoreNotFound = 'StaticError 404 "code-store-not-found" "Code store not found"
 
 -- | Errors raised by the meetings subsystem, exposed at the API level via
--- @CanThrow 'MeetingError'@. Every constructor keeps the @invalid-op@ label
--- but carries an explicit message; 'InvalidTimes' additionally records which
--- validation failed.
+-- @CanThrow 'MeetingError'@. Each constructor carries an explicit
+-- code/label/message; 'InvalidTimes' additionally records which validation
+-- failed.
 data MeetingError
   = InvalidTimes InvalidTimesReason
   | EmptyUpdate
@@ -454,7 +454,7 @@ meetingErrorToDyn = \case
       "link-unavailable"
       "Cannot produce a meeting join link: the code store must run in postgresql or migration-to-postgresql mode and a join-link URI must be configured for the user's domain"
   MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
-  ManagedByCalendar -> DynError 403 "externally-managed-by-calendar" "This meeting is managed by an external calendar integration"
+  ManagedByCalendar -> dynError @ManagedByCalendarStatic
   InvalidCalendarFields ->
     DynError 400 "invalid-op" "Externally-managed meetings require the Z-Client: Calendar header plus externally_calendar_event_id and externally_calendar_id; wire-managed meetings must not set them"
 
@@ -465,11 +465,13 @@ instance APIError MeetingError where
 
 -- | The swagger documentation for 'MeetingError': one representative static
 -- error (the runtime messages are more detailed but share code and label).
-type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, meetings feature disabled, or meeting managed by an external calendar integration"
+type MeetingErrorStatic = 'StaticError 403 "invalid-op" "Invalid meeting times, empty update, or meetings feature disabled"
 
 type MeetingLinkErrorStatic = 'StaticError 500 "link-unavailable" "No join link can be produced for this meeting"
 
 type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not licensed on this backend"
+
+type ManagedByCalendarStatic = 'StaticError 403 "externally-managed-by-calendar" "This meeting is managed by an external calendar integration"
 
 type InvalidCalendarFieldsStatic = 'StaticError 400 "invalid-op" "Externally-managed meetings require the Z-Client: Calendar header and calendar fields; wire-managed meetings must not set them"
 
@@ -478,6 +480,7 @@ instance IsSwaggerError MeetingError where
     addStaticErrorToSwagger @MeetingErrorStatic
       . addStaticErrorToSwagger @MeetingLinkErrorStatic
       . addStaticErrorToSwagger @MeetingNotLicensedStatic
+      . addStaticErrorToSwagger @ManagedByCalendarStatic
       . addStaticErrorToSwagger @InvalidCalendarFieldsStatic
 
 instance (Member (Error DynError) r) => ServerEffect (Error MeetingError) r where

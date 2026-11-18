@@ -1226,6 +1226,23 @@ work across the change in either direction: a token with old scopes gets into a
 route that has moved to `oauth_scopes`, and a token with new scopes gets into a
 route that has not.
 
+##### `forward_oauth_z_client`
+
+*nginz* normally sets `Z-Client` from the zauth token, which is empty for OAuth
+tokens.  Calendar integrations call the meeting routes as OAuth bearers and
+mark themselves with `Z-Client: Calendar`, so those routes set:
+
+```yaml
+# [nginz/values.yaml]
+        forward_oauth_z_client: true
+```
+
+On such a route, a request without a connection (an OAuth bearer) has its own
+`Z-Client: Calendar` header forwarded (any other value is dropped); a zauth
+access token keeps the token's client.  The header is asserted by the caller,
+so any OAuth app the user granted a meetings scope can present it.  The option
+cannot be combined with `disable_zauth`.
+
 #### Password hashing options
 
 Since release 5.6.0, wire-server can hash passwords with

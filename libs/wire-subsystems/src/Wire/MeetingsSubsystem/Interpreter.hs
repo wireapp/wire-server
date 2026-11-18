@@ -229,10 +229,12 @@ hasCalendarHeader = (== Just "Calendar")
 -- | Externally-managed meetings are created and mutated only by the
 -- calendar integration, i.e. by OAuth callers, whom nginz identifies by the
 -- absence of the @Z-Connection@ header. The inference is trustworthy only
--- behind nginz, which unconditionally overrides client-supplied @Z-*@
--- headers and omits @Z-Connection@ for OAuth tokens (zauth_module.c);
--- direct in-cluster callers could set arbitrary headers (existing internal
--- trust model).
+-- behind nginz, which overrides client-supplied @Z-*@ headers and omits
+-- @Z-Connection@ for OAuth tokens (zauth_module.c). @Z-Client: Calendar@ is
+-- caller-asserted for OAuth callers (nginz forwards that value on the
+-- meeting routes, @forward_oauth_z_client@); only the absence of
+-- @Z-Connection@ is nginz-guaranteed. Direct in-cluster callers could set
+-- arbitrary headers (existing internal trust model).
 ensureCalendarMutation ::
   (Member (Error MeetingError) r) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
