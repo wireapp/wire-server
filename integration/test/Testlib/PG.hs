@@ -17,14 +17,14 @@
 
 -- | Helpers for executing raw SQL against the galley Postgres database from
 -- integration tests (via the @psql@ binary).
-module Testlib.PG (execSql) where
+module Testlib.PG (execSql, queryFanInSql) where
 
 import Control.Exception (try)
 import qualified Data.ByteString.Lazy as BS
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.Process
@@ -71,11 +71,14 @@ execSql resource sql = do
 -- JSON, its raw (trimmed) content is used as the password. A configured but
 -- unreadable file is a hard error.
 lookupPassword :: (HasCallStack) => Value -> App (Maybe String)
-lookupPassword cfg =
-  lookupField cfg "postgresqlPassword" >>= \case
+lookupPassword = lookupPasswordAt "postgresqlPassword" "postgresql.password"
+
+lookupPasswordAt :: (HasCallStack) => String -> String -> Value -> App (Maybe String)
+lookupPasswordAt secretKey inlineKey cfg =
+  lookupField cfg secretKey >>= \case
     Just pathVal -> do
-      path <- requireScalar "postgresqlPassword" pathVal
-      contents <- liftIO (try (BS.readFile path)) >>= either (\e -> failApp ("Testlib.PG.execSql: cannot read postgresqlPassword file " <> path <> ": " <> show (e :: IOException))) pure
+      path <- requireScalar secretKey pathVal
+      contents <- liftIO (try (BS.readFile path)) >>= either (\e -> failApp ("Testlib.PG: cannot read password file " <> path <> ": " <> show (e :: IOException))) pure
       case eitherDecode contents of
         Right pw -> pure (Just pw)
         -- Secret files rendered by the helm charts (e.g. from a plain-text
@@ -83,17 +86,17 @@ lookupPassword cfg =
         -- JSON string; accept the raw content as a fallback.
         Left _ -> do
           let raw = T.unpack (T.strip (decodeUtf8 (BS.toStrict contents)))
-          when (null raw) $ failApp ("Testlib.PG.execSql: postgresqlPassword file " <> path <> " is empty")
+          when (null raw) $ failApp ("Testlib.PG: password file " <> path <> " is empty")
           pure (Just raw)
     Nothing ->
-      lookupField cfg "postgresql.password" >>= \case
+      lookupField cfg inlineKey >>= \case
         Just (String t) -> pure (Just (T.unpack t))
         Nothing -> pure Nothing
-        Just v -> Just <$> requireScalar "postgresql.password" v
+        Just v -> Just <$> requireScalar inlineKey v
   where
     requireScalar k v = case v of
       String t -> pure (T.unpack t)
-      _ -> failApp ("Testlib.PG.execSql: config key " <> show k <> " of galley is missing or not a scalar")
+      _ -> failApp ("Testlib.PG: config key " <> show k <> " is missing or not a scalar")
 
 -- | Read a scalar (string or integer) config value.
 cfgStr :: (HasCallStack) => Value -> String -> App String
@@ -106,4 +109,28 @@ cfgStr cfg key = do
       Nothing -> scalarFail key
     _ -> scalarFail key
   where
-    scalarFail k = failApp ("Testlib.PG.execSql: config key " <> show k <> " of galley is missing or not a scalar")
+    scalarFail k = failApp ("Testlib.PG: config key " <> show k <> " is missing or not a scalar")
+
+-- | Query the separate fan-in database, binding test values through psql
+-- variables and :'name' SQL literals rather than interpolating SQL strings.
+-- Query scripts must return exactly one JSON value. Connection secrets are
+-- passed only through the child environment and are never printed.
+-- TODO: Remove this temporary helper when Test.FanInNotifications can assert
+-- delivery and replay through the complete fan-in WebSocket round trip.
+queryFanInSql :: (HasCallStack) => Text -> [(String, String)] -> App Value
+queryFanInSql sql params = do
+  cfg <- readServiceConfig Gundeck
+  host <- cfgStr cfg "notificationFanInPostgres.connection.host"
+  port <- cfgStr cfg "notificationFanInPostgres.connection.port"
+  database <- cfgStr cfg "notificationFanInPostgres.connection.dbname"
+  user <- cfgStr cfg "notificationFanInPostgres.connection.user"
+  password <- lookupPasswordAt "notificationFanInPostgres.password" "notificationFanInPostgres.connection.password" cfg
+  baseEnv <- liftIO getEnvironment
+  let args =
+        ["-X", "-w", "-t", "-A", "-h", host, "-p", port, "-d", database, "-U", user, "-v", "ON_ERROR_STOP=1"]
+          <> concatMap (\(name, val) -> ["-v", name <> "=" <> val]) params
+      cp = (proc "psql" args) {env = Just (maybe baseEnv (\pw -> ("PGPASSWORD", pw) : filter ((/= "PGPASSWORD") . fst) baseEnv) password)}
+  (status, out, _) <- liftIO $ readCreateProcessWithExitCode cp (T.unpack sql)
+  case status of
+    ExitFailure _ -> failApp "Fan-in database query failed"
+    ExitSuccess -> either (const (failApp "Fan-in database query returned invalid JSON")) pure (eitherDecode (BS.fromStrict (encodeUtf8 (T.pack out))))
