@@ -21,7 +21,6 @@ import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id (MeetingId)
 import Data.Misc (IpAddr, PlainTextPassword8)
-import Data.Text (Text)
 import Servant
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -35,10 +34,7 @@ import Wire.API.Routes.Version
 -- | Pairing requirements shared by the seven V19 meeting mutation routes.
 type CalendarPairingDocs =
   Description
-    "Externally-managed meetings (externally_managed_by (e.g. google_calendar or outlook)) must be created and mutated by the calendar integration: an OAuth bearer caller with the Z-Client: Calendar header. Violations of the externally_managed_by/header/calendar-field pairing return 400 invalid-op; mutating an externally-managed meeting with a Z-Connection returns 403 externally-managed-by-calendar. Creating an externally-managed meeting returns 403 id-feature-error when the deployment's license does not cover calendar integration."
-
--- | The caller's optional @Z-Client@ header (present on the calendar-mutation routes).
-type ZOptClientHeader = Header' '[Optional, Strict] "Z-Client" Text
+    "Externally-managed meetings (externally_managed_by (e.g. google_calendar or outlook)) must be created and mutated by the calendar integration: an OAuth bearer caller whose OAuth client is listed in the deployment's calendar OAuth clients (galley setting settings.meetings.calendarOAuthClients). The calendar integration may only create and mutate externally-managed meetings. Violations of the externally_managed_by/caller/calendar-field pairing return 400 invalid-op; mutating an externally-managed meeting with a Z-Connection returns 403 externally-managed-by-calendar. Creating an externally-managed meeting returns 403 id-feature-error when the deployment's license does not cover calendar integration."
 
 type MeetingsAPI =
   Named
@@ -83,7 +79,7 @@ type MeetingsAPI =
                :> From 'V19
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> ReqBody '[JSON] NewMeeting
@@ -142,7 +138,7 @@ type MeetingsAPI =
                :> From 'V19
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
@@ -164,7 +160,7 @@ type MeetingsAPI =
                :> From 'V15
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
@@ -261,7 +257,7 @@ type MeetingsAPI =
                :> From 'V16
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
@@ -284,7 +280,7 @@ type MeetingsAPI =
                :> From 'V16
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
@@ -308,7 +304,7 @@ type MeetingsAPI =
                :> From 'V17
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain
@@ -331,7 +327,7 @@ type MeetingsAPI =
                :> From 'V19
                :> ZLocalUser
                :> ZOptConn
-               :> ZOptClientHeader
+               :> ZOptOAuthClient
                :> CalendarPairingDocs
                :> "meetings"
                :> Capture "domain" Domain

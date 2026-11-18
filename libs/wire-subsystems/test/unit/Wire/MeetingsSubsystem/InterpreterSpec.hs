@@ -193,12 +193,26 @@ runTestStackWithURI now gen convCodeURI teams configs lic =
     teams
     configs
     lic
-    MeetingSystemConfig
-      { legacyTimeZone = API.defaultLegacyTimeZone,
-        validityPeriod = 3600,
-        pastEditPeriod = configuredPastEditPeriod,
-        emailsEnabled = True
-      }
+    defaultMeetingSystemConfig
+
+-- | The OAuth client configured as the calendar integration in
+-- 'defaultMeetingSystemConfig'.
+calendarCid :: OAuthClientId
+calendarCid = Id $ read "00000000-0000-0000-0000-0000000ca1e0"
+
+-- | Some other OAuth app, not configured as the calendar integration.
+otherCid :: OAuthClientId
+otherCid = Id $ read "00000000-0000-0000-0000-000000000a99"
+
+defaultMeetingSystemConfig :: MeetingSystemConfig
+defaultMeetingSystemConfig =
+  MeetingSystemConfig
+    { legacyTimeZone = API.defaultLegacyTimeZone,
+      validityPeriod = 3600,
+      pastEditPeriod = configuredPastEditPeriod,
+      emailsEnabled = True,
+      calendarOAuthClients = Set.singleton calendarCid
+    }
 
 -- | 'runTestStackWithURI' with an explicit 'MeetingSystemConfig', for tests
 -- that exercise alternative configuration (e.g. meeting emails disabled).
@@ -3406,13 +3420,7 @@ specMeetingEmails =
         Left err -> fail $ "Error: " <> show err
 
     it "sends no RPC when meeting email settings are unconfigured" $ do
-      let cfg =
-            MeetingSystemConfig
-              { legacyTimeZone = API.defaultLegacyTimeZone,
-                validityPeriod = 3600,
-                pastEditPeriod = configuredPastEditPeriod,
-                emailsEnabled = False
-              }
+      let cfg = defaultMeetingSystemConfig {emailsEnabled = False}
       result <- runTestStackWithURICfg now0 gen0 (Left testCodeURIBase) Map.empty def fullLicense cfg $ do
         plantHost uid1 (Just hostEmail) hostLocale
         _ <- createMeeting zUser1 (Just testConnId) Nothing (mkNewMeeting API.Scheduled [addrA, addrB])
@@ -3474,7 +3482,7 @@ specMeetingEmails =
         Left _denied -> expectationFailure "unexpected CheckDeleteLocalConversation denial"
 
     it "leaves the meeting operation successful when the SendMeetingEmails RPC fails" $ do
-      result <- runTestStackWithURICfg now0 gen0 (Left testCodeURIBase) Map.empty def fullLicense (MeetingSystemConfig {legacyTimeZone = API.defaultLegacyTimeZone, validityPeriod = 3600, pastEditPeriod = configuredPastEditPeriod, emailsEnabled = True}) $ do
+      result <- runTestStackWithURICfg now0 gen0 (Left testCodeURIBase) Map.empty def fullLicense defaultMeetingSystemConfig $ do
         plantHost uid1 (Just hostEmail) hostLocale
         put (FailSendMeetingEmails True)
         created <- createMeeting zUser1 (Just testConnId) Nothing (mkNewMeeting API.Scheduled [addrA])
@@ -3493,7 +3501,7 @@ specMeetingEmails =
       -- exception must not affect createMeeting (the child itself discards
       -- its result, so pre- and post-fix this succeeds either way; the
       -- warn-logging of the transport failure is the behavioral change).
-      result <- runTestStackWithURICfg now0 gen0 (Left testCodeURIBase) Map.empty def fullLicense (MeetingSystemConfig {legacyTimeZone = API.defaultLegacyTimeZone, validityPeriod = 3600, pastEditPeriod = configuredPastEditPeriod, emailsEnabled = True}) $ do
+      result <- runTestStackWithURICfg now0 gen0 (Left testCodeURIBase) Map.empty def fullLicense defaultMeetingSystemConfig $ do
         plantHost uid1 (Just hostEmail) hostLocale
         -- Set before the fork: the child snapshots the pure state at fork time.
         put (FailSendMeetingEmailsIO True)
@@ -3568,10 +3576,10 @@ specCalendarManagedMeetings =
             (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
             $ def
 
-    it "creates a google_calendar-managed meeting for an OAuth caller with the Z-Client header" $ do
+    it "creates a google_calendar-managed meeting for the calendar OAuth client" $ do
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
-          createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+          createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
       case result of
         Right (Left err) -> fail $ "expected success, got: " <> show err
         Right (Right _mwc) -> pure ()
@@ -3580,7 +3588,7 @@ specCalendarManagedMeetings =
     it "treats any non-null externally_managed_by as externally-managed (free text, not value-validated)" $ do
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
-          createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "any-cal")))
+          createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "any-cal")))
       case result of
         Right (Left err) -> fail $ "expected success, got: " <> show err
         Right (Right mwc) -> mwc.meeting.externallyManagedBy `shouldBe` Just (API.ExternalManager "any-cal")
@@ -3589,7 +3597,7 @@ specCalendarManagedMeetings =
     it "echoes externally_managed_by on re-fetch" $ do
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $ do
-          meeting <- createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+          meeting <- createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
           fetched <- getMeeting zUser1 meeting.meeting.id
           pure (meeting.meeting.externallyManagedBy, fmap (.externallyManagedBy) fetched)
       case result of
@@ -3607,8 +3615,8 @@ specCalendarManagedMeetings =
     it "allows the calendar integration (no connection) to delete an externally-managed meeting" $ do
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $ do
-          mwc <- createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
-          deleteMeeting zUser1 Nothing (Just "Calendar") ((mwc.meeting).id)
+          mwc <- createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+          deleteMeeting zUser1 Nothing (Just calendarCid) ((mwc.meeting).id)
       case result of
         Right (Right True) -> pure ()
         other -> fail $ "expected successful delete, got: " <> show other
@@ -3627,7 +3635,7 @@ specCalendarManagedMeetings =
                 meetingsEnabledConfig
                 fullLicense
                 $ do
-                  mwc <- createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+                  mwc <- createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
                   void $ action ((mwc.meeting).id)
             case r of
               Right (Left ManagedByCalendar) -> pure ()
@@ -3660,7 +3668,7 @@ specCalendarManagedMeetings =
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $ do
           plantHost uid1 (Just (unsafeEmailAddress "host" "example.com")) (def :: Locale)
-          _ <- createMeeting zUser1 Nothing (Just "Calendar") nm
+          _ <- createMeeting zUser1 Nothing (Just calendarCid) nm
           sentRpcs
       case result of
         Right (Right rpcs) -> rpcs `shouldBe` []
@@ -3672,8 +3680,8 @@ specCalendarManagedMeetings =
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $ do
           plantHost uid1 (Just (unsafeEmailAddress "host" "example.com")) (def :: Locale)
-          mwc <- createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
-          success <- addInvitedEmails zUser1 Nothing (Just "Calendar") ((mwc.meeting).id) [addr2] Nothing
+          mwc <- createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+          success <- addInvitedEmails zUser1 Nothing (Just calendarCid) ((mwc.meeting).id) [addr2] Nothing
           rpcs <- sentRpcs
           pure (success, rpcs)
       case result of
@@ -3682,10 +3690,10 @@ specCalendarManagedMeetings =
         Right (Left err) -> fail $ "expected success, got: " <> show err
         Left _denied -> fail "unexpected CheckDeleteLocalConversation denial"
 
-    it "creates an outlook-managed meeting for an OAuth caller with the Z-Client header" $ do
+    it "creates an outlook-managed meeting for the calendar OAuth client" $ do
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
-          createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "outlook")))
+          createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "outlook")))
       case result of
         Right (Left err) -> fail $ "expected success, got: " <> show err
         Right (Right _mwc) -> pure ()
@@ -3694,23 +3702,42 @@ specCalendarManagedMeetings =
     it "rejects a calendar-managed create when the license lacks calendarsIntegration" $ do
       result <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig noCalendarsLicense $
-          createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+          createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
       case result of
         Right (Left MeetingNotLicensed) -> pure ()
         other -> fail $ "expected MeetingNotLicensed, got: " <> show other
 
-    it "rejects a calendar-managed create without the Z-Client header" $ do
+    it "rejects a calendar-managed create by an OAuth caller that is not the calendar integration" $ do
+      -- Neither an OAuth token naming no client nor one issued to another
+      -- OAuth app may act as the calendar integration.
+      forM_ [Nothing, Just otherCid] $ \mClient -> do
+        result <-
+          runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
+            createMeeting zUser1 Nothing mClient (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+        case result of
+          Right (Left InvalidCalendarFields) -> pure ()
+          other -> fail $ "expected InvalidCalendarFields for " <> show mClient <> ", got: " <> show other
+
+    it "rejects every calendar-managed create when no calendar OAuth client is configured" $ do
       result <-
-        runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
-          createMeeting zUser1 Nothing Nothing (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+        runTestStackWithURICfg now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense defaultMeetingSystemConfig {calendarOAuthClients = mempty} $
+          createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
       case result of
         Right (Left InvalidCalendarFields) -> pure ()
         other -> fail $ "expected InvalidCalendarFields, got: " <> show other
 
-    it "rejects wire-managed creates carrying the Z-Client header or calendar fields" $ do
+    it "lets another OAuth app create a wire-managed meeting" $ do
+      result <-
+        runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
+          createMeeting zUser1 Nothing (Just otherCid) wireNewMeeting
+      case result of
+        Right (Right mwc) -> mwc.meeting.externallyManagedBy `shouldBe` Nothing
+        other -> fail $ "expected success, got: " <> show other
+
+    it "rejects wire-managed creates by the calendar integration or carrying calendar fields" $ do
       r1 <-
         runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $
-          createMeeting zUser1 Nothing (Just "Calendar") wireNewMeeting
+          createMeeting zUser1 Nothing (Just calendarCid) wireNewMeeting
       case r1 of
         Right (Left InvalidCalendarFields) -> pure ()
         other -> fail $ "expected InvalidCalendarFields, got: " <> show other
@@ -3721,7 +3748,7 @@ specCalendarManagedMeetings =
         Right (Left InvalidCalendarFields) -> pure ()
         other -> fail $ "expected InvalidCalendarFields, got: " <> show other
 
-    it "guards mutations of calendar-managed meetings by caller kind and header" $ do
+    it "guards mutations of calendar-managed meetings by caller kind" $ do
       -- Each mutation runs in its own stack (errors abort the interpreted
       -- computation and the in-memory store is per-run), each seeded by a
       -- fresh calendar-managed meeting.
@@ -3734,26 +3761,41 @@ specCalendarManagedMeetings =
               meetingsEnabledConfig
               fullLicense
               $ do
-                mwc <- createMeeting zUser1 Nothing (Just "Calendar") (calNewMeeting (Just (API.ExternalManager "google_calendar")))
+                mwc <- createMeeting zUser1 Nothing (Just calendarCid) (calNewMeeting (Just (API.ExternalManager "google_calendar")))
                 action ((mwc.meeting).id)
-      -- OAuth caller with the header may update.
+      -- The calendar OAuth client may update.
       ok <- withCalMeeting $ \mid ->
-        updateMeeting zUser1 Nothing (Just "Calendar") mid (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "By Calendar")) Nothing Nothing)
+        updateMeeting zUser1 Nothing (Just calendarCid) mid (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "By Calendar")) Nothing Nothing)
       case ok of
         Right (Right (Just _)) -> pure ()
         other -> fail $ "expected successful update, got: " <> show other
-      -- OAuth caller without the header is rejected.
-      noHeader <- withCalMeeting $ \mid ->
-        updateMeeting zUser1 Nothing Nothing mid (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Hijack")) Nothing Nothing)
-      case noHeader of
-        Right (Left InvalidCalendarFields) -> pure ()
-        other -> fail $ "expected InvalidCalendarFields, got: " <> show other
+      -- Any other OAuth caller is rejected, with or without a client id.
+      forM_ [Nothing, Just otherCid] $ \mClient -> do
+        notCalendar <- withCalMeeting $ \mid ->
+          updateMeeting zUser1 Nothing mClient mid (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Hijack")) Nothing Nothing)
+        case notCalendar of
+          Right (Left InvalidCalendarFields) -> pure ()
+          other -> fail $ "expected InvalidCalendarFields for " <> show mClient <> ", got: " <> show other
       -- A wire caller (connection present) is rejected as managed-by-calendar.
       viaWire <- withCalMeeting $ \mid ->
         updateMeeting zUser1 (Just (ConnId "test-conn")) Nothing mid (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Hijack")) Nothing Nothing)
       case viaWire of
         Right (Left ManagedByCalendar) -> pure ()
         other -> fail $ "expected ManagedByCalendar, got: " <> show other
+
+    it "keeps the calendar integration away from wire-managed meetings, but not other OAuth apps" $ do
+      let updateWireMeeting mClient =
+            runTestStackWithURI now gen (Left testCodeURIBase) (Map.singleton teamId [teamMember1]) meetingsEnabledConfig fullLicense $ do
+              mwc <- createMeeting zUser1 (Just (ConnId "test-conn")) Nothing wireNewMeeting
+              updateMeeting zUser1 Nothing mClient ((mwc.meeting).id) (API.UpdateMeeting Nothing Nothing (Just (fromJust $ checked "Edited")) Nothing Nothing)
+      byCalendar <- updateWireMeeting (Just calendarCid)
+      case byCalendar of
+        Right (Left InvalidCalendarFields) -> pure ()
+        other -> fail $ "expected InvalidCalendarFields, got: " <> show other
+      byOtherApp <- updateWireMeeting (Just otherCid)
+      case byOtherApp of
+        Right (Right (Just _)) -> pure ()
+        other -> fail $ "expected successful update, got: " <> show other
 
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime

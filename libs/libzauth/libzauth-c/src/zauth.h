@@ -63,6 +63,9 @@ typedef struct OAuthPubJwk OAuthPubJwk;
 typedef struct {
   char *            uid;
   OAuthResultStatus status;
+  // The OAuth client the token was issued to (a UUID), NULL if the token
+  // names none.  Free with oauth_result_uid_delete, like uid.
+  char *            client_id;
 } OAuthResult;
 
 ZauthResult zauth_keystore_open(uint8_t const * fname, size_t len, ZauthKeystore **);

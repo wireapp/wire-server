@@ -29,7 +29,10 @@ typedef struct {
           // valid if tag == CONTEXT_ZAUTH
           ZauthToken * token;
           // valid if tag == CONTEXT_OAUTH
-          char * user_id;
+          struct {
+            char * user_id;
+            char * client_id; // NULL if the token names no OAuth client
+          };
         };
 } ZauthContext;
 
@@ -54,7 +57,7 @@ static ZauthResult    token_from_header          (ngx_str_t const *, ZauthToken 
 static ZauthResult    token_from_query           (ngx_str_t const *, ZauthToken **);
 static ZauthResult    token_from_aws_hmac_header (uint8_t const *, size_t, ZauthToken ** t);
 static ZauthContext * alloc_zauth_context  (ngx_http_request_t * r, ZauthToken *);
-static ZauthContext * alloc_oauth_context  (ngx_http_request_t * r, char *);
+static ZauthContext * alloc_oauth_context  (ngx_http_request_t * r, char *, char *);
 static ngx_int_t      setup_zauth_context  (ngx_http_request_t * , ZauthContext *);
 static void           delete_zauth_context (void *);
 
@@ -62,6 +65,7 @@ static void           delete_zauth_context (void *);
 static ngx_int_t zauth_variables      (ngx_conf_t *);
 static ngx_int_t zauth_token_var      (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_user (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
+static ngx_int_t zauth_oauth_var_client (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conn (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conv (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_timestamp (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
@@ -442,11 +446,16 @@ ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthPubJwk const * key, Z
                         ? oauth_verify_token_scopes(key, &hdr.data[7], hdr.len - 7, scopes.data, scopes.len, r->method_name.data, r->method_name.len)
                         : oauth_verify_token(key, &hdr.data[7], hdr.len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
                 if (res.status == OAUTH_OK) {
-                        ZauthContext * ctx = alloc_oauth_context(r, res.uid);
-                        if (ctx == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR; // for OOM-safety
+                        ZauthContext * ctx = alloc_oauth_context(r, res.uid, res.client_id);
+                        if (ctx == NULL) {
+                                // for OOM-safety
+                                oauth_result_uid_delete(res.uid);
+                                oauth_result_uid_delete(res.client_id);
+                                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+                        }
                         ngx_int_t e = setup_zauth_context(r, ctx);
                         if (e != NGX_OK) {
-                                ngx_free(ctx);
+                                delete_zauth_context(ctx);
                                 return e;
                         }
 
@@ -487,13 +496,14 @@ static ZauthContext * alloc_zauth_context(ngx_http_request_t * r, ZauthToken * t
 }
 
 
-static ZauthContext * alloc_oauth_context(ngx_http_request_t * r, char * user_id) {
+static ZauthContext * alloc_oauth_context(ngx_http_request_t * r, char * user_id, char * client_id) {
         ZauthContext * ctx = ngx_alloc(sizeof(ZauthContext), r->connection->log);
         if (ctx == NULL) {
                 return ctx;
         }
         ctx->tag = CONTEXT_OAUTH;
         ctx->user_id = user_id;
+        ctx->client_id = client_id;
         return ctx;
 }
 
@@ -504,6 +514,7 @@ static void delete_zauth_context(void * data) {
         }
         else if (ctx->tag == CONTEXT_OAUTH) {
           oauth_result_uid_delete(ctx->user_id);
+          oauth_result_uid_delete(ctx->client_id);
         }
         ngx_free(ctx);
 }
@@ -615,6 +626,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         ngx_str_t z_conn_id = ngx_string("zauth_connection");
         ngx_str_t z_conv_id = ngx_string("zauth_conversation");
         ngx_str_t z_timestamp_id = ngx_string("zauth_timestamp");
+        ngx_str_t z_oauth_client_id = ngx_string("zauth_oauth_client");
 
         ngx_http_variable_t * z_type_var =
                 ngx_http_add_variable(conf, &z_type_id, NGX_HTTP_VAR_NOHASH);
@@ -640,9 +652,12 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         ngx_http_variable_t * z_timestamp_var =
                 ngx_http_add_variable(conf, &z_timestamp_id, NGX_HTTP_VAR_NOHASH);
 
+        ngx_http_variable_t * z_oauth_client_var =
+                ngx_http_add_variable(conf, &z_oauth_client_id, NGX_HTTP_VAR_NOHASH);
+
         if ( z_type_var == NULL || z_prov_var == NULL || z_bot_var == NULL ||
              z_user_var == NULL || z_client_var == NULL || z_conn_var == NULL ||
-             z_conv_var == NULL || z_timestamp_var == NULL)
+             z_conv_var == NULL || z_timestamp_var == NULL || z_oauth_client_var == NULL)
         {
                 return NGX_ERROR;
         }
@@ -659,6 +674,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         z_conn_var->get_handler = zauth_token_var_conn;
         z_conv_var->get_handler = zauth_token_var_conv;
         z_timestamp_var->get_handler = zauth_token_var_timestamp;
+        z_oauth_client_var->get_handler = zauth_oauth_var_client;
 
         return NGX_OK;
 }
@@ -761,6 +777,20 @@ static ngx_int_t zauth_token_var_user (ngx_http_request_t * r, ngx_http_variable
                 return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, 'u'));
         } else if (ctx != NULL && ctx->tag == CONTEXT_OAUTH) {
                 return zauth_set_var(r->pool, v, (Range) { (u_char*) ctx->user_id, strlen(ctx->user_id) });
+        } else {
+                zauth_empty_val(v);
+                return NGX_OK;
+        }
+}
+
+// The OAuth client a verified OAuth token was issued to (a UUID, checked by
+// libzauth).  Empty for zauth tokens, unauthenticated requests and OAuth
+// tokens that name no client, so 'proxy_set_header' drops the header and a
+// caller-supplied value never reaches the upstream.
+static ngx_int_t zauth_oauth_var_client (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+        if (ctx != NULL && ctx->tag == CONTEXT_OAUTH && ctx->client_id != NULL) {
+                return zauth_set_var(r->pool, v, (Range) { (u_char*) ctx->client_id, strlen(ctx->client_id) });
         } else {
                 zauth_empty_val(v);
                 return NGX_OK;

@@ -127,6 +127,10 @@ data:
         {{- end }}
         {{- $legacyEmail := dig "config" "settings" "meetings" "email" (dict) $.Values.galley }}
         emailsEnabled: {{ or .emailsEnabled (not (empty $legacyEmail)) }}
+        {{- if .calendarOAuthClients }}
+        calendarOAuthClients:
+          {{- toYaml .calendarOAuthClients | nindent 10 }}
+        {{- end }}
         {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}

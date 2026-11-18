@@ -30,8 +30,8 @@ use std::slice;
 use std::str;
 use zauth::acl;
 use zauth::{
-    verify_oauth_token, verify_oauth_token_scopes, Acl, Error, Keystore, OauthError, Token,
-    TokenType, TokenVerification,
+    verify_oauth_token, verify_oauth_token_scopes, Acl, Error, Keystore, OAuthVerified, OauthError,
+    Token, TokenType, TokenVerification,
 };
 
 /// Variant of std::try! that returns the unwrapped error.
@@ -339,6 +339,19 @@ pub struct OAuthPubJwk(String);
 pub struct OAuthResult {
     uid: *const libc::c_char,
     status: OAuthResultStatus,
+    /// The OAuth client the token was issued to; NULL when the token names
+    /// none.  Freed with `oauth_result_uid_delete` like `uid`.
+    client_id: *const libc::c_char,
+}
+
+impl OAuthResult {
+    fn failed(status: OAuthResultStatus) -> Self {
+        OAuthResult {
+            uid: ptr::null(),
+            status,
+            client_id: ptr::null(),
+        }
+    }
 }
 
 fn catch_unwind_with<F, R>(f: F, r: R) -> R
@@ -378,28 +391,19 @@ impl From<str::Utf8Error> for OAuthResultStatus {
 
 impl From<str::Utf8Error> for OAuthResult {
     fn from(_: str::Utf8Error) -> Self {
-        OAuthResult {
-            uid: ptr::null(),
-            status: OAuthResultStatus::Utf8Error,
-        }
+        OAuthResult::failed(OAuthResultStatus::Utf8Error)
     }
 }
 
 impl From<NulError> for OAuthResult {
     fn from(_: NulError) -> Self {
-        OAuthResult {
-            uid: ptr::null(),
-            status: OAuthResultStatus::Panic,
-        }
+        OAuthResult::failed(OAuthResultStatus::Panic)
     }
 }
 
 impl From<OauthError> for OAuthResult {
     fn from(e: OauthError) -> Self {
-        OAuthResult {
-            uid: ptr::null(),
-            status: e.into(),
-        }
+        OAuthResult::failed(e.into())
     }
 }
 
@@ -505,26 +509,11 @@ fn oauth_verify<F>(
     verify: F,
 ) -> OAuthResult
 where
-    F: Fn(&str, &str, &str, &str) -> Result<String, OauthError> + std::panic::RefUnwindSafe,
+    F: Fn(&str, &str, &str, &str) -> Result<OAuthVerified, OauthError> + std::panic::RefUnwindSafe,
 {
     match panic::catch_unwind(|| {
-        if token.is_null() {
-            return OAuthResult {
-                uid: ptr::null(),
-                status: OAuthResultStatus::NullArg,
-            };
-        }
-        if scope.is_null() {
-            return OAuthResult {
-                uid: ptr::null(),
-                status: OAuthResultStatus::NullArg,
-            };
-        }
-        if method.is_null() {
-            return OAuthResult {
-                uid: ptr::null(),
-                status: OAuthResultStatus::NullArg,
-            };
+        if token.is_null() || scope.is_null() || method.is_null() {
+            return OAuthResult::failed(OAuthResultStatus::NullArg);
         }
         let bytes = unsafe { slice::from_raw_parts(token, token_len) };
         let token = try_unwrap!(str::from_utf8(bytes));
@@ -532,21 +521,23 @@ where
         let scope = try_unwrap!(str::from_utf8(bytes));
         let bytes = unsafe { slice::from_raw_parts(method, method_len) };
         let method = str::from_utf8(bytes).unwrap();
-        let subject = try_unwrap!(verify(&jwk.0, token, scope, method));
-        let c_str = try_unwrap!(CString::new(subject));
+        let verified = try_unwrap!(verify(&jwk.0, token, scope, method));
+        // Both strings are built before either is handed out, so an error
+        // cannot leak the other one.
+        let uid = try_unwrap!(CString::new(verified.subject));
+        let client_id = try_unwrap!(verified.client_id.map(CString::new).transpose());
         OAuthResult {
-            uid: c_str.into_raw(),
+            uid: uid.into_raw(),
             status: OAuthResultStatus::Ok,
+            client_id: client_id.map_or(ptr::null(), |c| c.into_raw()),
         }
     }) {
         Ok(x) => x,
-        Err(_) => OAuthResult {
-            uid: ptr::null(),
-            status: OAuthResultStatus::Panic,
-        },
+        Err(_) => OAuthResult::failed(OAuthResultStatus::Panic),
     }
 }
 
+/// Frees a string of an `OAuthResult` (`uid` or `client_id`); NULL is a no-op.
 #[no_mangle]
 pub extern "C" fn oauth_result_uid_delete(s: *mut libc::c_char) {
     catch_unwind_with(

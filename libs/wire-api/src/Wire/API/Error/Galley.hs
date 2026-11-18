@@ -421,9 +421,9 @@ data MeetingError
     LinkUnavailable
   | MeetingNotLicensed
   | ManagedByCalendar
-  | -- | The externally_managed_by / Z-Client header / externally_calendar_*
-    -- field pairing is inconsistent (e.g. an externally-managed create
-    -- without the @Z-Client: Calendar@ header, or calendar fields on a
+  | -- | The externally_managed_by / caller / externally_calendar_* field
+    -- pairing is inconsistent (e.g. an externally-managed create by a caller
+    -- that is not the calendar integration, or calendar fields on a
     -- wire-managed one).
     InvalidCalendarFields
   deriving stock (Eq, Show)
@@ -456,7 +456,7 @@ meetingErrorToDyn = \case
   MeetingNotLicensed -> DynError 403 "id-feature-error" "Not licensed on this backend"
   ManagedByCalendar -> dynError @ManagedByCalendarStatic
   InvalidCalendarFields ->
-    DynError 400 "invalid-op" "Externally-managed meetings require the Z-Client: Calendar header plus externally_calendar_event_id and externally_calendar_id; wire-managed meetings must not set them"
+    DynError 400 "invalid-op" "Externally-managed meetings must be created and mutated by the calendar integration and carry externally_calendar_event_id and externally_calendar_id; wire-managed meetings must not set them, nor be touched by the calendar integration"
 
 type instance ErrorEffect MeetingError = Error MeetingError
 
@@ -473,7 +473,7 @@ type MeetingNotLicensedStatic = 'StaticError 403 "id-feature-error" "Not license
 
 type ManagedByCalendarStatic = 'StaticError 403 "externally-managed-by-calendar" "This meeting is managed by an external calendar integration"
 
-type InvalidCalendarFieldsStatic = 'StaticError 400 "invalid-op" "Externally-managed meetings require the Z-Client: Calendar header and calendar fields; wire-managed meetings must not set them"
+type InvalidCalendarFieldsStatic = 'StaticError 400 "invalid-op" "Externally-managed meetings require the calendar integration and calendar fields; wire-managed meetings must not set them"
 
 instance IsSwaggerError MeetingError where
   addToOpenApi =

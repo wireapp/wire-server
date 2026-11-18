@@ -54,10 +54,10 @@ createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   NewMeeting ->
   Sem r MeetingWithConversation
-createMeeting lUser connId mClient newMeeting = Meetings.createMeeting lUser connId mClient newMeeting
+createMeeting lUser connId mOAuthClient newMeeting = Meetings.createMeeting lUser connId mOAuthClient newMeeting
 
 updateMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
@@ -65,14 +65,14 @@ updateMeeting ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   Domain ->
   MeetingId ->
   UpdateMeeting ->
   Sem r MeetingWithConversation
-updateMeeting zUser connId mClient domain meetingId update = do
+updateMeeting zUser connId mOAuthClient domain meetingId update = do
   let qMeetingId = Qualified meetingId domain
-  noteS @'MeetingNotFound =<< Meetings.updateMeeting zUser connId mClient qMeetingId update
+  noteS @'MeetingNotFound =<< Meetings.updateMeeting zUser connId mOAuthClient qMeetingId update
 
 deleteMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
@@ -80,13 +80,13 @@ deleteMeeting ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   Domain ->
   MeetingId ->
   Sem r ()
-deleteMeeting zUser connId mClient domain meetingId = do
+deleteMeeting zUser connId mOAuthClient domain meetingId = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.deleteMeeting zUser connId mClient qMeetingId
+  success <- Meetings.deleteMeeting zUser connId mOAuthClient qMeetingId
   unless success $ throwS @'MeetingNotFound
 
 getMeeting ::
@@ -193,14 +193,14 @@ addMeetingInvitation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-addMeetingInvitation zUser mConn mClient domain meetingId (MeetingEmailsInvitation emails mLocale) = do
+addMeetingInvitation zUser mConn mOAuthClient domain meetingId (MeetingEmailsInvitation emails mLocale) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.addInvitedEmails zUser mConn mClient qMeetingId emails mLocale
+  success <- Meetings.addInvitedEmails zUser mConn mOAuthClient qMeetingId emails mLocale
   unless success $ throwS @'MeetingNotFound
 
 removeMeetingInvitation ::
@@ -209,14 +209,14 @@ removeMeetingInvitation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-removeMeetingInvitation zUser mConn mClient domain meetingId (MeetingEmailsInvitation emails _) = do
+removeMeetingInvitation zUser mConn mOAuthClient domain meetingId (MeetingEmailsInvitation emails _) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.removeInvitedEmails zUser mConn mClient qMeetingId emails
+  success <- Meetings.removeInvitedEmails zUser mConn mOAuthClient qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 replaceMeetingInvitation ::
@@ -225,14 +225,14 @@ replaceMeetingInvitation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   Domain ->
   MeetingId ->
   MeetingEmailsInvitation ->
   Sem r ()
-replaceMeetingInvitation zUser mConn mClient domain meetingId (MeetingEmailsInvitation emails mLocale) = do
+replaceMeetingInvitation zUser mConn mOAuthClient domain meetingId (MeetingEmailsInvitation emails mLocale) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.replaceInvitedEmails zUser mConn mClient qMeetingId emails mLocale
+  success <- Meetings.replaceInvitedEmails zUser mConn mOAuthClient qMeetingId emails mLocale
   unless success $ throwS @'MeetingNotFound
 
 refreshMeetingLink ::
@@ -241,14 +241,14 @@ refreshMeetingLink ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Maybe Text ->
+  Meetings.CallerOAuthClient ->
   Domain ->
   MeetingId ->
   RefreshMeetingLinkRequest ->
   Sem r MeetingWithConversation
-refreshMeetingLink zUser connId mClient domain meetingId req =
+refreshMeetingLink zUser connId mOAuthClient domain meetingId req =
   noteS @'MeetingNotFound
-    =<< Meetings.refreshMeetingLink zUser connId mClient (Qualified meetingId domain) req
+    =<< Meetings.refreshMeetingLink zUser connId mOAuthClient (Qualified meetingId domain) req
 
 -- | WPB-28989: check a meeting join link unauthenticated. No creator or
 -- conversation membership is required; anything that does not resolve to a

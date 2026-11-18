@@ -213,26 +213,6 @@ http {
       default   '';
   }
 
-  #
-  # Z-Client for locations with 'forward_oauth_z_client: true'
-  #
-  # Calendar integrations call as OAuth bearers and mark themselves with
-  # 'Z-Client: Calendar'.  zauth leaves $zauth_client empty for OAuth, so that
-  # one value is forwarded when the request has no connection (OAuth bearers;
-  # other connection-less zauth token types are denied by the ACL on these
-  # routes).  zauth access tokens always carry a connection and keep
-  # $zauth_client.  Any other caller-supplied value is dropped.
-
-  map $http_z_client $oauth_calendar_client {
-      "Calendar" "Calendar";
-      default    "";
-  }
-
-  map $zauth_connection $zauth_client_or_oauth_caller {
-      ""      $oauth_calendar_client;
-      default $zauth_client;
-  }
-
 
 
   #
@@ -374,10 +354,8 @@ http {
 
         proxy_set_header   Z-Type         $zauth_type;
         proxy_set_header   Z-User         $zauth_user;
-            {{- if and $location.forward_oauth_z_client $location.disable_zauth }}
-              {{- fail (printf "nginz location %s: forward_oauth_z_client requires zauth (disable_zauth must not be set)" $location.path) }}
-            {{- end }}
-        proxy_set_header   Z-Client       {{ if $location.forward_oauth_z_client }}$zauth_client_or_oauth_caller{{ else }}$zauth_client{{ end }};
+        proxy_set_header   Z-Client       $zauth_client;
+        proxy_set_header   Z-OAuth-Client $zauth_oauth_client;
         proxy_set_header   Z-Connection   $zauth_connection;
         proxy_set_header   Z-Provider     $zauth_provider;
         proxy_set_header   Z-Bot          $zauth_bot;

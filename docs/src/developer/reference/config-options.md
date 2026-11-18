@@ -289,6 +289,34 @@ emailSMS:
       replyTo: noreply@example.com   # optional
 ```
 
+### Meetings calendar integration
+
+Meetings with `externally_managed_by` set belong to a calendar integration:
+only that integration may create and mutate them, and it may not touch
+wire-managed meetings.  Galley recognises the integration by the OAuth client
+its access tokens were issued to, as forwarded by nginz in `Z-OAuth-Client`.
+See [OAuth client identity](#oauth-client-identity-z-oauth-client).  List those OAuth client ids (from brig's `POST /i/oauth/clients`) in
+`settings.meetings.calendarOAuthClients`; when the list is empty or unset, no
+caller can create externally-managed meetings.  Creating one additionally
+requires the deployment license to cover calendar integration.
+
+Wire OAuth clients are public clients (no client secret), so the client id
+identifies which app the user authorized, not which software holds the token.
+A user can therefore obtain a token for the calendar client for their own
+account and act as the calendar integration on meetings they created; the
+calendar ownership of a meeting is not a security boundary against its
+creator.  Other OAuth apps cannot act as the calendar integration.  Only
+deploy nginz versions that set `Z-OAuth-Client` in front of a galley with
+`calendarOAuthClients` set.
+
+```yaml
+# galley.yaml
+settings:
+  meetings:
+    calendarOAuthClients:
+      - 1e9bd1b6-3d55-4f4b-a3d0-3c4e5f6a7b8c
+```
+
 ### Meetings time settings
 
 The `galley.config.settings.meetings.legacyTimeZone` Helm value is an IANA time
@@ -1226,22 +1254,13 @@ work across the change in either direction: a token with old scopes gets into a
 route that has moved to `oauth_scopes`, and a token with new scopes gets into a
 route that has not.
 
-##### `forward_oauth_z_client`
+#### OAuth client identity (`Z-OAuth-Client`)
 
-*nginz* normally sets `Z-Client` from the zauth token, which is empty for OAuth
-tokens.  Calendar integrations call the meeting routes as OAuth bearers and
-mark themselves with `Z-Client: Calendar`, so those routes set:
-
-```yaml
-# [nginz/values.yaml]
-        forward_oauth_z_client: true
-```
-
-On such a route, a request without a connection (an OAuth bearer) has its own
-`Z-Client: Calendar` header forwarded (any other value is dropped); a zauth
-access token keeps the token's client.  The header is asserted by the caller,
-so any OAuth app the user granted a meetings scope can present it.  The option
-cannot be combined with `disable_zauth`.
+For a request carrying a valid OAuth access token, *nginz* sets the
+`Z-OAuth-Client` header to the OAuth client the token was issued to (the
+token's `client_id` claim, a UUID).  For every other request the header is
+removed, so a caller cannot set it.  Tokens issued before brig added the claim
+carry no client until they are refreshed.
 
 #### Password hashing options
 

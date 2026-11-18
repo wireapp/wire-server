@@ -628,7 +628,14 @@ instance ToSchema OAuthAccessTokenResponse where
       expiresInDescription = description ?~ "The lifetime of the access token in seconds"
       refreshTokenDescription = description ?~ "The refresh token, which has a relatively long lifetime, and can be used to obtain a new access token"
 
-data OAuthClaimsSet = OAuthClaimsSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
+-- | The claims of an OAuth access token.  @client_id@ (RFC 9068) names the
+-- OAuth client the token was issued to; nginz forwards it to the services as
+-- @Z-OAuth-Client@.  Tokens issued before the claim was added lack it.
+data OAuthClaimsSet = OAuthClaimsSet
+  { jwtClaims :: ClaimsSet,
+    scope :: OAuthScopes,
+    clientId :: Maybe OAuthClientId
+  }
   deriving (Eq, Show, Generic)
 
 instance HasClaimsSet OAuthClaimsSet where
@@ -640,11 +647,16 @@ instance A.FromJSON OAuthClaimsSet where
       <$> A.parseJSON (A.Object o)
       <*> o
         A..: "scope"
+      <*> o
+        A..:? "client_id"
 
 instance A.ToJSON OAuthClaimsSet where
   toJSON s =
-    ins "scope" (s.scope) (A.toJSON (jwtClaims s))
+    maybe id (ins "client_id") s.clientId
+      . ins "scope" s.scope
+      $ A.toJSON (jwtClaims s)
     where
+      ins :: (A.ToJSON v) => A.Key -> v -> A.Value -> A.Value
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 

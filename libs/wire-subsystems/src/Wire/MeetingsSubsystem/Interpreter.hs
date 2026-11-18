@@ -155,7 +155,10 @@ data MeetingSystemConfig = MeetingSystemConfig
     -- | Whether @settings.meetings.emailsEnabled@ is set (galley).
     -- False disables all meeting-email preparation: no brig profile RPC,
     -- no code-store lookup, no email sends.
-    emailsEnabled :: !Bool
+    emailsEnabled :: !Bool,
+    -- | OAuth clients acting as the calendar integration
+    -- (@settings.meetings.calendarOAuthClients@, galley).
+    calendarOAuthClients :: !(Set OAuthClientId)
   }
 
 interpretMeetingsSubsystem ::
@@ -181,14 +184,14 @@ interpretMeetingsSubsystem ::
   MeetingSystemConfig ->
   InterpreterFor MeetingsSubsystem r
 interpretMeetingsSubsystem cfg = interpret $ \case
-  CreateMeeting zUser connId mClient newMeeting ->
-    createMeetingImpl zUser connId mClient newMeeting cfg.emailsEnabled
-  UpdateMeeting zUser connId mClient meetingId update ->
-    updateMeetingImpl zUser connId mClient meetingId update cfg.validityPeriod cfg.pastEditPeriod cfg.emailsEnabled
-  DeleteMeeting zUser connId mClient meetingId ->
-    deleteMeetingImpl zUser connId mClient meetingId cfg.validityPeriod cfg.emailsEnabled
-  RefreshMeetingLink zUser connId mClient meetingId req ->
-    refreshMeetingLinkImpl zUser connId mClient meetingId req cfg.validityPeriod cfg.emailsEnabled
+  CreateMeeting zUser connId mOAuthClient newMeeting ->
+    createMeetingImpl zUser connId (calendarCaller cfg mOAuthClient) newMeeting cfg.emailsEnabled
+  UpdateMeeting zUser connId mOAuthClient meetingId update ->
+    updateMeetingImpl zUser connId (calendarCaller cfg mOAuthClient) meetingId update cfg.validityPeriod cfg.pastEditPeriod cfg.emailsEnabled
+  DeleteMeeting zUser connId mOAuthClient meetingId ->
+    deleteMeetingImpl zUser connId (calendarCaller cfg mOAuthClient) meetingId cfg.validityPeriod cfg.emailsEnabled
+  RefreshMeetingLink zUser connId mOAuthClient meetingId req ->
+    refreshMeetingLinkImpl zUser connId (calendarCaller cfg mOAuthClient) meetingId req cfg.validityPeriod cfg.emailsEnabled
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId cfg.validityPeriod
   CodeCheckMeetingLink origIp domain key presentedValue mPassword ->
@@ -198,7 +201,7 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   ListMeetings zUser ->
     listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV16 zUser connId newMeeting ->
-    API.toLegacyWithConv <$> createMeetingImpl zUser (Just connId) Nothing (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting) cfg.emailsEnabled
+    API.toLegacyWithConv <$> createMeetingImpl zUser (Just connId) NotCalendarIntegration (API.fromLegacyNewMeeting cfg.legacyTimeZone newMeeting) cfg.emailsEnabled
   UpdateMeetingV16 zUser connId meetingId update ->
     updateMeetingV16Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod cfg.emailsEnabled
   GetMeetingV16 zUser meetingId ->
@@ -206,64 +209,71 @@ interpretMeetingsSubsystem cfg = interpret $ \case
   ListMeetingsV16 zUser ->
     map API.toLegacy <$> listMeetingsImpl zUser cfg.validityPeriod
   CreateMeetingV18 zUser connId nm ->
-    API.toLegacyWithConvV18 <$> createMeetingImpl zUser (Just connId) Nothing (API.fromLegacyNewMeetingV18 nm) cfg.emailsEnabled
+    API.toLegacyWithConvV18 <$> createMeetingImpl zUser (Just connId) NotCalendarIntegration (API.fromLegacyNewMeetingV18 nm) cfg.emailsEnabled
   UpdateMeetingV18 zUser connId meetingId update ->
     updateMeetingV18Impl zUser connId meetingId update cfg.validityPeriod cfg.pastEditPeriod cfg.emailsEnabled
   GetMeetingV18 zUser meetingId ->
     fmap API.toLegacyV18 <$> getMeetingImpl zUser meetingId cfg.validityPeriod
   ListMeetingsV18 zUser ->
     map API.toLegacyV18 <$> listMeetingsImpl zUser cfg.validityPeriod
-  AddInvitedEmails zUser mConn mClient meetingId emails mLocale ->
-    addInvitedEmailsImpl zUser mConn mClient meetingId emails mLocale cfg.validityPeriod cfg.emailsEnabled
-  RemoveInvitedEmails zUser mConn mClient meetingId emails ->
-    removeInvitedEmailsImpl zUser mConn mClient meetingId emails cfg.validityPeriod
-  ReplaceInvitedEmails zUser mConn mClient meetingId emails mLocale ->
-    replaceInvitedEmailsImpl zUser mConn mClient meetingId emails mLocale cfg.validityPeriod cfg.emailsEnabled
+  AddInvitedEmails zUser mConn mOAuthClient meetingId emails mLocale ->
+    addInvitedEmailsImpl zUser mConn (calendarCaller cfg mOAuthClient) meetingId emails mLocale cfg.validityPeriod cfg.emailsEnabled
+  RemoveInvitedEmails zUser mConn mOAuthClient meetingId emails ->
+    removeInvitedEmailsImpl zUser mConn (calendarCaller cfg mOAuthClient) meetingId emails cfg.validityPeriod
+  ReplaceInvitedEmails zUser mConn mOAuthClient meetingId emails mLocale ->
+    replaceInvitedEmailsImpl zUser mConn (calendarCaller cfg mOAuthClient) meetingId emails mLocale cfg.validityPeriod cfg.emailsEnabled
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
 
--- | Whether the request presents the calendar integration's @Z-Client@ value.
-hasCalendarHeader :: ZClient -> Bool
-hasCalendarHeader = (== Just "Calendar")
+-- | Whether the caller is the calendar integration.
+data CalendarCaller = IsCalendarIntegration | NotCalendarIntegration
+  deriving stock (Eq, Show)
+
+-- | The caller is the calendar integration iff it presents an OAuth access
+-- token issued to one of the configured calendar OAuth clients. The client
+-- id comes from the token's @client_id@ claim, which nginz verifies and
+-- forwards as @Z-OAuth-Client@ (stripping any caller-supplied value), so an
+-- OAuth app cannot claim another app's identity. Direct in-cluster callers
+-- could set arbitrary headers (existing internal trust model).
+calendarCaller :: MeetingSystemConfig -> CallerOAuthClient -> CalendarCaller
+calendarCaller cfg = \case
+  Just c | Set.member c cfg.calendarOAuthClients -> IsCalendarIntegration
+  _ -> NotCalendarIntegration
 
 -- | Externally-managed meetings are created and mutated only by the
--- calendar integration, i.e. by OAuth callers, whom nginz identifies by the
--- absence of the @Z-Connection@ header. The inference is trustworthy only
--- behind nginz, which overrides client-supplied @Z-*@ headers and omits
--- @Z-Connection@ for OAuth tokens (zauth_module.c). @Z-Client: Calendar@ is
--- caller-asserted for OAuth callers (nginz forwards that value on the
--- meeting routes, @forward_oauth_z_client@); only the absence of
--- @Z-Connection@ is nginz-guaranteed. Direct in-cluster callers could set
--- arbitrary headers (existing internal trust model).
+-- calendar integration ('calendarCaller'); the calendar integration in turn
+-- only touches externally-managed meetings.
 ensureCalendarMutation ::
   (Member (Error MeetingError) r) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   -- | The meeting's lifecycle owner ('Nothing' = wire-managed).
   Maybe API.ExternalManager ->
   Sem r ()
-ensureCalendarMutation mConn mHeader mExt = case mExt of
+ensureCalendarMutation mConn caller mExt = case mExt of
   Nothing ->
-    when (hasCalendarHeader mHeader) $
+    when (caller == IsCalendarIntegration) $
       throw InvalidCalendarFields
-  Just _ -> ensureCalendarCaller mConn mHeader
+  Just _ -> ensureCalendarCaller mConn caller
 
--- | An externally-managed meeting may only be touched by an OAuth bearer caller
--- presenting the @Z-Client: Calendar@ header.
+-- | An externally-managed meeting may only be touched by the calendar
+-- integration: Wire clients (with a connection) get 'ManagedByCalendar',
+-- any other caller 'InvalidCalendarFields'.
 ensureCalendarCaller ::
   (Member (Error MeetingError) r) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Sem r ()
-ensureCalendarCaller mConn mHeader = do
+ensureCalendarCaller mConn caller = do
   when (isJust mConn) $ throw ManagedByCalendar
-  unless (hasCalendarHeader mHeader) $ throw InvalidCalendarFields
+  unless (caller == IsCalendarIntegration) $ throw InvalidCalendarFields
 
--- | Creation-time validation of the externally_managed_by / Z-Client /
+-- | Creation-time validation of the externally_managed_by / caller /
 -- calendar-field pairing plus the calendar-integration licensing gate.
--- Externally-managed creates need the header and both calendar fields and a
+-- Externally-managed creates need the calendar integration as caller
+-- ('calendarCaller'), both calendar fields and a
 -- license covering @calendarsIntegration@; wire-managed creates must not carry
 -- any of them. @externally_managed_by@ is free text: any non-null value means
 -- externally-managed (RFC 2026-10-15 types it text; @google_calendar@ /
@@ -275,15 +285,15 @@ validateCalendarCreation ::
   ) =>
   -- | The caller's connection ('Nothing' for OAuth bearer callers).
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   API.NewMeeting ->
   Sem r ()
-validateCalendarCreation mConn mHeader nm = case nm.externallyManagedBy of
+validateCalendarCreation mConn caller nm = case nm.externallyManagedBy of
   Nothing ->
-    when (hasCalendarHeader mHeader || isJust nm.externallyCalendarEventId || isJust nm.externallyCalendarId) $
+    when (caller == IsCalendarIntegration || isJust nm.externallyCalendarEventId || isJust nm.externallyCalendarId) $
       throw InvalidCalendarFields
   Just _ -> do
-    ensureCalendarCaller mConn mHeader
+    ensureCalendarCaller mConn caller
     when (isNothing nm.externallyCalendarEventId || isNothing nm.externallyCalendarId) $
       throw InvalidCalendarFields
     lic <- getLicense
@@ -309,16 +319,16 @@ createMeetingImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   API.NewMeeting ->
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
   Sem r API.MeetingWithConversation
-createMeetingImpl zUser mConn mClient newMeeting emailsEnabled = do
+createMeetingImpl zUser mConn caller newMeeting emailsEnabled = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled conversationTeamId
-  validateCalendarCreation mConn mClient newMeeting
+  validateCalendarCreation mConn caller newMeeting
   -- Validate that the meeting ends after it starts (end_time is the source of
   -- truth; positivity was previously checked on the derived duration).
   when (newMeeting.endTime <= newMeeting.startTime) $
@@ -422,7 +432,7 @@ updateMeetingImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
@@ -430,7 +440,7 @@ updateMeetingImpl ::
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
   Sem r (Maybe API.MeetingWithConversation)
-updateMeetingImpl zUser mConn mClient meetingId update validityPeriod pastEditPeriod emailsEnabled = do
+updateMeetingImpl zUser mConn caller meetingId update validityPeriod pastEditPeriod emailsEnabled = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   when (update == API.UpdateMeeting Nothing Nothing Nothing Nothing Nothing) $
@@ -445,7 +455,7 @@ updateMeetingImpl zUser mConn mClient meetingId update validityPeriod pastEditPe
     guard $ meeting.creator == tUnqualified zUser
     -- Guard placement after the liveness/domain/creator guards keeps the
     -- pre-existing uniform 404 for non-creators (no existence oracle).
-    lift $ ensureCalendarMutation mConn mClient meeting.externallyManagedBy
+    lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
     -- Creation enforces endTime > startTime (createMeetingImpl); re-establish
     -- the invariant on the *effective* times after this update, since either
     -- bound may change independently.
@@ -522,7 +532,7 @@ updateMeetingV16Impl ::
   Sem r (Maybe API.MeetingWithConversationV16)
 updateMeetingV16Impl zUser connId meetingId update validityPeriod pastEditPeriod emailsEnabled =
   fmap API.toLegacyWithConv
-    <$> updateMeetingImpl zUser (Just connId) Nothing meetingId update validityPeriod pastEditPeriod emailsEnabled
+    <$> updateMeetingImpl zUser (Just connId) NotCalendarIntegration meetingId update validityPeriod pastEditPeriod emailsEnabled
 
 -- | V18 update path. The request is delegated to the shared update
 -- implementation and the result is re-shaped to the legacy form.
@@ -552,7 +562,7 @@ updateMeetingV18Impl ::
   Sem r (Maybe API.MeetingWithConversationV18)
 updateMeetingV18Impl zUser connId meetingId update validityPeriod pastEditPeriod emailsEnabled =
   fmap API.toLegacyWithConvV18
-    <$> updateMeetingImpl zUser (Just connId) Nothing meetingId update validityPeriod pastEditPeriod emailsEnabled
+    <$> updateMeetingImpl zUser (Just connId) NotCalendarIntegration meetingId update validityPeriod pastEditPeriod emailsEnabled
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -571,13 +581,13 @@ deleteMeetingImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Qualified MeetingId ->
   NominalDiffTime ->
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
   Sem r Bool
-deleteMeetingImpl zUser mConn mClient meetingId validityPeriod emailsEnabled = do
+deleteMeetingImpl zUser mConn caller meetingId validityPeriod emailsEnabled = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -588,7 +598,7 @@ deleteMeetingImpl zUser mConn mClient meetingId validityPeriod emailsEnabled = d
       guard $ isAlive cutoff meeting
       guard $ qDomain meetingId == tDomain zUser
       guard $ meeting.creator == tUnqualified zUser
-      lift $ ensureCalendarMutation mConn mClient meeting.externallyManagedBy
+      lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
       conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
@@ -650,14 +660,14 @@ refreshMeetingLinkImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Qualified MeetingId ->
   API.RefreshMeetingLinkRequest ->
   NominalDiffTime ->
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
   Sem r (Maybe API.MeetingWithConversation)
-refreshMeetingLinkImpl zUser mConn mClient meetingId req validityPeriod emailsEnabled = do
+refreshMeetingLinkImpl zUser mConn caller meetingId req validityPeriod emailsEnabled = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   base <- codeURIBase (tDomain zUser)
@@ -672,7 +682,7 @@ refreshMeetingLinkImpl zUser mConn mClient meetingId req validityPeriod emailsEn
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
-    lift $ ensureCalendarMutation mConn mClient meeting.externallyManagedBy
+    lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
     conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
     mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
     -- Rotation + guest-code revocation are one CodeStore op (see
@@ -1304,7 +1314,7 @@ addInvitedEmailsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Qualified MeetingId ->
   [EmailAddress] ->
   -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
@@ -1313,7 +1323,7 @@ addInvitedEmailsImpl ::
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
   Sem r Bool
-addInvitedEmailsImpl zUser mConn mClient meetingId emails mLocale validityPeriod emailsEnabled = do
+addInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPeriod emailsEnabled = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -1324,7 +1334,7 @@ addInvitedEmailsImpl zUser mConn mClient meetingId emails mLocale validityPeriod
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
-      lift $ ensureCalendarMutation mConn mClient storedMeeting.externallyManagedBy
+      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
       -- The store unions into 'invited_emails', so only addresses not
       -- already invited get an invitation: re-adding an address is a
@@ -1344,12 +1354,12 @@ removeInvitedEmailsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Qualified MeetingId ->
   [EmailAddress] ->
   NominalDiffTime ->
   Sem r Bool
-removeInvitedEmailsImpl zUser mConn mClient meetingId emails validityPeriod = do
+removeInvitedEmailsImpl zUser mConn caller meetingId emails validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -1360,7 +1370,7 @@ removeInvitedEmailsImpl zUser mConn mClient meetingId emails validityPeriod = do
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
-      lift $ ensureCalendarMutation mConn mClient storedMeeting.externallyManagedBy
+      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       lift $ Store.removeInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result
@@ -1380,7 +1390,7 @@ replaceInvitedEmailsImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ZClient ->
+  CalendarCaller ->
   Qualified MeetingId ->
   [EmailAddress] ->
   -- | Optional caller locale; 'Nothing' falls back to the creator's locale.
@@ -1389,7 +1399,7 @@ replaceInvitedEmailsImpl ::
   -- | Whether meeting emails are configured ('MeetingSystemConfig.emailsEnabled').
   Bool ->
   Sem r Bool
-replaceInvitedEmailsImpl zUser mConn mClient meetingId emails mLocale validityPeriod emailsEnabled = do
+replaceInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPeriod emailsEnabled = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
   result <-
@@ -1400,7 +1410,7 @@ replaceInvitedEmailsImpl zUser mConn mClient meetingId emails mLocale validityPe
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
-      lift $ ensureCalendarMutation mConn mClient storedMeeting.externallyManagedBy
+      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
       -- Only newly-added addresses get an invitation; removed addresses get
       -- no email (removal emails are a separate ticket, WPB-27179).
