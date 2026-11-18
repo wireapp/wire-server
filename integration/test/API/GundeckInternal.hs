@@ -60,3 +60,9 @@ getPushTokens u = do
   uid <- u %. "id" & asString
   req <- baseRequest u Gundeck Unversioned ("/i/push-tokens/" <> uid)
   submit "GET" req
+
+-- | Publish persistent notifications through the new fan-in API.
+postFanInPush :: (HasCallStack, MakesValue user) => user -> [Value] -> App Response
+postFanInPush user pushes = do
+  req <- baseRequest user Gundeck Unversioned "/i/fan-in/push"
+  submit "POST" $ req & addJSON pushes

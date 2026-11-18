@@ -135,6 +135,7 @@ library
     Test.Errors
     Test.Events
     Test.ExternalPartner
+    Test.FanInNotifications
     Test.FeatureFlags
     Test.FeatureFlags.AllowedGlobalOperations
     Test.FeatureFlags.AppLock
