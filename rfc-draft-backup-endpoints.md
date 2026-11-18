@@ -343,7 +343,11 @@ Example: `GET /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 {
   "status": "enabled",
   "lockStatus": "unlocked",
-  "config": { "enforcedSchedule": "daily", "enforced": false, "serverOnly": false },
+  "config": {
+    "enforcedSchedule": "daily",
+    "enforced": false,
+    "serverOnly": false
+  },
   "ttl": "unlimited"
 }
 ```
@@ -363,7 +367,11 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 ```json
 {
   "status": "enabled",
-  "config": { "enforcedSchedule": "daily", "enforced": false, "serverOnly": false }
+  "config": {
+    "enforcedSchedule": "daily",
+    "enforced": false,
+    "serverOnly": false
+  }
 }
 ```
 
@@ -373,7 +381,11 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 {
   "status": "enabled",
   "lockStatus": "unlocked",
-  "config": { "enforcedSchedule": "daily", "enforced": false, "serverOnly": false },
+  "config": {
+    "enforcedSchedule": "daily",
+    "enforced": false,
+    "serverOnly": false
+  },
   "ttl": "unlimited"
 }
 ```
