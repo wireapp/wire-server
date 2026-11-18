@@ -37,6 +37,8 @@ import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Server.Internal.ErrorFormatter
 import Wire.API.CannonId
+import Wire.API.Error (CanThrow)
+import Wire.API.Error.Gundeck qualified as E
 import Wire.API.Notification.FanIn (FanInMembershipUpdate, FanInPush)
 import Wire.API.Presence
 import Wire.API.Push.V2
@@ -99,31 +101,30 @@ instance (HasOpenApi sub) => HasOpenApi (ReqBodyHack :> sub) where
           & S.required ?~ True
           & S.content .~ InsOrdHashMap.fromList [(t, mempty & S.schema ?~ ref) | t <- allContentType (Proxy :: Proxy '[JSON])]
 
-type InternalAPI =
-  "i"
-    :> ( Named "i-status" ("status" :> Get '[JSON] NoContent)
-           :<|> Named "i-push" ("push" :> "v2" :> ReqBody '[JSON] [Push] :> Post '[JSON] NoContent)
-           :<|> ( "presences"
-                    :> ( Named "i-presences-get-for-users" (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
-                           :<|> Named "i-presences-get-for-user" (Capture "uid" UserId :> Get '[JSON] [Presence])
-                           :<|> Named "i-presences-post" (ReqBodyHack :> Verb 'POST 201 '[JSON] (Headers '[Header "Location" URI] NoContent))
-                           :<|> Named "i-presences-delete" (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
-                       )
+type InternalAPI = "i" :> (LegacyInternalAPI :<|> FanInInternalAPI)
+
+type LegacyInternalAPI =
+  Named "i-status" ("status" :> Get '[JSON] NoContent)
+    :<|> Named "i-push" ("push" :> "v2" :> ReqBody '[JSON] [Push] :> Post '[JSON] NoContent)
+    :<|> ( "presences"
+             :> ( Named "i-presences-get-for-users" (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
+                    :<|> Named "i-presences-get-for-user" (Capture "uid" UserId :> Get '[JSON] [Presence])
+                    :<|> Named "i-presences-post" (ReqBodyHack :> Verb 'POST 201 '[JSON] (Headers '[Header "Location" URI] NoContent))
+                    :<|> Named "i-presences-delete" (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
                 )
-           :<|> FanInInternalAPI
-           :<|> Named "i-clients-delete" (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
-           :<|> Named "i-user-delete" (ZUser :> "user" :> Delete '[JSON] NoContent)
-           :<|> Named "i-push-tokens-get" ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
-           :<|> Named
-                  "i-reg-consumable-notifs"
-                  ( "users"
-                      :> Capture "uid" UserId
-                      :> "clients"
-                      :> Capture "cid" ClientId
-                      :> "consumable-notifications"
-                      :> PostNoContent
-                  )
-       )
+         )
+    :<|> Named "i-clients-delete" (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
+    :<|> Named "i-user-delete" (ZUser :> "user" :> Delete '[JSON] NoContent)
+    :<|> Named "i-push-tokens-get" ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
+    :<|> Named
+           "i-reg-consumable-notifs"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "clients"
+               :> Capture "cid" ClientId
+               :> "consumable-notifications"
+               :> PostNoContent
+           )
 
 swaggerDoc :: S.OpenApi
 swaggerDoc =
@@ -133,6 +134,6 @@ swaggerDoc =
 -- | Fan-in ingestion and membership routes under the internal /i prefix.
 type FanInInternalAPI =
   "fan-in"
-    :> ( Named "i-fan-in-push" (Summary "Publish fan-in notifications" :> Description "Accept notifications addressed to users, clients, teams, MLS epochs or connections. Persistent events are stored for incremental sync; transient events are forwarded without storage. This endpoint currently has a placeholder handler." :> "push" :> ReqBody '[JSON] [FanInPush] :> Post '[JSON] NoContent)
+    :> ( Named "i-fan-in-push" (Summary "Publish fan-in notifications" :> Description "Accept notifications addressed to users, clients, teams, MLS epochs or connections. Persistent events are stored for incremental sync; retry with the same IDs to avoid duplicates. UUIDv7 IDs are required. Transient events are rejected until forwarding is implemented." :> CanThrow 'E.FanInInvalidNotificationId :> CanThrow 'E.FanInTransientUnsupported :> CanThrow 'E.FanInLocalDomainMissing :> "push" :> ReqBody '[JSON] [FanInPush] :> Post '[JSON] NoContent)
            :<|> Named "i-fan-in-membership" (Summary "Update fan-in epoch membership" :> Description "Record the membership of a committed MLS epoch, retaining superseded membership for offline clients. Repeating the same update is intended to be idempotent. This endpoint currently has a placeholder handler." :> "membership" :> ReqBody '[JSON] FanInMembershipUpdate :> Put '[JSON] NoContent)
        )

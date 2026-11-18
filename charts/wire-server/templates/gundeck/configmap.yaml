@@ -71,10 +71,10 @@ data:
     {{- end }}
     {{- end }}
 
-    {{- with .notificationFanInPostgres }}
+    {{- with required "gundeck.config.notificationFanInPostgres is required" .notificationFanInPostgres }}
     notificationFanInPostgres:
-      connection: {{ toYaml .connection | nindent 8 }}
-      pool: {{ toYaml .pool | nindent 8 }}
+      connection: {{ required "gundeck.config.notificationFanInPostgres.connection is required" .connection | toYaml | nindent 8 }}
+      pool: {{ required "gundeck.config.notificationFanInPostgres.pool is required" .pool | toYaml | nindent 8 }}
       {{- if hasKey $.Values.gundeck.secrets "notificationFanInPostgresPassword" }}
       password: /etc/wire/gundeck/secrets/notificationFanInPostgresPassword
       {{- end }}
@@ -95,6 +95,9 @@ data:
     {{- end }}
 
     settings:
+      {{- with .federationDomain }}
+      federationDomain: {{ . }}
+      {{- end }}
       httpPoolSize: 1024
       notificationTTL: {{ required "config.notificationTTL" .notificationTTL }}
       {{- if hasKey . "perNativePushConcurrency" }}

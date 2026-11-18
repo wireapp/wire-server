@@ -35,8 +35,7 @@ import Testlib.Prelude
 -- convention because fan-in delivery is not implemented yet. Once the full
 -- publish -> WebSocket -> acknowledgement -> reconnect round trip is available,
 -- retain the behavioral scenarios but replace database inspection with client
--- observations, and remove queryFanInSql. The disabled-endpoint test below is
--- already black-box and can remain as it is.
+-- observations, and remove queryFanInSql.
 testFanInPersistence :: (HasCallStack) => App ()
 testFanInPersistence = do
   user <- randomUser OwnDomain def
@@ -70,11 +69,6 @@ testFanInRejectsInvalidBatches = do
   postFanInPush user [push valid targets False, push valid targets True] >>= \response -> response.status `shouldMatchInt` 501
   state <- queryFanInSql "SELECT to_json(count(*)) FROM user_notifications WHERE user_id = :'uid'::uuid" [("uid", uid)]
   state `shouldMatchInt` 0
-
-testFanInDisabled :: (HasCallStack) => App ()
-testFanInDisabled = withModifiedBackend def {gundeckCfg = setField "notificationFanInPostgres" Null} $ \domain -> do
-  user <- randomUser domain def
-  postFanInPush user [] >>= \response -> response.status `shouldMatchInt` 503
 
 target :: String -> Value -> Value
 target tag contents = object ["tag" .= tag, "contents" .= contents]
