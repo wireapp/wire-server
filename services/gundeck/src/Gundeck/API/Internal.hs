@@ -28,7 +28,7 @@ import Gundeck.CanonicalInterpreter (GundeckApp)
 import Gundeck.Client
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
-import Gundeck.NotificationFanIn.Ingestion (pushFanInH)
+import Gundeck.NotificationFanIn.Ingestion (pushFanInH, updateFanInMembershipH)
 import Gundeck.Options (consumableNotifications, settings)
 import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
@@ -46,8 +46,7 @@ servantSitemap :: ServerT InternalAPI GundeckApp
 servantSitemap =
   hoistServer (Proxy @LegacyInternalAPI) embed legacySitemap
     :<|> ( Named @"i-fan-in-push" pushFanInH
-             -- TODO: Implement the fan-in membership handler.
-             :<|> Named @"i-fan-in-membership" (\_ -> undefined)
+             :<|> Named @"i-fan-in-membership" updateFanInMembershipH
          )
 
 legacySitemap :: ServerT LegacyInternalAPI Gundeck

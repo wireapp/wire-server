@@ -15,13 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.NotificationFanIn.Ingestion (pushFanInH) where
+module Gundeck.NotificationFanIn.Ingestion (pushFanInH, updateFanInMembershipH) where
 
 import Gundeck.CanonicalInterpreter (GundeckApp)
 import Imports
 import Servant (NoContent (..))
-import Wire.API.Notification.FanIn (FanInPush)
-import Wire.FanInNotificationSubsystem (publishFanInNotifications)
+import Wire.API.Notification.FanIn (FanInMembershipUpdate, FanInPush)
+import Wire.FanInNotificationSubsystem (publishFanInNotifications, updateFanInMembership)
 
 pushFanInH :: [FanInPush] -> GundeckApp NoContent
 pushFanInH pushes = NoContent <$ publishFanInNotifications pushes
+
+updateFanInMembershipH :: FanInMembershipUpdate -> GundeckApp NoContent
+updateFanInMembershipH update = NoContent <$ updateFanInMembership update

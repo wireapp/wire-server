@@ -18,6 +18,7 @@
 module Gundeck.NotificationFanIn.Error
   ( fanInSubsystemErrorToHttpError,
     fanInStoreErrorToHttpError,
+    fanInMembershipStoreErrorToHttpError,
     fanInPostgresErrorToHttpError,
   )
 where
@@ -27,6 +28,7 @@ import Network.HTTP.Types (status500)
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error (errorToWai)
 import Wire.API.Error.Gundeck qualified as E
+import Wire.FanInEpochMembershipStore
 import Wire.FanInNotificationStore
 import Wire.FanInNotificationSubsystem
 
@@ -45,3 +47,8 @@ fanInStoreErrorToHttpError = \case
 -- HTTP response, including errors from the shared Hasql pool infrastructure.
 fanInPostgresErrorToHttpError :: UsageError -> Wai.Error
 fanInPostgresErrorToHttpError _ = Wai.mkError status500 "server-error" "Could not persist fan-in notifications"
+
+fanInMembershipStoreErrorToHttpError :: FanInEpochMembershipStoreError -> Wai.Error
+fanInMembershipStoreErrorToHttpError = \case
+  FanInStaleEpoch -> errorToWai @'E.FanInStaleEpoch
+  FanInConflictingEpoch -> errorToWai @'E.FanInConflictingEpoch

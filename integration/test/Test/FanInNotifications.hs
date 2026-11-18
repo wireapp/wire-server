@@ -19,7 +19,7 @@
 
 module Test.FanInNotifications where
 
-import API.GundeckInternal (postFanInPush)
+import API.GundeckInternal (postFanInPush, putFanInMembership)
 import Data.Bits
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
@@ -30,6 +30,7 @@ import qualified Data.UUID.V4 as UUID
 import SetupHelpers
 import Testlib.PG (queryFanInSql)
 import Testlib.Prelude
+import UnliftIO.Async (concurrently_)
 
 -- TEMPORARY: these SQL assertions depart from the black-box integration-test
 -- convention because fan-in delivery is not implemented yet. Once the full
@@ -69,6 +70,54 @@ testFanInRejectsInvalidBatches = do
   postFanInPush user [push valid targets False, push valid targets True] >>= \response -> response.status `shouldMatchInt` 501
   state <- queryFanInSql "SELECT to_json(count(*)) FROM user_notifications WHERE user_id = :'uid'::uuid" [("uid", uid)]
   state `shouldMatchInt` 0
+
+-- These history assertions are temporary for the same reason as the persistence
+-- test above. Replace them with retained-epoch delivery checks in the round trip.
+testFanInMembership :: (HasCallStack) => App ()
+testFanInMembership = do
+  user <- randomUser OwnDomain def
+  uid <- user %. "id" & asString
+  groupId <- Text.unpack . decodeUtf8 . Base64.encode . UUID.toASCIIBytes <$> liftIO UUID.nextRandom
+  let epochMember cid = object ["userId" .= uid, "clientId" .= (cid :: String)]
+      update epoch members = object ["groupId" .= groupId, "epoch" .= (epoch :: Integer), "members" .= members]
+      put epoch members = putFanInMembership user (update epoch members)
+      check expectedEpoch current history = do
+        state <-
+          queryFanInSql
+            "SELECT json_build_object('epoch', (SELECT epoch FROM epoch_heads WHERE group_id = decode(:'group', 'base64')), 'current', (SELECT count(*) FROM epoch_members WHERE group_id = decode(:'group', 'base64')), 'history', (SELECT count(*) FROM epoch_history WHERE group_id = decode(:'group', 'base64')))"
+            [("group", groupId)]
+        state `shouldMatch` object ["epoch" .= (expectedEpoch :: Integer), "current" .= (current :: Int), "history" .= (history :: Int)]
+  -- Concurrent first writers must serialize and behave as identical retries.
+  concurrently_ (put 7 [epochMember "1", epochMember "2"] >>= assertSuccess) (put 7 [epochMember "2", epochMember "1", epochMember "1"] >>= assertSuccess)
+  check 7 2 0
+  put 7 [epochMember "3"] >>= \response -> response.status `shouldMatchInt` 409
+  put 6 [epochMember "3"] >>= \response -> response.status `shouldMatchInt` 409
+  check 7 2 0
+  put 8 [epochMember "2"] >>= assertSuccess
+  put 8 [epochMember "2"] >>= assertSuccess
+  check 8 1 2
+  -- Empty memberships retain the epoch, including after retirement. An old
+  -- retry cannot bring members back, nor can a conflicting retry at that epoch.
+  put 9 ([] :: [Value]) >>= assertSuccess
+  put 9 ([] :: [Value]) >>= assertSuccess
+  put 8 [epochMember "2"] >>= \response -> response.status `shouldMatchInt` 409
+  put 9 [epochMember "2"] >>= \response -> response.status `shouldMatchInt` 409
+  check 9 0 3
+  put 10 [epochMember "3"] >>= assertSuccess
+  check 10 1 3
+
+-- A group first observed with no members still needs a durable epoch. Epochs
+-- use the full MLS Word64 range even though PostgreSQL stores signed bigint.
+testFanInEmptyMembership :: (HasCallStack) => App ()
+testFanInEmptyMembership = do
+  user <- randomUser OwnDomain def
+  groupId <- Text.unpack . decodeUtf8 . Base64.encode . UUID.toASCIIBytes <$> liftIO UUID.nextRandom
+  let put epoch = putFanInMembership user (object ["groupId" .= groupId, "epoch" .= (epoch :: Integer), "members" .= ([] :: [Value])])
+  put 0 >>= assertSuccess
+  put (2 ^ (63 :: Int)) >>= assertSuccess
+  put (2 ^ (63 :: Int) - 1) >>= \response -> response.status `shouldMatchInt` 409
+  put (2 ^ (64 :: Int) - 1) >>= assertSuccess
+  put (2 ^ (64 :: Int) - 1) >>= assertSuccess
 
 target :: String -> Value -> Value
 target tag contents = object ["tag" .= tag, "contents" .= contents]

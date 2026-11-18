@@ -28,13 +28,17 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Wire.API.Notification.FanIn
+import Wire.FanInEpochMembershipStore
 import Wire.FanInNotificationStore
 import Wire.FanInNotificationSubsystem
+import Wire.Sem.Now qualified as Now
 
-interpretFanInNotificationSubsystem :: forall r. (Member FanInNotificationStore r, Member (Error FanInNotificationSubsystemError) r) => Maybe Domain -> InterpreterFor FanInNotificationSubsystem r
+interpretFanInNotificationSubsystem :: forall r. (Member Now.Now r, Member FanInEpochMembershipStore r, Member FanInNotificationStore r, Member (Error FanInNotificationSubsystemError) r) => Maybe Domain -> InterpreterFor FanInNotificationSubsystem r
 interpretFanInNotificationSubsystem localDomain = interpret $ \case
   PublishFanInNotifications pushes -> publish pushes
-  UpdateFanInMembership {} -> throw FanInOperationNotImplemented
+  UpdateFanInMembership update -> do
+    now <- Now.get
+    replaceFanInCurrentEpochMembers update.groupId update.epoch now [FanInEpochMember m.userId m.clientId | m <- update.members]
   DeliverFanInNotifications {} -> throw FanInOperationNotImplemented
   InitializeFanInClient {} -> throw FanInOperationNotImplemented
   InitializeFanInConnection {} -> throw FanInOperationNotImplemented
