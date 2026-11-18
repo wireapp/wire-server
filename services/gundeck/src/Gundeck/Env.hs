@@ -39,6 +39,7 @@ import Gundeck.Options as Opt hiding (host, port)
 import Gundeck.Options qualified as O
 import Gundeck.Redis qualified as Redis
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.AMQP (Channel)
 import Network.AMQP.Extended qualified as Q
@@ -60,7 +61,8 @@ data Env = Env
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
-    _rabbitMqChannel :: MVar Channel
+    _rabbitMqChannel :: MVar Channel,
+    _notificationFanInPostgresPool :: !(Maybe HasqlPoolExt.Pool)
   }
 
 makeLenses ''Env
@@ -104,7 +106,9 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  fanInPostgresPool <- forM (o ^. notificationFanInPostgres) $ \pg ->
+    HasqlPoolExt.initPostgresPool pg._pool pg._connection pg._password
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar fanInPostgresPool
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

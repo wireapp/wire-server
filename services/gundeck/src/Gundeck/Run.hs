@@ -55,10 +55,12 @@ import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
+import Gundeck.NotificationFanIn.Migrations qualified as FanInMigrations
 import Gundeck.Options hiding (host, port)
 import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.AMQP
 import Network.AMQP.Types
@@ -86,6 +88,9 @@ run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
+
+  forM_ (env ^. Env.notificationFanInPostgresPool) $ \pool ->
+    FanInMigrations.runMigrations (HasqlPoolExt.rawPool pool) logger
 
   runDirect env setUpRabbitMqExchangesAndQueues
 

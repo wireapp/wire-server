@@ -28,7 +28,13 @@
 , exceptions
 , extended
 , extra
+, file-embed
 , foldl
+, hasql
+, hasql-migration
+, hasql-resource-pool
+, hasql-th
+, hasql-transaction
 , hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -116,7 +122,13 @@ mkDerivation {
     exceptions
     extended
     extra
+    file-embed
     foldl
+    hasql
+    hasql-migration
+    hasql-resource-pool
+    hasql-th
+    hasql-transaction
     hedis
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
