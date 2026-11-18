@@ -306,13 +306,21 @@ testBackupKeysHideIds = do
     when (plain `isInfixOf` url)
       $ assertFailure ("presigned URL contains the plain " <> what)
 
+-- REVIEW: Too slow (~50s). Each upload lists the epoch's S3 objects about three times
+-- (epochs, blobs before the store, blobs for pruning), and a listing grows with the number of
+-- files, so 1000+ uploads cost O(n^2) S3 requests; client-side concurrency barely helps.
+-- Possible mitigations:
+--   * skip the epoch listing for incrementals (the epoch is known to exist)
+--   * reuse the pre-store blob listing for pruning instead of listing again
+--   * prune incrementals lazily (e.g. only on full uploads) instead of after every upload
+--   * move the 1000+ object check into a cargohold unit test against a fake S3
 testBackupManyFiles :: (HasCallStack) => App ()
 testBackupManyFiles = do
   (owner, _, _) <- backupTeam OwnDomain
   c1 <- newClient owner
   let nFiles = 1005 :: Int -- more than one S3 page and one DeleteObjects batch (1000)
   fid <- uploadFull owner c1 1 (BSC.pack "x")
-  for_ [2 .. nFiles] $ \_ ->
+  void $ pooledForConcurrentlyN 32 [2 .. nFiles] $ \_ ->
     bindResponse (uploadBackup owner c1 c1 1 (Just fid) (BSC.pack "x")) $ \resp ->
       resp.status `shouldMatchInt` 200
   bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
