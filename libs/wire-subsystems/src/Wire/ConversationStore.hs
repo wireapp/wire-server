@@ -156,6 +156,11 @@ data ConversationStore m a where
   -- ratchet-tree leaf map. Pending-removal rows are untouched. Returns
   -- (inserted, updated, deleted).
   ReconcileMLSClients :: GroupId -> IndexMap -> ConversationStore m (Int, Int, Int)
+  -- | SHA-256 digest of the last GroupInfo whose ratchet tree matched the
+  -- membership the server validated for its commit. Only a GroupInfo with a
+  -- matching digest may be used to repair member-client rows.
+  GetGroupInfoValidatedHash :: ConvOrSubConvId -> ConversationStore m (Maybe ByteString)
+  SetGroupInfoValidatedHash :: ConvOrSubConvId -> Maybe ByteString -> ConversationStore m ()
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
   -- SUB CONVERSATION OPERATIONS
   UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
@@ -188,6 +193,13 @@ upsertMember c u = fst <$> upsertMembers (tUnqualified c) (UserList [(tUnqualifi
 deleteBotMemberRow :: (Member ConversationStore r) => ConvId -> BotId -> Sem r ()
 deleteBotMemberRow cid bid =
   deleteMemberRowsOnly ProteusOnlyConversation cid (UserList [botUserId bid] [])
+
+getConvOrSubEpoch ::
+  (Member ConversationStore r) =>
+  ConvOrSubConvId ->
+  Sem r (Maybe Epoch)
+getConvOrSubEpoch (Conv c) = getConversationEpoch c
+getConvOrSubEpoch (SubConv c s) = getSubConversationEpoch c s
 
 getConvOrSubGroupInfo ::
   (Member ConversationStore r) =>

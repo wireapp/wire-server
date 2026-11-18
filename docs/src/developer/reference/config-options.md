@@ -1351,7 +1351,26 @@ Enabling the repair makes Galley reconcile the
 tree of the previously processed commit bundle before validating a new
 bundle, restoring rows lost to e.g. the external-commit re-join race
 (WPB-29648). Off by default; enabling it is the rollout step, and
-disabling it is the rollback. Note: history-client rows are only
+disabling it is the rollback.
+
+The group info is uploaded by the committing client, so its tree is
+only used for the repair if Galley validated it when storing it: the
+group info must belong to the group, claim the post-commit epoch, and
+its tree must match the membership Galley validated for that commit.
+Galley records a digest of such a group info
+(`group_info_validated_hash` on the `conversation` and `subconversation`
+tables). Group infos without a matching digest are never used for
+repair. This includes group infos stored before this column existed and
+those copied by the Cassandra-to-Postgres conversation migration. As a
+consequence, groups whose rows were already lost before this change
+are not healed by this mechanism; only rows lost after a validated
+commit are.
+
+Repair writes skip rows that are pending removal (in Cassandra, both
+the repair writes and the removal planning are lightweight
+transactions).
+
+Note: history-client rows are only
 present for Postgres-resident conversations, so healing of
 `mls_history_client` rows applies to those; conversations still served
 from Cassandra only get their `mls_group_member_client` rows healed.

@@ -32,6 +32,7 @@ import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.List.Extra qualified as List
@@ -733,15 +734,19 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \(c, idx) ->
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
+-- | Each row is marked with its own lightweight transaction so that it is
+-- ordered against the conditional writes of the ghost-client repair
+-- ('reconcileMLSClients'); @if exists@ also avoids creating a partial row
+-- (no leaf index) for a client whose row is gone.
 planMLSClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> Client ()
 planMLSClientRemoval groupId cids =
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    for_ cids $ \cid -> do
-      addPrepQuery
+  for_ cids $ \cid ->
+    retry x5 $
+      trans
         Cql.planMLSClientRemoval
-        (groupId, ciDomain cid, ciUser cid, ciClient cid)
+        (params LocalQuorum (groupId, ciDomain cid, ciUser cid, ciClient cid))
+          { serialConsistency = Just LocalSerialConsistency
+          }
 
 removeMLSClients :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
 removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
@@ -777,28 +782,52 @@ lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 
 -- | Reconcile member-client rows with the tree leaves. History clients live
 -- exclusively in Postgres in the dual-write era, so the diff covers member
--- rows only here. Inserts and leaf updates reuse 'Cql.addMLSClient' (an
--- upsert that clears @removal_pending@), which is safe because both target
--- identities that reconcile proved are non-pending.
+-- rows only here.
+--
+-- Removal planning ('planClientRemoval') does not take the commit lock, so a
+-- row may be marked pending after the rows were read. Every write is therefore
+-- a lightweight transaction that is a no-op on an existing row (insert) or on
+-- a pending row (leaf update, delete), and never touches @removal_pending@.
+-- Returns the number of applied (insert, update, delete) writes.
 reconcileMLSClients :: GroupId -> IndexMap -> Client (Int, Int, Int)
 reconcileMLSClients groupId leaves = do
   memberRows <- lookupMLSClientRows groupId
   let ops = mlsReconcileOps memberRows [] leaves
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    -- addMLSClient is an upsert that clears removal_pending; inserts and leaf
-    -- updates are the same write here, and both only target identities the
-    -- diff proved are non-pending.
-    for_ (ops.roMemberInsert <> ops.roMemberUpdateLeaf) $ \(dom, usr, c, idx) ->
-      addPrepQuery Cql.addMLSClient (groupId, dom, usr, c, idx)
-    for_ ops.roMemberDelete $ \(dom, usr, c) ->
-      addPrepQuery Cql.removeMLSClient (groupId, dom, usr, c)
-  pure
-    ( length ops.roMemberInsert,
-      length ops.roMemberUpdateLeaf,
-      length ops.roMemberDelete
-    )
+  ins <- for ops.roMemberInsert $ \(dom, usr, c, idx) ->
+    lwt Cql.insertMLSClientIfNotExists (groupId, dom, usr, c, idx)
+  upd <- for ops.roMemberUpdateLeaf $ \(dom, usr, c, idx) ->
+    lwt Cql.updateMLSClientLeafIfNotPending (idx, groupId, dom, usr, c)
+  del <- for ops.roMemberDelete $ \(dom, usr, c) ->
+    lwt Cql.removeMLSClientIfNotPending (groupId, dom, usr, c)
+  pure (applied ins, applied upd, applied del)
+  where
+    lwt :: (Tuple p) => PrepQuery W p Row -> p -> Client Bool
+    lwt q p =
+      checkTransSuccess
+        <$> retry
+          x5
+          (trans q (params LocalQuorum p) {serialConsistency = Just LocalSerialConsistency})
+
+    applied :: [Bool] -> Int
+    applied = length . filter id
+
+getGroupInfoValidatedHash :: ConvOrSubConvId -> Client (Maybe ByteString)
+getGroupInfoValidatedHash convOrSub =
+  fmap (LBS.toStrict . fromBlob) . (runIdentity =<<) <$> case convOrSub of
+    Conv cid ->
+      retry x5 (query1 Cql.selectGroupInfoValidatedHash (params LocalQuorum (Identity cid)))
+    SubConv cid sub ->
+      retry x5 (query1 Cql.selectSubConvGroupInfoValidatedHash (params LocalQuorum (cid, sub)))
+
+setGroupInfoValidatedHash :: ConvOrSubConvId -> Maybe ByteString -> Client ()
+setGroupInfoValidatedHash convOrSub mHash =
+  retry x5 $ case convOrSub of
+    Conv cid ->
+      write Cql.updateGroupInfoValidatedHash (params LocalQuorum (blob, cid))
+    SubConv cid sub ->
+      write Cql.updateSubConvGroupInfoValidatedHash (params LocalQuorum (blob, cid, sub))
+  where
+    blob = Blob . LBS.fromStrict <$> mHash
 
 -----------------------------------------------------------------------------------------
 -- SUB CONVERSATION STORE
@@ -1064,6 +1093,12 @@ interpretConversationStoreToCassandra client = interpret $ \case
   ReconcileMLSClients gid leaves -> do
     logEffect "ConversationStore.ReconcileMLSClients"
     embedClient client $ reconcileMLSClients gid leaves
+  GetGroupInfoValidatedHash convOrSub -> do
+    logEffect "ConversationStore.GetGroupInfoValidatedHash"
+    embedClient client $ getGroupInfoValidatedHash convOrSub
+  SetGroupInfoValidatedHash convOrSub mHash -> do
+    logEffect "ConversationStore.SetGroupInfoValidatedHash"
+    embedClient client $ setGroupInfoValidatedHash convOrSub mHash
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
@@ -1487,6 +1522,18 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ reconcileMLSClients gid leaves
         True -> interpretConversationStoreToPostgres (ConvStore.reconcileMLSClients gid leaves)
+  GetGroupInfoValidatedHash convOrSub -> do
+    logEffect "ConversationStore.GetGroupInfoValidatedHash"
+    withMigrationLockAndCleanup client LockShared (Left convOrSub.conv) $
+      isConvInPostgres convOrSub.conv >>= \case
+        False -> embedClient client $ getGroupInfoValidatedHash convOrSub
+        True -> interpretConversationStoreToPostgres $ ConvStore.getGroupInfoValidatedHash convOrSub
+  SetGroupInfoValidatedHash convOrSub mHash -> do
+    logEffect "ConversationStore.SetGroupInfoValidatedHash"
+    withMigrationLockAndCleanup client LockShared (Left convOrSub.conv) $
+      isConvInPostgres convOrSub.conv >>= \case
+        False -> embedClient client $ setGroupInfoValidatedHash convOrSub mHash
+        True -> interpretConversationStoreToPostgres $ ConvStore.setGroupInfoValidatedHash convOrSub mHash
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx

@@ -149,9 +149,7 @@ withCommitLock lConvOrSubId gid epoch =
       ( const $
           ( do
               actualEpoch <-
-                fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
-                  Conv cnv -> getConversationEpoch cnv
-                  SubConv cnv sub -> getSubConversationEpoch cnv sub
+                fromMaybe (Epoch 0) <$> getConvOrSubEpoch (tUnqualified lConvOrSubId)
               unless (actualEpoch == epoch) $ do
                 logStaleCommitLock
                   "commit-lock-epoch-mismatch"

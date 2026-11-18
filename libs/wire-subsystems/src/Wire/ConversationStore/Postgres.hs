@@ -121,6 +121,8 @@ interpretConversationStoreToPostgres = interpret $ \case
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
   LookupHistoryClients gid -> lookupHistoryClientsImpl gid
   ReconcileMLSClients gid leaves -> reconcileMLSClientsImpl gid leaves
+  GetGroupInfoValidatedHash convOrSub -> getGroupInfoValidatedHashImpl convOrSub
+  SetGroupInfoValidatedHash convOrSub mHash -> setGroupInfoValidatedHashImpl convOrSub mHash
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
   UpsertSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
@@ -1186,6 +1188,7 @@ reconcileMLSClientsImpl gid leaves = do
                              AND user_domain = t.domain
                              AND "user" = t.usr
                              AND client = t.cl
+                             AND NOT removal_pending
                             |]
 
     deleteStaleMembers :: Hasql.Statement (GroupId, [Domain], [UserId], [ClientId]) ()
@@ -1195,6 +1198,7 @@ reconcileMLSClientsImpl gid leaves = do
                              WHERE group_id = ($1 :: bytea)
                              AND (user_domain, "user", client) IN
                                (SELECT * FROM UNNEST($2 :: text[], $3 :: uuid[], $4 :: text[]))
+                             AND NOT removal_pending
                             |]
 
     insertHistoryClients :: Hasql.Statement (GroupId, [HistoryClientId], [Int32]) ()
@@ -1216,6 +1220,7 @@ reconcileMLSClientsImpl gid leaves = do
                              FROM UNNEST($2 :: uuid[], $3 :: integer[]) AS t(hid, idx)
                              WHERE group_id = ($1 :: bytea)
                              AND id = t.hid
+                             AND NOT removal_pending
                             |]
 
     deleteHistoryClients :: Hasql.Statement (GroupId, [HistoryClientId]) ()
@@ -1224,6 +1229,51 @@ reconcileMLSClientsImpl gid leaves = do
         [resultlessStatement|DELETE FROM mls_history_client
                              WHERE group_id = ($1 :: bytea)
                              AND id IN (SELECT * FROM UNNEST($2 :: uuid[]))
+                             AND NOT removal_pending
+                            |]
+
+getGroupInfoValidatedHashImpl :: (PGConstraints r) => ConvOrSubConvId -> Sem r (Maybe ByteString)
+getGroupInfoValidatedHashImpl = \case
+  Conv cid -> join <$> runStatement cid selectConv
+  SubConv cid sub -> join <$> runStatement (cid, sub) selectSubConv
+  where
+    selectConv :: Hasql.Statement ConvId (Maybe (Maybe ByteString))
+    selectConv =
+      lmapPG
+        [maybeStatement|SELECT (group_info_validated_hash :: bytea?)
+                        FROM conversation
+                        WHERE id = ($1 :: uuid)
+                       |]
+
+    selectSubConv :: Hasql.Statement (ConvId, SubConvId) (Maybe (Maybe ByteString))
+    selectSubConv =
+      lmapPG
+        [maybeStatement|SELECT (group_info_validated_hash :: bytea?)
+                        FROM subconversation
+                        WHERE conv_id = ($1 :: uuid)
+                        AND subconv_id = ($2 :: text)
+                       |]
+
+setGroupInfoValidatedHashImpl :: (PGConstraints r) => ConvOrSubConvId -> Maybe ByteString -> Sem r ()
+setGroupInfoValidatedHashImpl convOrSub mHash = case convOrSub of
+  Conv cid -> runStatement (cid, mHash) updateConv
+  SubConv cid sub -> runStatement (cid, sub, mHash) updateSubConv
+  where
+    updateConv :: Hasql.Statement (ConvId, Maybe ByteString) ()
+    updateConv =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET group_info_validated_hash = ($2 :: bytea?)
+                             WHERE id = ($1 :: uuid)
+                            |]
+
+    updateSubConv :: Hasql.Statement (ConvId, SubConvId, Maybe ByteString) ()
+    updateSubConv =
+      lmapPG
+        [resultlessStatement|UPDATE subconversation
+                             SET group_info_validated_hash = ($3 :: bytea?)
+                             WHERE conv_id = ($1 :: uuid)
+                             AND subconv_id = ($2 :: text)
                             |]
 
 lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
