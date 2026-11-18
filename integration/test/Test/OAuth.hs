@@ -262,6 +262,18 @@ testOAuthAccessTokenNamesClient = do
   refreshedToken <- refreshed %. "access_token" & asString
   accessTokenClaims refreshedToken >>= (%. "client_id") >>= (`shouldMatch` cid)
 
+-- | An authorization code can only be redeemed by the client it was issued
+-- to, since that client ends up in the token's @client_id@ claim.
+testOAuthCodeRedeemedByOtherClient :: (HasCallStack) => App ()
+testOAuthCodeRedeemedByOtherClient = do
+  user <- randomUser OwnDomain def
+  cid <- oauthClient user
+  otherCid <- oauthClient user
+  authCodeResponse <- generateOAuthAuthorizationCode user cid ["read:self"] redirectUri
+  let location = fromMaybe (error "no location header") $ parseURI . cs . snd =<< locationHeader authCodeResponse
+      code = maybe "no code query param" cs $ join $ lookup (cs "code") $ parseQuery $ cs location.uriQuery
+  createOAuthAccessToken user otherCid code redirectUri >>= assertLabel 403 "forbidden"
+
 --------------------------------------------------------------------------------
 -- helpers
 

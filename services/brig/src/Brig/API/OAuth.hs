@@ -248,10 +248,10 @@ createAccessTokenWithAuthorizationCode req = do
     lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode req.code)
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
   luid <- qualifyLocal uid
-  -- The code was issued to 'cid', which ends up in the token's client_id
-  -- claim: it may only be redeemed by that same client.
-  unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   oauthClient <- getOAuthClient luid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  -- The code was issued to 'cid', which ends up in the token's client_id
+  -- claim: it may only be redeemed by that same (registered) client.
+  unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   unless (uri == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (oauthClient.redirectUrl == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
