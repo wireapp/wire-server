@@ -37,7 +37,9 @@ import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
 import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
+import Wire.CargoholdAPIAccess qualified as CargoholdAPIAccess
 import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.ConnectionStore (ConnectionStore)
 import Wire.Events (Events)
 import Wire.InvitationStore (InvitationStore)
@@ -80,6 +82,13 @@ onEvent n = handleTimeout $ case n of
   DeleteClient clientId uid mcon -> do
     rmClient uid clientId
     Intra.onClientEvent uid mcon (ClientRemoved clientId)
+    -- The row may still exist if this event raced the removal. It must be gone before the
+    -- backups are deleted: an upload racing this either has its object listed by the deletion,
+    -- or sees the client gone after its PUT and deletes the object itself.
+    ClientStore.delete uid clientId
+    -- Last: a failing deletion makes the queue redeliver the event (everything above is
+    -- idempotent) without blocking the client removal.
+    CargoholdAPIAccess.deleteBackupsOfClient uid clientId
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")

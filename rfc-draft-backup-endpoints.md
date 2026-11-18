@@ -516,8 +516,8 @@ Readiness and races (lock-free concurrency safety):
 - A failed upload (storage error, short body, disconnect, client removed
   meanwhile) deletes the object it created.
 - After the PUT, the server re-checks that the client still exists and deletes
-  the object if not. Brig deletes the client before its backups, so a client
-  deletion racing an upload leaves no orphan (see "Deletion and upload
+  the object if not. Brig deletes the backups only after the client row is
+  gone, so a client deletion racing an upload leaves no orphan (see "Deletion and upload
   ordering").
 - No TTL or staleness handling is needed. Clients that are unsure about a full
   upload can repeat it: the newest full wins.
@@ -543,12 +543,15 @@ off.
 
 ### Deletion and upload ordering
 
-Brig deletes the client (row) first and then its backups (Cargohold, by
-prefix). An upload first PUTs the object and only then asks brig whether the
-client still exists; if not, it deletes the object again and fails. Either the
-prefix deletion sees the object, or the uploader sees the client gone: no
-backup outlives its client. This relies on brig reads being consistent with its
-writes and on the list-after-write consistency above. A failing Cargohold call
-makes the client removal fail with 5xx.
+The client removal request never directly touches Cargohold (clients can be
+removed for security reasons, so a failing Cargohold must not affect it): Brig
+deletes the client row and enqueues the deletion. The consumer of that queue
+deletes the client row again (idempotent) and then the client's backups
+(Cargohold, by prefix), and is retried until that succeeds.
 
-**Open issues:** Orphans of a failed client removal (the client row is gone, the Cargohold call failed and a retry sees `ClientNotFound`); follow-up: best-effort deletion plus a sweep.
+Uploads and removals are ordered so that no backup outlives its client. The client row is
+always deleted before the backups. An upload first PUTs the object and then asks brig
+whether the client still exists; if not, it deletes the object again and fails. So for any
+upload overlapping a removal, either the prefix deletion lists the object, or the re-check
+sees the client gone and the upload process deletes its object.
+

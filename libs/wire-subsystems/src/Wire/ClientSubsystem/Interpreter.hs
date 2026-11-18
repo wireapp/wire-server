@@ -58,8 +58,6 @@ import Wire.API.UserMap
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error
-import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
-import Wire.CargoholdAPIAccess qualified as Cargohold
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem (..), ReAuthPolicy (..))
@@ -96,7 +94,6 @@ runClientSubsystem ::
     Member Events r,
     Member EmailSubsystem r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member (Input ClientSubsystemConfig) r,
     Member (Error FederationError) r,
     Member (Concurrency 'Unsafe) r
@@ -144,7 +141,6 @@ addClient ::
     Member Events r,
     Member EmailSubsystem r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member (Input ClientSubsystemConfig) r
   ) =>
   ReAuthPolicy ->
@@ -349,16 +345,13 @@ onClientEvent orig conn e = do
 
 -- | Enqueue an orderly deletion of an existing client.
 --
--- The client's backups are deleted in cargohold /after/ the client row is gone. Together
--- with the order in 'Wire.BackupSubsystem.Interpreter.uploadBackupImpl' (PUT the S3 object,
--- then re-check the client) this guarantees that no backup outlives its client: either this
--- removal lists the uploaded object, or the uploader sees that the client is gone and deletes
--- it. Failure of the cargohold call propagates, i.e. the client removal fails.
+-- The client's backups are not deleted here: the queue consumer
+-- ('Brig.InternalEvent.Process.onEvent') deletes them, retried until it succeeds, so that a
+-- failing cargohold never affects the removal of a client (which may be security relevant).
 execDelete ::
   ( Member DeleteQueue r,
     Member AuthenticationSubsystem r,
-    Member ClientStore r,
-    Member CargoholdAPIAccess r
+    Member ClientStore r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -368,7 +361,6 @@ execDelete u con c = do
   for_ (clientCookie c) $ \l -> Authentication.revokeCookies u [] [l]
   DeleteQueue.enqueueClientDeletion c.clientId u con
   ClientStore.delete u c.clientId
-  Cargohold.deleteBackupsOfClient u c.clientId
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -376,8 +368,7 @@ rmClient ::
   ( Member AuthenticationSubsystem r,
     Member ClientStore r,
     Member (Error ClientError) r,
-    Member DeleteQueue r,
-    Member CargoholdAPIAccess r
+    Member DeleteQueue r
   ) =>
   UserId ->
   ConnId ->
@@ -403,8 +394,7 @@ removeLegalHoldClient ::
   ( Member Events r,
     Member ClientStore r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member CargoholdAPIAccess r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Sem r ()
@@ -469,7 +459,6 @@ claimPrekey ::
     Member TinyLog r,
     Member ClientStore r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r,
     HasBrigFederationAccess m r,
@@ -490,7 +479,6 @@ claimLocalPrekey ::
   ( Member ClientStore r,
     Member TinyLog r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r
   ) =>
@@ -556,7 +544,6 @@ claimMultiPrekeyBundlesInternal ::
     Member GalleyAPIAccess r,
     Member TinyLog r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member AuthenticationSubsystem r
   ) =>
   LegalholdProtectee ->
@@ -591,7 +578,6 @@ claimMultiPrekeyBundlesV3 ::
     Member (Input (Local ())) r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member (Error FederationError) r
   ) =>
   LegalholdProtectee ->
@@ -618,8 +604,7 @@ claimMultiPrekeyBundles ::
     HasBrigFederationAccess m r,
     Member (Input (Local ())) r,
     Member AuthenticationSubsystem r,
-    Member DeleteQueue r,
-    Member CargoholdAPIAccess r
+    Member DeleteQueue r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -655,7 +640,6 @@ claimLocalMultiPrekeyBundles ::
     Member GalleyAPIAccess r,
     Member TinyLog r,
     Member DeleteQueue r,
-    Member CargoholdAPIAccess r,
     Member AuthenticationSubsystem r
   ) =>
   LegalholdProtectee ->
@@ -699,8 +683,7 @@ noPrekeys ::
   ( Member ClientStore r,
     Member TinyLog r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member CargoholdAPIAccess r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   ClientId ->

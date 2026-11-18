@@ -141,14 +141,20 @@ back to `ListObjectsV2` plus plain delete.
 
 ## Deletion / upload ordering invariant
 
-A client's backups are deleted in cargohold /after/ the client row is gone
-(`execDelete` in `Wire.ClientSubsystem.Interpreter`). Together with the order
-in `uploadBackupImpl` (`Wire.BackupSubsystem.Interpreter`: PUT the object,
-then re-check the client) no backup outlives its client: either the prefix
-listing of the deletion sees the uploaded object, or the uploader sees the
-client is gone and deletes that object again. This relies on strong
-list-after-write consistency. Failure of the cargohold call propagates, i.e.
-the client removal fails.
+Client removal never touches cargohold directly: it only enqueues the client
+deletion and deletes the client row (`execDelete` in
+`Wire.ClientSubsystem.Interpreter`), so an unavailable cargohold or S3 cannot
+block it (clients may be removed for security reasons). The queue consumer
+(`Brig.InternalEvent.Process.onEvent`, `DeleteClient`) deletes the client row
+again (idempotent), then the client's backups, as its last step. A failing
+deletion makes the queue redeliver the event until it succeeds.
+
+Uploads and removals are ordered so that no backup outlives its client. Brig deletes the
+client row before the backups. An upload (`uploadBackupImpl`,
+`Wire.BackupSubsystem.Interpreter`) first PUTs the object and only then re-checks that the
+client exists, deleting the object if not. So for any upload overlapping a removal, either
+the backup deletion lists the object, or the re-check sees the client gone and the upload
+deletes its object.
 
 ## Known limitations
 
@@ -157,15 +163,9 @@ the client removal fails.
 - With `aws.multiIngress` configured, backup download URLs are signed with the
   default S3 env (`s3Endpoint`) and may be unreachable to clients. Follow-up:
   thread `Z-Host` through.
-- Client removal deletes the client row first, then the backups. If the
-  cargohold call fails after the row deletion, a retry hits `ClientNotFound`
-  and that client's backups can be orphaned. This is inherent to the ordering.
-- Client removal (`DELETE /clients/:cid`, and eviction of an old client when
-  `POST /clients` adds one) and account deletion now synchronously call
-  cargohold. If cargohold or S3 is unavailable these fail with 5xx.
-  After a failed removal the client row may already be gone, so a retry sees
-  `ClientNotFound` and that client's backups may be orphaned. Follow-up:
-  best-effort deletion plus a sweep.
+- Backups of a removed client are deleted asynchronously by the brig delete queue, which
+  redelivers until cargohold succeeds. Until then they are unreachable via the API (reads
+  need a live client). There is no dead-letter handling beyond the queue's own configuration.
 - Bot accounts are deleted without backup cleanup (`deleteBot` in
   `Brig.Provider.API` only calls `ClientStore.delete`). Bots are assumed unable
   to upload (no team feature); not verified in code.
