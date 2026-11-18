@@ -37,6 +37,20 @@ import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Retry
 
+-- | Migration advisory lock keys must stay stable across server versions so
+-- instances coordinate during rolling upgrades. The two-integer and
+-- single-bigint advisory lock key spaces are distinct.
+--
+-- The first integer is an arbitrarily chosen namespace key; the second
+-- identifies notification fan-in migrations within that namespace.
+notificationFanInMigrationLockKey :: (Int32, Int32)
+notificationFanInMigrationLockKey = (1463899717, 1)
+
+-- | Non-transactional migrations are serialized per script name. Preserve the
+-- hash input and algorithm when changing migration code.
+nonTransactionMigrationLockKey :: ScriptName -> Int64
+nonTransactionMigrationLockKey = fromIntegral . Hashable.hash
+
 allMigrations :: [MigrationCommand]
 allMigrations = map (\(name, contentBS) -> MigrationScript name (Text.decodeUtf8 contentBS)) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
@@ -99,7 +113,7 @@ runAllMigrations pool logger = do
     -- released.
     withLock :: ScriptName -> Session a -> Session a
     withLock name migration = do
-      let lockId = fromIntegral $ Hashable.hash name
+      let lockId = nonTransactionMigrationLockKey name
 
       void . retrying (constantDelay 1_000_000) (const $ pure . not) $ \_ ->
         Session.statement lockId tryLockNonTransactionMigration

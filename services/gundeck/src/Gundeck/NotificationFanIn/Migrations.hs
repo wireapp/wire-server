@@ -15,6 +15,7 @@ import Hasql.Transaction.Sessions
 import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
+import Wire.PostgresMigrations (notificationFanInMigrationLockKey)
 
 fanInMigrations :: [MigrationCommand]
 fanInMigrations =
@@ -22,10 +23,9 @@ fanInMigrations =
     (\(name, content) -> MigrationScript name (Text.decodeUtf8 content))
     $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
-fanInMigrationLock :: Statement () ()
+fanInMigrationLock :: Statement (Int32, Int32) ()
 fanInMigrationLock =
-  -- The first key is the ASCII "WIRE" namespace; the second identifies fan-in migrations.
-  [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_xact_lock(1463899717, 1)) AS t|]
+  [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_xact_lock($1 :: integer, $2 :: integer)) AS t|]
 
 data FanInMigrationError
   = FanInMigrationError MigrationError
@@ -40,7 +40,7 @@ runMigrations pool logger = do
         Log.info logger $ Log.msg (Log.val "Running notification fan-in migrations")
         forM_ (MigrationInitialization : fanInMigrations) $ \migration -> do
           result <- transaction ReadCommitted Write $ do
-            Tx.statement () fanInMigrationLock
+            Tx.statement notificationFanInMigrationLockKey fanInMigrationLock
             runMigration migration
           for_ result $ throw . FanInMigrationError
         Log.info logger $ Log.msg (Log.val "Notification fan-in migrations completed")
