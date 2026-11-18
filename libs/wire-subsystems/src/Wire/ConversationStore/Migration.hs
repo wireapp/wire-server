@@ -267,16 +267,21 @@ saveConvToPostgres allConvData = do
           (.groupInfoValidatedHash) =<< allConvData.mlsDetails
         )
   runTransactionWithRetry ReadCommitted Write $ do
-    Transaction.statement convRow insertConv
-    Transaction.statement localMemberColumns insertLocalMembers
-    Transaction.statement remoteMemberColumns insertRemoteMembers
-    Transaction.statement subConvColumns insertSubConvs
-    Transaction.statement mlsClientColumns insertMLSClients
+    convInserted <- (> 0) <$> Transaction.statement convRow insertConv
+    -- If the conversation is already in Postgres (e.g. a previous migration
+    -- committed but the Cassandra delete was lost), its data there is fresher:
+    -- skip all child inserts rather than merging stale members,
+    -- subconversations or MLS client rows into it.
+    when convInserted $ do
+      Transaction.statement localMemberColumns insertLocalMembers
+      Transaction.statement remoteMemberColumns insertRemoteMembers
+      Transaction.statement subConvColumns insertSubConvs
+      Transaction.statement mlsClientColumns insertMLSClients
     Transaction.statement (DeleteConv, storedConv.id_) markDeletionPendingStmt
   where
     storedConv = allConvData.conv
-    -- In all these queries we do nothing on conflict because if the data is in
-    -- Postgres it is considered fresher and data from Cassandra is ignored.
+    -- insertConv reports whether the row was new; children are only inserted
+    -- for a new conversation.
     insertConv ::
       Hasql.Statement
         ( ConvId,
@@ -301,10 +306,10 @@ saveConvToPostgres allConvData = do
           Maybe HistoryDuration,
           Maybe ByteString
         )
-        ()
+        Int64
     insertConv =
       lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
-        [resultlessStatement|INSERT INTO conversation
+        [rowsAffectedStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
                               group_id, epoch, epoch_timestamp, cipher_suite, public_group_state,
@@ -457,6 +462,7 @@ saveConvToPostgres allConvData = do
                              FROM UNNEST ($1 :: uuid[], $2 :: text[], $3 :: integer?[],
                                           $4 :: bigint[], $5 :: timestamptz[], $6 :: bytea[], $7 :: bytea?[],
                                           $8 :: bytea?[])
+                             ON CONFLICT (conv_id, subconv_id) DO NOTHING
                             |]
 
 -- * Users

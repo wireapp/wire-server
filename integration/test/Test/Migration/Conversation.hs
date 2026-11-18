@@ -198,12 +198,50 @@ testGhostMemberRowRepairAfterMigration = do
       void $ uploadNewKeyPackage def alice2
       void $ createExternalCommit convId alice2 Nothing >>= sendAndConsumeCommitBundle
 
-      rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
-      clients <- for rows $ \r -> do
-        uid <- r %. "client.user_id" & asString
-        cid <- r %. "client.client_id" & asString
-        pure (uid, cid)
+      clients <- memberClientIds alice convId
       clients `shouldContain` [(bob1.user, bob1.client)]
+
+-- | Same as 'testGhostMemberRowRepairAfterMigration' for a subconversation,
+-- whose digest is migrated with the subconversation row.
+testGhostSubConvMemberRowRepairAfterMigration :: (HasCallStack) => App ()
+testGhostSubConvMemberRowRepairAfterMigration = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
+    let domainM = migratingBackend.berDomain
+    (alice, bob, alice1, bob1, subConvId) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+      [alice, bob] <- createAndConnectUsers [domainM, domainM]
+      [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+      void $ uploadNewKeyPackage def bob1
+      convId <- createNewGroup def alice1
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+      createSubConv def convId alice1 "conference"
+      subConvId <- getSubConvId alice convId "conference"
+      -- The latest digest (bob1's external join) is at the live epoch.
+      void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+      pure (alice, bob, alice1, bob1, subConvId)
+
+    runCodensity (startDynamicBackend migratingBackend phase3Overrides) $ \_ -> do
+      waitForMigration domainM convMigrationFinishedCounterName
+      waitForMigration domainM userMigrationFinishedCounterName
+
+    runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
+      -- Inject the damage in Postgres: delete bob1's subconversation row.
+      void $ I.deleteMLSMemberClient alice subConvId bob bob1.client >>= assertSuccess
+
+      -- Any commit bundle triggers the repair; an empty commit will do.
+      void $ createPendingProposalCommit subConvId alice1 >>= sendAndConsumeCommitBundle
+
+      clients <- memberClientIds alice subConvId
+      clients `shouldContain` [(bob1.user, bob1.client)]
+
+-- | (user id, client id) of the member-client rows of an MLS group.
+memberClientIds :: (HasCallStack, MakesValue user) => user -> ConvId -> App [(String, String)]
+memberClientIds user convId = do
+  rows <- I.getMLSMemberClients user convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+  for rows $ \r -> do
+    uid <- r %. "client.user_id" & asString
+    cid <- r %. "client.client_id" & asString
+    pure (uid, cid)
 
 testMigrationToPostgresProteus :: App ()
 testMigrationToPostgresProteus = do
