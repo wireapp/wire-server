@@ -270,7 +270,7 @@ defAllFeatures =
             "ttl" .= "unlimited",
             "config"
               .= object
-                [ "schedule" .= "weekly",
+                [ "enforcedSchedule" .= "weekly",
                   "enforced" .= False,
                   "serverOnly" .= False
                 ]

@@ -319,13 +319,13 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-
 
 ### `/teams/<TeamId>/features/automaticBackups`
 
-Generic team feature API. `<ConfigBody>` is `{"schedule": <BackupSchedule>, "enforced": <Bool>, "serverOnly": <Bool>}`.
+Generic team feature API. `<ConfigBody>` is `{"enforcedSchedule": <BackupSchedule>, "enforced": <Bool>, "serverOnly": <Bool>}`.
 
 Defaults:
 
 - `status`: `disabled`
 - `lockStatus`: `unlocked`
-- `schedule`: `weekly`
+- `enforcedSchedule`: `weekly`
 - `enforced`: `false`
 - `serverOnly`: `false` (This flag is checked on uploads only.)
 
@@ -343,7 +343,7 @@ Example: `GET /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 {
   "status": "enabled",
   "lockStatus": "unlocked",
-  "config": { "schedule": "daily", "enforced": false, "serverOnly": false },
+  "config": { "enforcedSchedule": "daily", "enforced": false, "serverOnly": false },
   "ttl": "unlimited"
 }
 ```
@@ -363,7 +363,7 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 ```json
 {
   "status": "enabled",
-  "config": { "schedule": "daily", "enforced": false, "serverOnly": false }
+  "config": { "enforcedSchedule": "daily", "enforced": false, "serverOnly": false }
 }
 ```
 
@@ -373,7 +373,7 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 {
   "status": "enabled",
   "lockStatus": "unlocked",
-  "config": { "schedule": "daily", "enforced": false, "serverOnly": false },
+  "config": { "enforcedSchedule": "daily", "enforced": false, "serverOnly": false },
   "ttl": "unlimited"
 }
 ```

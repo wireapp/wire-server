@@ -35,7 +35,7 @@ defaultFeature =
       "ttl" .= "unlimited",
       "config"
         .= object
-          [ "schedule" .= "weekly",
+          [ "enforcedSchedule" .= "weekly",
             "enforced" .= False,
             "serverOnly" .= False
           ]
@@ -44,7 +44,7 @@ defaultFeature =
 customConfig :: Value
 customConfig =
   object
-    [ "schedule" .= "daily",
+    [ "enforcedSchedule" .= "daily",
       "enforced" .= True,
       "serverOnly" .= True
     ]
@@ -84,7 +84,7 @@ testAutomaticBackupsLocked = do
 testAutomaticBackupsInvalidSchedule :: (HasCallStack) => App ()
 testAutomaticBackupsInvalidSchedule = do
   (alice, tid, _) <- createTeam OwnDomain 0
-  let invalid = object ["status" .= "enabled", "config" .= object ["schedule" .= "hourly", "enforced" .= False, "serverOnly" .= False]]
+  let invalid = object ["status" .= "enabled", "config" .= object ["enforcedSchedule" .= "hourly", "enforced" .= False, "serverOnly" .= False]]
   bindResponse (Public.setTeamFeatureConfig alice tid featureName invalid) $ \resp ->
     resp.status `shouldMatchInt` 400
 

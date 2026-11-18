@@ -43,7 +43,7 @@ backupFeature :: String -> Value
 backupFeature status =
   object
     [ "status" .= status,
-      "config" .= object ["schedule" .= "weekly", "enforced" .= False, "serverOnly" .= False]
+      "config" .= object ["enforcedSchedule" .= "weekly", "enforced" .= False, "serverOnly" .= False]
     ]
 
 -- REVIEW: Quite some duplication with disableBackups. extract base function?

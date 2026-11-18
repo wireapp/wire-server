@@ -880,7 +880,7 @@ config:
 ### Automatic Backups
 
 Feature toggle for `automaticBackups`. It carries a config with the backup
-`schedule` (`daily`, `weekly` or `monthly`), `enforced` (whether users must
+`enforcedSchedule` (`daily`, `weekly` or `monthly`), `enforced` (whether users must
 back up) and `serverOnly` (whether backups are stored on the server only).
 The lock status for individual teams can be changed via the internal API
 (`PUT /i/teams/:tid/features/automaticBackups/(un)?locked`).
@@ -897,7 +897,7 @@ config:
           status: disabled
           lockStatus: unlocked
           config:
-            schedule: weekly
+            enforcedSchedule: weekly
             enforced: false
             serverOnly: false
 ```

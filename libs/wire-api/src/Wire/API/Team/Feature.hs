@@ -2540,7 +2540,7 @@ instance ToSchema BackupSchedule where
         ]
 
 data AutomaticBackupsConfigB t f = AutomaticBackupsConfig
-  { schedule :: Wear t f BackupSchedule,
+  { enforcedSchedule :: Wear t f BackupSchedule,
     enforced :: Wear t f Bool,
     serverOnly :: Wear t f Bool
   }
@@ -2577,7 +2577,7 @@ instance (Typeable f, FieldF f) => ToSchema (AutomaticBackupsConfigB Covered f) 
   schema =
     object $
       AutomaticBackupsConfig
-        <$> (.schedule) .= fieldF "schedule" schema
+        <$> (.enforcedSchedule) .= fieldF "enforcedSchedule" schema
         <*> (.enforced) .= fieldF "enforced" schema
         <*> (.serverOnly) .= fieldF "serverOnly" schema
 

@@ -371,7 +371,7 @@ galley:
             status: disabled
             lockStatus: unlocked
             config:
-              schedule: weekly
+              enforcedSchedule: weekly
               enforced: false
               serverOnly: false
     aws:
