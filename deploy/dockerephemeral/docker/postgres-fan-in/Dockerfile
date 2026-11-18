@@ -1,4 +1,4 @@
-FROM postgres:17.11-trixie
+FROM postgres:17.5-trixie
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends postgresql-17-partman \
