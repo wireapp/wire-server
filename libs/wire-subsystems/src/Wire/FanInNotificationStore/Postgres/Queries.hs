@@ -22,6 +22,7 @@
 -- keeps separate typed operations for each scope.
 module Wire.FanInNotificationStore.Postgres.Queries where
 
+import Data.Bifunctor (bimap)
 import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Profunctor (dimap, lmap)
@@ -86,7 +87,7 @@ userStatements =
       |],
       notificationExists =
         lmap
-          (Data.Bifunctor.bimap toUUID toUUID)
+          (bimap toUUID toUUID)
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM user_notifications
           WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
@@ -186,7 +187,7 @@ teamStatements =
       |],
       notificationExists =
         lmap
-          (Data.Bifunctor.bimap toUUID toUUID)
+          (bimap toUUID toUUID)
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM team_notifications
           WHERE team_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
@@ -286,7 +287,7 @@ localConnectionStatements =
       |],
       notificationExists =
         lmap
-          (Data.Bifunctor.bimap toUUID toUUID)
+          (bimap toUUID toUUID)
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM local_connection_notifications
           WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
@@ -329,7 +330,7 @@ remoteConnectionStatements =
       |],
       selectLast =
         dimap
-          (Data.Bifunctor.bimap domainText toUUID)
+          (bimap domainText toUUID)
           (fmap Id)
           [maybeStatement|
         SELECT notification_id :: uuid FROM last_remote_connection_notifications WHERE user_domain = ($1 :: text) AND user_id = ($2 :: uuid)
