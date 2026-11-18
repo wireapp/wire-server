@@ -17,9 +17,18 @@ import qualified API.GalleyInternal as I
 import Control.Applicative
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.ByteString.Base64.Lazy as B64L
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
+import Data.String.Conversions (cs)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.UUID (UUID)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
+import qualified Database.CQL.IO as Cql
+import Database.CQL.Protocol (Blob (..))
 import GHC.Stack
 import MLS.Util
 import Notifications
@@ -186,9 +195,7 @@ testGhostMemberRowRepairAfterMigration = do
       void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
       pure (alice, bob, alice2, bob1, convId)
 
-    runCodensity (startDynamicBackend migratingBackend phase3Overrides) $ \_ -> do
-      waitForMigration domainM convMigrationFinishedCounterName
-      waitForMigration domainM userMigrationFinishedCounterName
+    runPhase3Migration migratingBackend
 
     runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
       -- Inject the damage in Postgres: delete bob1's member-client row.
@@ -220,9 +227,7 @@ testGhostSubConvMemberRowRepairAfterMigration = do
       void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
       pure (alice, bob, alice1, bob1, subConvId)
 
-    runCodensity (startDynamicBackend migratingBackend phase3Overrides) $ \_ -> do
-      waitForMigration domainM convMigrationFinishedCounterName
-      waitForMigration domainM userMigrationFinishedCounterName
+    runPhase3Migration migratingBackend
 
     runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
       -- Inject the damage in Postgres: delete bob1's subconversation row.
@@ -233,6 +238,67 @@ testGhostSubConvMemberRowRepairAfterMigration = do
 
       clients <- memberClientIds alice subConvId
       clients `shouldContain` [(bob1.user, bob1.client)]
+
+-- | WPB-29949: a conversation that is already in Postgres when it is migrated
+-- again (a previous migration committed but its Cassandra delete was lost)
+-- keeps its Postgres data: stale Cassandra member-client rows are not merged
+-- into the live group. The first migration already deleted alice1's and
+-- bob1's Cassandra rows, so without the guard the stale row would be inserted
+-- without any conflict.
+testRemigrationDoesNotMergeStaleCassandraData :: (HasCallStack) => App ()
+testRemigrationDoesNotMergeStaleCassandraData = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
+    let domainM = migratingBackend.berDomain
+        galleyKeyspace = migratingBackend.berGalleyKeyspace
+        selectConvJson :: Cql.PrepQuery Cql.R (Identity UUID) (Identity Text)
+        selectConvJson = fromString $ "SELECT JSON * FROM " <> galleyKeyspace <> ".conversation WHERE conv = ?"
+        insertConvJson :: Cql.PrepQuery Cql.W (Identity Text) ()
+        insertConvJson = fromString $ "INSERT INTO " <> galleyKeyspace <> ".conversation JSON ?"
+        insertMemberClient :: Cql.PrepQuery Cql.W (Blob, Text, UUID, Text, Int32) ()
+        insertMemberClient = fromString $ "INSERT INTO " <> galleyKeyspace <> ".mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) VALUES (?, ?, ?, ?, ?, false)"
+
+    (alice, alice1, bob1, convId) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+      [alice, bob] <- createAndConnectUsers [domainM, domainM]
+      [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+      void $ uploadNewKeyPackage def bob1
+      convId <- createNewGroup def alice1
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+      pure (alice, alice1, bob1, convId)
+
+    convUuid <- assertJust "invalid conversation id" (UUID.fromString convId.id_)
+    gid <- assertJust "conversation has no MLS group id" convId.groupId
+    gidBytes <- either (assertFailure . ("invalid MLS group id: " <>)) pure (B64L.decode (cs gid))
+    let selectConvRow = Cql.query1 selectConvJson (Cql.defQueryParams Cql.LocalQuorum (Identity convUuid))
+    -- Snapshot the Cassandra conversation row (with its group info, which the
+    -- migration needs to copy MLS client rows) before the migration deletes it.
+    Identity convRow <- selectConvRow >>= assertJust "conversation missing in Cassandra"
+
+    runPhase3Migration migratingBackend
+
+    -- Simulate a lost Cassandra delete: the conversation reappears in
+    -- Cassandra, with a member-client row that Postgres does not have.
+    -- The stale user, client id and leaf index are arbitrary.
+    staleUser <- liftIO UUID.nextRandom
+    Cql.write insertConvJson (Cql.defQueryParams Cql.LocalQuorum (Identity convRow))
+    Cql.write
+      insertMemberClient
+      (Cql.defQueryParams Cql.LocalQuorum (Blob gidBytes, Text.pack domainM, staleUser, Text.pack "5ca1ab1e", 7))
+
+    runPhase3Migration migratingBackend
+    -- The stale Cassandra copy is cleaned up rather than left behind.
+    selectConvRow >>= assertNothing
+
+    runCodensity (startDynamicBackend migratingBackend phase5Overrides) $ \_ -> do
+      clients <- memberClientIds alice convId
+      clients `shouldMatchSet` [(alice1.user, alice1.client), (bob1.user, bob1.client)]
+
+-- | Run the background worker's migration until it has finished one pass.
+runPhase3Migration :: (HasCallStack) => BackendResource -> App ()
+runPhase3Migration backend =
+  runCodensity (startDynamicBackend backend phase3Overrides) $ \_ -> do
+    waitForMigration backend.berDomain convMigrationFinishedCounterName
+    waitForMigration backend.berDomain userMigrationFinishedCounterName
 
 -- | (user id, client id) of the member-client rows of an MLS group.
 memberClientIds :: (HasCallStack, MakesValue user) => user -> ConvId -> App [(String, String)]
