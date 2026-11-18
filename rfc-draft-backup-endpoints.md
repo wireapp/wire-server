@@ -43,6 +43,9 @@ This table describes the `<type>` placeholders used in described HTTP routes
 Rules shared by all routes under `/backups`:
 
 - If the server has no HMAC key configured (backups not configured), every route under `/backups` answers 403 `backup-feature-disabled`.
+- `Z-Client` must be a current client of the caller (checked against brig, the token alone doesn't prove it), else 404 `backup-not-found`.
+  - This guards against the case where a client has a valid authorization token, but gets deleted while the token is valid.
+- Only uploads check the team flag `automaticBackups`; reads work whatever its state.
 - There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig).
 - The server keeps at most the two newest epochs of a client: after a full file is stored (`POST …/full`) it deletes all files of every epoch except the two newest, i.e. the oldest one when a third epoch starts. Storing an incremental file deletes nothing.
 
@@ -54,7 +57,29 @@ Rules shared by all routes under `/backups`:
 - **Request body:** none
 - **Response:** 200 `{"clients": [<ClientBackups>]}`
 
-List the restorable backups of all clients of the caller, e.g. for a new client that restores a backup. Per client its epochs (ascending), per epoch a summary of the current files (see the rules below): `createdAt` is the creation time of the newest current file, `fileCount` the number of current files including the full, `size` their total bytes. Epochs without a full and clients without any epoch are omitted. Clients are ordered by their newest `createdAt`, newest first. `Z-Client` must be a client of the caller (else 404 `backup-not-found`). No team flag check. The summary is small whatever the number of files. To restore, the client picks an entry, lists its files with `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>` and fetches each via the download route.
+List the restorable backups of all clients of the caller; e.g. to provide an
+overview for a new client that restores a backup.
+
+Shows per client its epochs (ascending), per epoch a summary of the current
+files. The epoch's contents are:
+
+- `createdAt`: the creation time of the newest current file
+- `fileCount`: the number of current files including the full
+- `size`: their total bytes.
+
+Epochs without a full and clients without any epoch are omitted. (Epochs
+without a full can only exist due to technical corner cases, they have no
+meaning to clients and users.)
+
+Clients are ordered by their newest `createdAt`, newest first.
+
+The summary is small whatever the number of files: Listing all files as well
+could easily lead to huge payloads. Thus, we provide only a summary of the
+epochs here.
+
+To restore, the client picks an entry, lists its files with `GET
+/backups/clients/<ClientId>/epochs/<BackupEpoch>` and fetches each via the
+download route.
 
 Example: `GET /v19/backups` → `200`
 
@@ -82,10 +107,33 @@ Example: `GET /v19/backups` → `200`
 
 Rules shared by all routes under `/backups/clients/<ClientId>`:
 
-- Read routes (GET): `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. A client may read the backups of any client of the same user.
-- Write routes (POST): `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`) and be a client of the caller (else 404 `backup-not-found`).
+- Read routes (GET):
+  - `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`.
+  - A client may read the backups of any client of the same user.
+- Write routes (POST):
+  - `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. (Same rule as for GET.)
+  - `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`). I.e. clients can only write for their own, never for others!
 - A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
-- _Newest full wins_: a full upload replaces the epoch's previous full and the incrementals of it. The current full of an epoch is the one with the greatest `<BackupFileId>` (UUIDv7, i.e. server time). An incremental is stored under the full it extends (`<FullId>` in its path) and is current only while that full is the current one. The client learns a full's id from the response of the finished upload (or from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full that finished. An incremental of a replaced full is never listed, whatever the timing of the uploads, and the server deletes it on a later upload of the epoch.
+
+##### Newest full wins
+
+A full upload replaces the epoch's previous full and the incrementals of it.
+The current full of an epoch is the one with the greatest `<BackupFileId>`
+(UUIDv7, i.e. server time). An incremental is stored under the full it extends
+(`<FullId>` in its path) and is current only while that full is the current
+one. The client learns a full's id from the response of the finished upload (or
+from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full
+that finished. An incremental of a replaced full is never listed, whatever the
+timing of the uploads, and the server deletes it on a later upload of the
+epoch.
+
+This clear relation between fulls and incrementals prevents a couple of difficult issues:
+
+- Incrementals can never be accounted to a wrong full. (This would render the backup useless!)
+- Race-conditions on server-side regarding
+  - lock creation
+  - clock synchronization
+  - crashes
 
 ##### `/backups/clients/<ClientId>`
 
