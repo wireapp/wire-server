@@ -37,6 +37,7 @@ import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.CreateScimTokenResponse
 import Test.Wire.API.Golden.Manual.DomainVerification
 import Test.Wire.API.Golden.Manual.EnterpriseLogin
+import Test.Wire.API.Golden.Manual.FanIn qualified as FanIn
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationDomainConfig
 import Test.Wire.API.Golden.Manual.FederationRestriction
@@ -76,7 +77,8 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "TOTPEnrolment" $
+    [ FanIn.tests,
+      testGroup "TOTPEnrolment" $
         testObjects
           [ (testObject_TOTPEnrolment_1, "testObject_TOTPEnrolment_1.json"),
             (testObject_TOTPEnrolment_2, "testObject_TOTPEnrolment_2.json")
