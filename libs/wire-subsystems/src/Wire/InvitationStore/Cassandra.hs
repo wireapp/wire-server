@@ -43,6 +43,7 @@ interpretInvitationStoreToCassandra casClient =
     runEmbedded (runClient casClient) . \case
       InsertInvitation newInv timeout -> embed $ insertInvitationImpl newInv timeout
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
+      UpdateInvitationRole tid iid role -> embed $ updateInvitationRoleImpl tid iid role
       LookupInvitationsByEmail email -> embed $ lookupInvitationsByEmailImpl email
       InsertPendingScimUser tid email uid -> embed $ insertPendingScimUserImpl tid email uid
       LookupPendingScimUsers tid email -> embed $ lookupPendingScimUsersImpl tid email
@@ -84,6 +85,20 @@ insertInvitationImpl (insertInvToStoredInv -> inv@(MkStoredInvitation teamId rol
       [sql|
             INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?
           |]
+
+-- Do not rewrite the invitation: that would renew its code's lifetime. The
+-- conditional update also prevents recreating a concurrently deleted invitation.
+updateInvitationRoleImpl :: TeamId -> InvitationId -> Role -> Client ()
+updateInvitationRoleImpl tid iid role = do
+  remaining <- retry x1 $ query1 ttlQuery (params LocalQuorum (tid, iid))
+  for_ (remaining >>= runIdentity) $ \ttl ->
+    when (ttl > 0) $
+      void . retry x5 $ trans updateQuery (params LocalQuorum (ttl, role, tid, iid))
+  where
+    ttlQuery :: PrepQuery R (TeamId, InvitationId) (Identity (Maybe Int32))
+    ttlQuery = "SELECT TTL(code) FROM team_invitation WHERE team = ? AND id = ?"
+    updateQuery :: PrepQuery W (Int32, Role, TeamId, InvitationId) Row
+    updateQuery = "UPDATE team_invitation USING TTL ? SET role = ? WHERE team = ? AND id = ? IF EXISTS"
 
 lookupInvitationsPaginatedImpl :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> Client (PaginatedResult [StoredInvitation])
 lookupInvitationsPaginatedImpl mSize tid miid = do

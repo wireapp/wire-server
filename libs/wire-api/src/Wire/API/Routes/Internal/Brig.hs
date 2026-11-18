@@ -101,6 +101,7 @@ import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation (Invitation, ResendVerificationEmailResult)
 import Wire.API.Team.LegalHold.Internal
+import Wire.API.Team.Role (Role)
 import Wire.API.Team.Size qualified as Teamsize
 import Wire.API.User hiding (InvitationCode)
 import Wire.API.User qualified as User
@@ -863,6 +864,8 @@ type TeamsAPI =
     :<|> UnsuspendTeam
     :<|> TeamSize
     :<|> TeamInvitations
+    :<|> GetInvitationRole
+    :<|> UpdateInvitationRole
     :<|> GetScimUsersPaginated
 
 type InvitationByEmail =
@@ -934,6 +937,29 @@ type TeamInvitations =
         :> Servant.ReqBody '[JSON] NewUserScimInvitation
         :> Post '[JSON] User
     )
+
+type GetInvitationRole =
+  Named
+           "get-invitation-role"
+           ( "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> "role"
+               :> Get '[JSON] Role
+           )
+
+type UpdateInvitationRole =
+  Named
+           "update-invitation-role"
+           ( "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> "role"
+               :> Servant.ReqBody '[JSON] Role
+               :> PutNoContent
+           )
 
 type GetScimUsersPaginated =
   Named

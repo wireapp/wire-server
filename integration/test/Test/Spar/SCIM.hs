@@ -144,6 +144,72 @@ testScimManagedRoleIsLockedForTeamAdmin = do
   after `shouldMatch` before
   Galley.updateTeamMember tid owner wireUser Galley.Admin >>= assertSuccess
 
+-- | Missing or empty roles on creation default to member; empty roles on update
+-- preserve the existing role rather than leaving the user without one.
+testScimUserAlwaysHasRole :: (HasCallStack) => App ()
+testScimUserAlwaysHasRole = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  let assertRole :: (HasCallStack) => String -> String -> App ()
+      assertRole uid expected = do
+        stored <- getScimUser OwnDomain tok uid >>= getJSON 200
+        role <- stored %. "roles" >>= asList >>= assertOne
+        role %. "value" `shouldMatch` expected
+
+  forM_ [False, True] $ \explicitEmptyRoles -> do
+    -- creating new user without role gives it the default role.
+    user <- randomScimUser
+    withoutRoles <-
+      if explicitEmptyRoles
+        then setField "roles" ([] :: [Value]) user
+        else removeField "roles" user
+    created <- createScimUser OwnDomain tok withoutRoles >>= getJSON 201
+    uid <- created %. "id" >>= asString
+    assertRole uid "member"
+    -- Accept the invitation so role updates operate on an actual team member,
+    -- rather than reading back the default role for a pending invitation.
+    email <- user %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+    registerInvitedUser OwnDomain tid email
+
+    -- Setting roles to '[]' explicitly in an update preserves the existing role.
+    admin <- setField "roles" [object ["value" .= ("admin" :: String)]] created
+    updateScimUser OwnDomain tok uid admin >>= assertStatus 200
+    assertRole uid "admin"
+    before <- Galley.getTeamMember owner tid uid >>= getJSON 200 >>= (%. "permissions")
+    emptyRoles <- setField "roles" ([] :: [Value]) admin
+    updateScimUser OwnDomain tok uid emptyRoles >>= assertStatus 200
+    assertRole uid "admin"
+    after <- Galley.getTeamMember owner tid uid >>= getJSON 200 >>= (%. "permissions")
+    after `shouldMatch` before
+
+-- | Role changes must also apply before the SCIM invitation is accepted.
+testScimInvitationRoleCanBeUpdated :: (HasCallStack) => App ()
+testScimInvitationRoleCanBeUpdated = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  let assertRole :: (HasCallStack) => String -> String -> App ()
+      assertRole uid expected = do
+        stored <- getScimUser OwnDomain tok uid >>= getJSON 200
+        role <- stored %. "roles" >>= asList >>= assertOne
+        role %. "value" `shouldMatch` expected
+
+  user <- randomScimUser >>= setField "roles" [object ["value" .= ("admin" :: String)]]
+  created <- createScimUser OwnDomain tok user >>= getJSON 201
+  uid <- created %. "id" >>= asString
+  assertRole uid "admin"
+  forM_ ["member", "admin"] $ \role -> do
+    updated <- setField "roles" [object ["value" .= (role :: String)]] created
+    updateScimUser OwnDomain tok uid updated >>= assertStatus 200
+    assertRole uid role
+  emptyRoles <- setField "roles" ([] :: [Value]) created
+  updateScimUser OwnDomain tok uid emptyRoles >>= assertStatus 200
+  assertRole uid "admin"
+
+  email <- user %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  registerInvitedUser OwnDomain tid email
+  -- This read now derives the role from Galley, not the pending invitation.
+  assertRole uid "admin"
+
 -- | Unlike the user attributes above, a SCIM-provisioned /group/ is not write-protected:
 -- a team admin may rename it, change its membership and delete it through the public API.
 testScimGroupIsWritableByTeamAdmin :: (HasCallStack) => App ()

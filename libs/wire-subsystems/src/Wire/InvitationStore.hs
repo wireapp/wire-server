@@ -94,6 +94,8 @@ data PaginatedResult a
 data InvitationStore :: Effect where
   InsertInvitation :: InsertInvitation -> Timeout -> InvitationStore m StoredInvitation
   LookupInvitation :: TeamId -> InvitationId -> InvitationStore m (Maybe StoredInvitation)
+  -- | Change only the role, retaining the invitation's expiry.
+  UpdateInvitationRole :: TeamId -> InvitationId -> Role -> InvitationStore m ()
   LookupInvitationByCode :: InvitationCode -> InvitationStore m (Maybe StoredInvitation)
   LookupInvitationsByEmail :: EmailAddress -> InvitationStore m [StoredInvitation]
   InsertPendingScimUser :: TeamId -> EmailAddress -> UserId -> InvitationStore m ()

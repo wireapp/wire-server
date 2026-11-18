@@ -26,6 +26,7 @@ import Polysemy
 import Polysemy.State (State, get, gets, modify)
 import Wire.API.User (EmailAddress, InvitationCode (..))
 import Wire.InvitationStore
+import Wire.InvitationStore qualified as Stored (StoredInvitation (role))
 
 inMemoryInvitationStoreInterpreter ::
   forall r.
@@ -47,6 +48,12 @@ inMemoryInvitationStoreInterpreter = interpret \case
           modify modByCode
           fromJust <$> gets (!? inv.code)
   LookupInvitation tid iid -> gets (!? (tid, iid))
+  UpdateInvitationRole tid iid role -> do
+    inv <- gets @(Map (TeamId, InvitationId) StoredInvitation) (!? (tid, iid))
+    for_ inv $ \i -> do
+      let updated = i {Stored.role = Just role}
+      modify @(Map (TeamId, InvitationId) StoredInvitation) (M.insert (tid, iid) updated)
+      modify @(Map InvitationCode StoredInvitation) (M.insert i.code updated)
   LookupInvitationByCode iid -> gets (!? iid)
   LookupInvitationsByEmail em ->
     let c i = guard (i.email == em) $> i

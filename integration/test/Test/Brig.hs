@@ -389,5 +389,8 @@ testDeleteEmail = do
   deleteSelfEmail usr >>= assertStatus 403
   searchShouldBe "non-empty"
   associateUsrWithSSO
-  deleteSelfEmail usr >>= assertStatus 403
-  searchShouldBe "empty"
+  deleteSelfEmail usr `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+  getSelf usr >>= getJSON 200 >>= (%. "email") >>= (`shouldMatch` email)
+  searchShouldBe "non-empty"

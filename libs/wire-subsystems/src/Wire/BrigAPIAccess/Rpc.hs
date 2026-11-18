@@ -156,6 +156,8 @@ interpretBrigAccess brigEndpoint =
         createNoSAML extId email uid teamid uname locale role
       UpdateEmail uid email activation ->
         updateEmail uid email activation
+      GetInvitationRole tid iid -> getInvitationRole tid iid
+      UpdateInvitationRole tid iid role -> updateInvitationRole tid iid role
       GetAccount havePending uid ->
         getAccount havePending uid
       GetAccountByHandle handle ->
@@ -848,6 +850,22 @@ createNoSAML extId email uid teamid uname locale role = do
     then userId <$> decodeBodyOrThrow @User "brig" resp
     else
       rethrow "brig" resp
+
+getInvitationRole ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r, Member (Error RpcException) r) =>
+  TeamId -> InvitationId -> Sem r Role
+getInvitationRole tid iid = do
+  resp <- brigRequest $ method GET . paths ["i", "teams", toByteString' tid, "invitations", toByteString' iid, "role"]
+  if statusCode resp == 200
+    then decodeBodyOrThrow "brig" resp
+    else rethrow "brig" resp
+
+updateInvitationRole ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error RpcException) r) =>
+  TeamId -> InvitationId -> Role -> Sem r ()
+updateInvitationRole tid iid role = do
+  resp <- brigRequest $ method PUT . paths ["i", "teams", toByteString' tid, "invitations", toByteString' iid, "role"] . json role
+  unless (statusCode resp == 204) $ rethrow "brig" resp
 
 updateEmail ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error RpcException) r) =>
