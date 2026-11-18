@@ -56,6 +56,7 @@
 , network-uri
 , optparse-applicative
 , polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , psqueues
 , QuickCheck
@@ -145,6 +146,7 @@ mkDerivation {
     mtl
     network-uri
     polysemy
+    polysemy-wire-zoo
     prometheus-client
     psqueues
     raw-strings-qq

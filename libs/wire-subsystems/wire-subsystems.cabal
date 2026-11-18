@@ -367,6 +367,8 @@ library
     Wire.FanInAckStore
     Wire.FanInDeliverySubsystem
     Wire.FanInEpochMembershipStore
+    Wire.FanInEpochMembershipStore.Postgres
+    Wire.FanInEpochMembershipStore.Postgres.Queries
     Wire.FanInGundeckAPIAccess
     Wire.FanInGundeckAPIAccess.Rpc
     Wire.FanInNotificationStore

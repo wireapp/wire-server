@@ -24,6 +24,7 @@ import Hasql.Pool (UsageError (AcquisitionTimeoutUsageError))
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.FanInEpochMembershipStore
 import Wire.FanInNotificationStore
 import Wire.FanInNotificationSubsystem
 
@@ -47,6 +48,12 @@ tests =
         let nid = either (error . show) id (parseIdFromText "00000000-0000-0000-0000-000000000000")
         A.toJSON (fanInStoreErrorToHttpError (InvalidFanInNotificationId nid))
           @?= expected 400 "invalid-notification-id" "Fan-in notification IDs must be UUIDv7",
+      testCase "stale epochs are conflicts without membership details" $
+        A.toJSON (fanInMembershipStoreErrorToHttpError FanInStaleEpoch)
+          @?= expected 409 "fan-in-stale-epoch" "A newer fan-in epoch is already recorded",
+      testCase "conflicting epoch membership is a conflict without member details" $
+        A.toJSON (fanInMembershipStoreErrorToHttpError FanInConflictingEpoch)
+          @?= expected 409 "fan-in-conflicting-epoch" "The fan-in epoch already has different membership",
       testCase "database failures return a generic response without diagnostics" $
         A.toJSON (fanInPostgresErrorToHttpError AcquisitionTimeoutUsageError)
           @?= expected 500 "server-error" "Could not persist fan-in notifications"

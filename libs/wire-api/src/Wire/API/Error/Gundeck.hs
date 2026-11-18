@@ -32,6 +32,8 @@ data GundeckError
   | FanInInvalidNotificationId
   | FanInTransientUnsupported
   | FanInLocalDomainMissing
+  | FanInStaleEpoch
+  | FanInConflictingEpoch
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GundeckError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -57,3 +59,7 @@ type instance MapError 'FanInInvalidNotificationId = 'StaticError 400 "invalid-n
 type instance MapError 'FanInTransientUnsupported = 'StaticError 501 "fan-in-transient-unsupported" "Transient fan-in notifications are not supported yet"
 
 type instance MapError 'FanInLocalDomainMissing = 'StaticError 503 "fan-in-domain-missing" "The local fan-in domain is not configured"
+
+type instance MapError 'FanInStaleEpoch = 'StaticError 409 "fan-in-stale-epoch" "A newer fan-in epoch is already recorded"
+
+type instance MapError 'FanInConflictingEpoch = 'StaticError 409 "fan-in-conflicting-epoch" "The fan-in epoch already has different membership"

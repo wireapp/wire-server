@@ -35,16 +35,23 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
+import Wire.FanInEpochMembershipStore
+import Wire.FanInEpochMembershipStore.Postgres
 import Wire.FanInNotificationStore
 import Wire.FanInNotificationStore.Postgres
 import Wire.FanInNotificationSubsystem
 import Wire.FanInNotificationSubsystem.Interpreter
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO (nowToIO)
 
 type GundeckApp = Sem GundeckEffects
 
 type GundeckEffects =
   '[ FanInNotificationSubsystem,
      FanInNotificationStore,
+     FanInEpochMembershipStore,
+     Now,
+     Error FanInEpochMembershipStoreError,
      Error FanInNotificationSubsystemError,
      Error FanInNotificationStoreError,
      Error UsageError,
@@ -62,6 +69,9 @@ runCanonicalInterpreter env action = do
       . mapError fanInPostgresErrorToHttpError
       . mapError fanInStoreErrorToHttpError
       . mapError fanInSubsystemErrorToHttpError
+      . mapError fanInMembershipStoreErrorToHttpError
+      . nowToIO
+      . interpretFanInEpochMembershipStoreToPostgres env._notificationFanInPostgresPool
       . interpretFanInNotificationStoreToPostgres env._notificationFanInPostgresPool
       . interpretFanInNotificationSubsystem env._options._settings._federationDomain
       $ action

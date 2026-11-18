@@ -4,7 +4,7 @@
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
--- Software Foun(Domain "a.com")tion, either version 3 of the License, or (at your option) any
+-- Software Foundation, either version 3 of the License, or (at your option) any
 -- later version.
 --
 -- This program is distributed in the hope that it will be useful, but WITHOUT
@@ -34,9 +34,11 @@ import Wire.API.MLS.Group (GroupId (..))
 import Wire.API.Notification (NotificationId)
 import Wire.API.Notification.FanIn
 import Wire.API.Push.V2 (Route (..))
+import Wire.FanInEpochMembershipStore
 import Wire.FanInNotificationStore
 import Wire.FanInNotificationSubsystem
 import Wire.FanInNotificationSubsystem.Interpreter
+import Wire.MockInterpreters.Now (defaultTime, interpretNowConst)
 
 data Write
   = UserWrite UserId FanInNotification
@@ -67,7 +69,7 @@ spec = describe "Fan-in publishing" $ do
     runPublish Nothing [] `shouldBe` (Right (), [])
 
 runPublish :: Maybe Domain -> [FanInPush] -> (Either FanInNotificationSubsystemError (), [Write])
-runPublish domain pushes = swap . run . runState ([] :: [Write]) . runError @FanInNotificationSubsystemError . recordWrites . interpretFanInNotificationSubsystem domain $ publishFanInNotifications pushes
+runPublish domain pushes = swap . run . runState ([] :: [Write]) . runError @FanInNotificationSubsystemError . interpretNowConst defaultTime . rejectMembership . recordWrites . interpretFanInNotificationSubsystem domain $ publishFanInNotifications pushes
 
 recordWrites :: (Member (State [Write]) r) => InterpreterFor FanInNotificationStore r
 recordWrites = interpret $ \case
@@ -103,3 +105,6 @@ fixtureWithId nid =
       apsData = Nothing,
       isCellsEvent = False
     }
+
+rejectMembership :: InterpreterFor FanInEpochMembershipStore r
+rejectMembership = interpret $ \_ -> error "Publishing unexpectedly accessed epoch membership"
