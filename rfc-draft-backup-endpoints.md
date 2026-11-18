@@ -524,7 +524,7 @@ Readiness and races (lock-free concurrency safety):
 
 ### Deletion and versioned buckets
 
-As per GDPR lows, the deletion of personal data must be complete and
+As per GDPR laws, the deletion of personal data must be complete and
 unrestorable on a user's behalf. Accordingly, versioned AWS buckets need
 special treatment to ensure that _all related data_ gets wiped.
 Also for security reasons, backups of a removed client must be deleted
