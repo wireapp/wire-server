@@ -23,12 +23,13 @@ module Wire.FanInNotificationSubsystem where
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified)
+import Imports
 import Polysemy
 import Wire.API.Notification.FanIn
 
 data FanInNotificationSubsystem m a where
-  -- | Persist idempotently and arrange background delivery; transient pushes
-  -- bypass storage. Persisted notifications use UUIDv7 ids.
+  -- | Persist UUIDv7 notifications idempotently. Background delivery is wired
+  -- separately; transient pushes are rejected until forwarding is implemented.
   PublishFanInNotifications :: [FanInPush] -> FanInNotificationSubsystem m ()
   -- | Reject stale/conflicting epochs; archive superseded membership atomically.
   UpdateFanInMembership :: FanInMembershipUpdate -> FanInNotificationSubsystem m ()
@@ -46,3 +47,11 @@ data FanInNotificationSubsystem m a where
   ResetFanInAcknowledgements :: UserId -> ClientId -> FanInAcknowledgements -> FanInNotificationSubsystem m ()
 
 makeSem ''FanInNotificationSubsystem
+
+-- | Errors which can be reported without exposing database details.
+data FanInNotificationSubsystemError
+  = FanInInvalidNotificationId
+  | FanInTransientUnsupported
+  | FanInLocalDomainMissing
+  | FanInOperationNotImplemented
+  deriving stock (Eq, Show)

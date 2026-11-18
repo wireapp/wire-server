@@ -368,10 +368,12 @@ library
     Wire.FanInDeliverySubsystem
     Wire.FanInEpochMembershipStore
     Wire.FanInGundeckAPIAccess
+    Wire.FanInGundeckAPIAccess.Rpc
     Wire.FanInNotificationStore
     Wire.FanInNotificationStore.Postgres
     Wire.FanInNotificationStore.Postgres.Queries
     Wire.FanInNotificationSubsystem
+    Wire.FanInNotificationSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem
     Wire.FeaturesConfigSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem.Types
@@ -682,6 +684,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FanInNotificationStore.TimestampSpec
+    Wire.FanInNotificationSubsystem.InterpreterSpec
     Wire.FederationAPIAccess.GalleySpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
