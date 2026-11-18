@@ -153,8 +153,10 @@ data ConversationStore m a where
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
   LookupHistoryClients :: GroupId -> ConversationStore m [(HistoryClientId, Int32, Bool)]
   -- | Reconcile member-client rows of a group with the authoritative
-  -- ratchet-tree leaf map. Pending-removal rows are untouched. Returns
-  -- (inserted, updated, deleted).
+  -- ratchet-tree leaf map. Pending-removal rows are untouched. Returns the
+  -- number of rows actually inserted, updated and deleted (guarded writes may
+  -- be no-ops). History-client rows are reconciled (and counted) only where
+  -- they are stored, i.e. in Postgres.
   ReconcileMLSClients :: GroupId -> IndexMap -> ConversationStore m (Int, Int, Int)
   -- | SHA-256 digest of the last GroupInfo whose ratchet tree matched the
   -- membership the server validated for its commit. Only a GroupInfo with a
