@@ -62,7 +62,7 @@ data Env = Env
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
     _rabbitMqChannel :: MVar Channel,
-    _notificationFanInPostgresPool :: !(Maybe HasqlPoolExt.Pool)
+    _notificationFanInPostgresPool :: !HasqlPoolExt.Pool
   }
 
 makeLenses ''Env
@@ -106,8 +106,8 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  fanInPostgresPool <- forM (o ^. notificationFanInPostgres) $ \pg ->
-    HasqlPoolExt.initPostgresPool pg._pool pg._connection pg._password
+  let pg = o ^. notificationFanInPostgres
+  fanInPostgresPool <- HasqlPoolExt.initPostgresPool pg._pool pg._connection pg._password
   pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar fanInPostgresPool
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg

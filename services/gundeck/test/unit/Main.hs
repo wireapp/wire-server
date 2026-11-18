@@ -23,6 +23,8 @@ where
 import Aws.Arn qualified
 import DelayQueue qualified
 import Gundeck.Notification.MetricsSpec qualified
+import Gundeck.NotificationFanIn.ErrorSpec qualified
+import Gundeck.OptionsSpec qualified
 import Gundeck.Push.MetricsSpec qualified
 import Gundeck.Push.WebsocketSpec qualified
 import Imports
@@ -39,7 +41,9 @@ main =
   withOpenSSL . defaultMain $
     testGroup
       "Main"
-      [ DelayQueue.tests,
+      [ Gundeck.OptionsSpec.tests,
+        Gundeck.NotificationFanIn.ErrorSpec.tests,
+        DelayQueue.tests,
         Gundeck.Notification.MetricsSpec.tests,
         Gundeck.Push.MetricsSpec.tests,
         Gundeck.Push.WebsocketSpec.tests,

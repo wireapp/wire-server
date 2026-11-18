@@ -55,6 +55,7 @@ notificationFanInPostgres:
     idlenessTimeout: 10m
 
 settings:
+  federationDomain: example.com
   httpPoolSize: 1024
   notificationTTL: 24192200
   perNativePushConcurrency: 32
