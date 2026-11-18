@@ -37,6 +37,7 @@ import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Server.Internal.ErrorFormatter
 import Wire.API.CannonId
+import Wire.API.Notification.FanIn (FanInMembershipUpdate, FanInPush)
 import Wire.API.Presence
 import Wire.API.Push.V2
 import Wire.API.Routes.Named
@@ -109,6 +110,7 @@ type InternalAPI =
                            :<|> Named "i-presences-delete" (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
                        )
                 )
+           :<|> FanInInternalAPI
            :<|> Named "i-clients-delete" (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
            :<|> Named "i-user-delete" (ZUser :> "user" :> Delete '[JSON] NoContent)
            :<|> Named "i-push-tokens-get" ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
@@ -127,3 +129,10 @@ swaggerDoc :: S.OpenApi
 swaggerDoc =
   toOpenApi (Proxy @InternalAPI)
     & S.info . S.title .~ "Wire-Server internal gundeck API"
+
+-- | Fan-in ingestion and membership routes under the internal /i prefix.
+type FanInInternalAPI =
+  "fan-in"
+    :> ( Named "i-fan-in-push" (Summary "Publish fan-in notifications" :> Description "Accept notifications addressed to users, clients, teams, MLS epochs or connections. Persistent events are stored for incremental sync; transient events are forwarded without storage. This endpoint currently has a placeholder handler." :> "push" :> ReqBody '[JSON] [FanInPush] :> Post '[JSON] NoContent)
+           :<|> Named "i-fan-in-membership" (Summary "Update fan-in epoch membership" :> Description "Record the membership of a committed MLS epoch, retaining superseded membership for offline clients. Repeating the same update is intended to be idempotent. This endpoint currently has a placeholder handler." :> "membership" :> ReqBody '[JSON] FanInMembershipUpdate :> Put '[JSON] NoContent)
+       )

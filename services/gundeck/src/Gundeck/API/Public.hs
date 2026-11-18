@@ -38,7 +38,7 @@ import Wire.API.Routes.Public.Gundeck
 -- Servant API
 
 servantSitemap :: ServerT GundeckAPI Gundeck
-servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI
+servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI :<|> fanInAcknowledgementAPI
   where
     pushAPI =
       Named @"register-push-token" Push.addToken
@@ -50,6 +50,10 @@ servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI
         :<|> Named @"get-last-notification" Data.fetchLast
         :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
+
+    -- TODO: Implement the fan-in acknowledgement reset handler.
+    fanInAcknowledgementAPI _ =
+      Named @"reset-fan-in-acknowledgements" (\_ _ -> undefined)
 
     timeAPI =
       Named @"get-server-time" getServerTime
