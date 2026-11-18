@@ -139,7 +139,9 @@ testScimManagedRoleIsLockedForTeamAdmin = do
   tid <- scimUser %. "team" >>= asString
   uid <- scimUser %. "id" >>= asString
   before <- Galley.getTeamMember owner tid uid >>= getJSON 200 >>= (%. "permissions")
-  Galley.updateTeamMember tid owner scimUser Galley.Admin >>= assertStatus 403
+  Galley.updateTeamMember tid owner scimUser Galley.Admin `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
   after <- Galley.getTeamMember owner tid uid >>= getJSON 200 >>= (%. "permissions")
   after `shouldMatch` before
   Galley.updateTeamMember tid owner wireUser Galley.Admin >>= assertSuccess

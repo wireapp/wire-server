@@ -715,13 +715,8 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
 
   do
     usr <- Scim.value . Scim.thing <$> getUser tok userid
-    -- the user hasn't yet followed the invitation flow
-    -- however the invitee's role is stored together with the invitation in brig and not in spar
-    -- so as long as the user hasn't accepted the invitation, the scim users's role will be the default role here (which is 'member')
-    -- FUTUREWORK: if this is not the desired behavior, have to handle this in the `getUser` handler:
-    -- - if the user has a pending invitation, we have to look up the role in the invitation table
-    --   by doing an rpc to brig
-    liftIO $ scimRoleValues (Scim.User.roles usr) `shouldBe` [cs $ toByteString defaultRole]
+    -- Before acceptance, SCIM reads the requested role from the pending invitation.
+    liftIO $ scimRoleValues (Scim.User.roles usr) `shouldBe` [cs $ toByteString role]
     -- now external ID can differ from email, so emails are also returned
     liftIO $ (\(Scim.Email.Email _ e _) -> Scim.Email.unEmailAddress e) <$> Scim.User.emails usr `shouldBe` [email]
     liftIO $ Scim.User.externalId usr `shouldBe` (Just (fromEmail email))
@@ -820,8 +815,6 @@ testCreateUserNoIdP = do
   -- (this really shouldn't be tested here, but by the type system!)
   members <- getTeamMemberIds userid tid
   liftIO $ members `shouldContain` [userid]
-
-  checkChangeRoleOfTeamMember tid owner userid
   where
     -- cloned from brig's integration tests
 
@@ -900,8 +893,6 @@ testCreateUserWithSamlIdP = do
   -- (this really shouldn't be tested here, but by the type system!)
   members <- getTeamMemberIds userid tid
   liftIO $ members `shouldContain` [userid]
-
-  checkChangeRoleOfTeamMember tid owner userid
 
 testCreateUserWithSamlIdPWithPreferredLanguage :: Maybe Locale -> Maybe Locale -> TestSpar ()
 testCreateUserWithSamlIdPWithPreferredLanguage mLocale mLocaleUpdate = do
