@@ -17,6 +17,7 @@ extra-source-files:
   templates/version
   test/resources/**/*.html
   test/resources/**/*.json
+  test/resources/**/*.mls
   test/resources/**/*.pem
   test/resources/**/*.txt
   test/resources/**/*.yaml
@@ -669,6 +670,7 @@ test-suite wire-subsystems-tests
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.MLS.CheckClientsSpec
+    Wire.ConversationSubsystem.MLS.RepairSpec
     Wire.ConversationSubsystem.MLS.TargetedMessageSpec
     Wire.ConversationSubsystem.One2OneSpec
     Wire.EmailSending.SESSpec

@@ -25,13 +25,14 @@
 -- trusted when its digest matches the one recorded at commit time, which
 -- happens only if the tree matched the membership the server validated for
 -- that commit ('groupInfoDigest'). The reconcile runs under the per-group
--- commit lock (skipped, not failed, if the lock is held by a concurrent
--- commit) and only when the live epoch and the stored GroupInfo epoch both
--- match the locked epoch, so a concurrent or partially-failed commit cannot
--- be rolled back by a stale tree.
+-- commit lock (the request fails with a retryable stale-message error if the
+-- lock is held, as commits do) and only when the live epoch and the stored
+-- GroupInfo epoch both match the locked epoch, so a concurrent or
+-- partially-failed commit cannot be rolled back by a stale tree.
 module Wire.ConversationSubsystem.MLS.Repair
   ( GroupInfoRepairEnabled (..),
     repairMLSMemberClients,
+    rowsMatchTree,
     validatedGroupInfoDigest,
   )
 where
@@ -40,22 +41,27 @@ import Crypto.Hash (Digest, SHA256, hash)
 import Data.ByteArray qualified as BA
 import Data.Hex (hex)
 import Data.Qualified (Local, tUnqualified)
+import Data.Set qualified as Set
 import Data.Time (NominalDiffTime)
 import Imports
 import Polysemy (Member, Sem)
+import Polysemy.Error (Error, throw)
 import Polysemy.Input (Input, input)
 import Polysemy.Resource (Resource, finally)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation.Protocol qualified as Protocol
+import Wire.API.MLS.Credential (GroupMember (..))
 import Wire.API.MLS.Epoch (Epoch (..), epochNumber)
 import Wire.API.MLS.Group (GroupId (..))
 import Wire.API.MLS.GroupInfo (GroupContext (..), GroupInfo (..), GroupInfoData (..), GroupInfoTBS (..))
+import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.Serialisation (RawMLS (..), decodeMLS')
 import Wire.API.MLS.SubConversation (ConvOrSubConvId)
 import Wire.ConversationStore
-import Wire.ConversationStore.MLS.Types (ConvOrSubConv, IndexMap)
+import Wire.ConversationStore.MLS.Types (ClientMap, ConvOrSubConv, IndexMap, cmAssocs, cmIdentities, imAssocs, imLookup)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (groupInfoLeaves)
 
 newtype GroupInfoRepairEnabled = GroupInfoRepairEnabled Bool
@@ -86,8 +92,11 @@ validatedGroupInfoDigest gid postCommitEpoch newIndexMap groupInfo =
 -- | Returns True if the caller must refetch the conversation: its member rows
 -- disagree with a trusted stored tree. This holds even if this request wrote
 -- nothing, because a concurrent request may already have healed the rows.
+-- Throws 'ConversationSubsystemErrorMLSStaleMessage' if a repair is needed but
+-- the commit lock is held: the rows may still be (partly) damaged.
 repairMLSMemberClients ::
   ( Member ConversationStore r,
+    Member (Error ConversationSubsystemError) r,
     Member MLSCommitLockStore r,
     Member Resource r,
     Member TinyLog r,
@@ -104,19 +113,20 @@ repairMLSMemberClients lConvOrSub = do
       -- Cheap read-only precheck: the healthy case (no diff) never reads the
       -- validation digest nor takes the per-group commit lock.
       suspected <- isJust <$> trustedDivergingLeaves convOrSub gid epoch
-      when suspected $ do
-        lockAcquired <- acquireCommitLock gid epoch repairTTL
-        -- NotAcquired: a concurrent commit owns the group; leave it alone.
-        when (lockAcquired == Acquired) $
-          repairUnderLock convOrSub gid epoch `finally` releaseCommitLock gid epoch
+      when suspected $
+        acquireCommitLock gid epoch repairTTL >>= \case
+          Acquired ->
+            repairUnderLock convOrSub gid epoch `finally` releaseCommitLock gid epoch
+          NotAcquired -> do
+            TinyLog.info $ skipMsg gid "commit lock held by a concurrent commit or repair" id
+            throw ConversationSubsystemErrorMLSStaleMessage
       pure suspected
     _ -> pure False
   where
     convOrSub = tUnqualified lConvOrSub
 
 -- | The leaves of the stored tree if it is trusted, belongs to the group, is
--- at the expected epoch and disagrees with the row-derived index map of the
--- given snapshot.
+-- at the expected epoch and disagrees with the rows of the given snapshot.
 trustedDivergingLeaves ::
   ( Member ConversationStore r,
     Member TinyLog r
@@ -128,7 +138,7 @@ trustedDivergingLeaves ::
 trustedDivergingLeaves convOrSub gid epoch =
   storedLeaves convOrSub.id gid epoch >>= \case
     Just (raw, leaves)
-      | leaves /= convOrSub.indexMap -> do
+      | not (rowsMatchTree convOrSub.indexMap convOrSub.members leaves) -> do
           validatedHash <- getGroupInfoValidatedHash convOrSub.id
           if validatedHash == Just (groupInfoDigest raw)
             then pure (Just leaves)
@@ -137,6 +147,32 @@ trustedDivergingLeaves convOrSub gid epoch =
               TinyLog.info $ skipMsg gid "stored groupinfo tree was not validated against the server membership" id
               pure Nothing
     _ -> pure Nothing
+
+-- | Whether a snapshot's rows agree with the tree leaves, as far as the
+-- reconcile ('mlsReconcileOps') would act on them:
+--
+--   * every active (non-pending) regular-client row sits on the leaf the tree
+--     assigns to it (else it would be updated or deleted); checked per row, so
+--     rows sharing a leaf index are caught although the index map keeps only
+--     one of them;
+--   * every regular-client tree leaf has a row, pending or not (else it would
+--     be inserted);
+--   * the history-client entries equal those of the tree (pending flags of
+--     history rows are not in the snapshot).
+--
+-- Pending regular rows the tree disagrees with are deliberately ignored: the
+-- reconcile never touches them, so flagging them would make every commit
+-- retry a repair that cannot converge.
+rowsMatchTree :: IndexMap -> ClientMap LeafIndex -> IndexMap -> Bool
+rowsMatchTree indexMap activeMembers leaves =
+  all activeOnTreeLeaf (cmAssocs activeMembers)
+    && all (`Set.member` rowClients) [cid | (_, RegularClient cid) <- imAssocs leaves]
+    && historyEntries indexMap == historyEntries leaves
+  where
+    activeOnTreeLeaf (cid, idx) = imLookup leaves idx == Just (RegularClient cid)
+    rowClients =
+      Set.fromList ([cid | (_, RegularClient cid) <- imAssocs indexMap] <> cmIdentities activeMembers)
+    historyEntries im = [(idx, h) | (idx, HistoryClient h) <- imAssocs im]
 
 -- | The raw stored GroupInfo and its leaves, if it is decodable, belongs to
 -- the group and is at the expected epoch.

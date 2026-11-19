@@ -1112,14 +1112,8 @@ testGhostMemberRowRepair = do
   idx <-
     assertJust "bob1 missing from group state"
       $ listToMaybe [idx | (RegularClient c, idx) <- members, c == bob1]
-  rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
-  idxs <- for rows $ \r -> do
-    ci <- r %. "client"
-    uid <- ci %. "user_id" & asString
-    client <- ci %. "client_id" & asString
-    idx' <- r %. "leaf_index" & asIntegral @Word32
-    pure (uid, client, idx')
-  [idx' | (u, c, idx') <- idxs, u == bob1.user, c == bob1.client] `shouldMatch` [idx]
+  rows <- getMemberClientRows alice convId
+  [idx' | (u, c, idx') <- rows, u == bob1.user, c == bob1.client] `shouldMatch` [idx]
 
   -- bob1 receives messages again.
   withWebSockets [alice1, bob1] $ \[_, wsBob] -> do
@@ -1166,6 +1160,47 @@ testGhostRemoveRejectedWithoutRepair = do
       err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 400
       err %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
 
+-- | The repair only trusts a stored GroupInfo whose tree the server validated
+-- at commit time. A commit uploaded with a GroupInfo whose tree does not
+-- match the accepted membership gets no validation digest, so its tree never
+-- rewrites the member-client rows.
+testGhostRepairIgnoresUnvalidatedTree :: (HasCallStack) => App ()
+testGhostRepairIgnoresUnvalidatedTree = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  -- Build two commits from the same epoch: one adding charlie, then (from
+  -- the restored state) one adding bob. The add-bob commit is sent with the
+  -- add-charlie GroupInfo: same group and post-commit epoch, but a tree with
+  -- charlie instead of bob, which disagrees with the rows.
+  gs0 <- getClientGroupState alice1
+  mpCharlie <- createAddCommit alice1 convId [charlie]
+  setClientGroupState alice1 gs0
+  mpBob <- createAddCommit alice1 convId [bob]
+  void $ sendAndConsumeCommitBundle mpBob {groupInfo = mpCharlie.groupInfo}
+
+  -- Any commit bundle triggers the repair check.
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
+
+  -- The untrusted tree was ignored: had it been trusted, bob1's row would be
+  -- deleted and charlie1's inserted.
+  rows <- getMemberClientRows alice convId
+  sort rows `shouldMatch` sort [(alice1.user, alice1.client, 0 :: Word32), (bob1.user, bob1.client, 1)]
+
+-- | The (user id, client id, leaf index) member-client rows of the MLS group
+-- of a conversation.
+getMemberClientRows :: (HasCallStack, MakesValue user) => user -> ConvId -> App [(String, String, Word32)]
+getMemberClientRows user convId = do
+  rows <- I.getMLSMemberClients user convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+  for rows $ \r -> do
+    ci <- r %. "client"
+    (,,)
+      <$> (ci %. "user_id" & asString)
+      <*> (ci %. "client_id" & asString)
+      <*> (r %. "leaf_index" & asIntegral @Word32)
+
 testExternalCommitSameClient :: (HasCallStack) => App ()
 testExternalCommitSameClient = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
@@ -1193,14 +1228,8 @@ testExternalCommitSameClient = do
   idx <-
     assertJust "rejoined client missing from group state"
       $ listToMaybe [idx | (RegularClient c, idx) <- members, c == alice1]
-  rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
-  idxs <- for rows $ \r -> do
-    ci <- r %. "client"
-    uid <- ci %. "user_id" & asString
-    client <- ci %. "client_id" & asString
-    idx' <- r %. "leaf_index" & asIntegral @Word32
-    pure (uid, client, idx')
-  [idx' | (u, c, idx') <- idxs, u == alice1.user, c == alice1.client] `shouldMatch` [idx]
+  rows <- getMemberClientRows alice convId
+  [idx' | (u, c, idx') <- rows, u == alice1.user, c == alice1.client] `shouldMatch` [idx]
 
 testInternalCommitDuplicateClient :: (HasCallStack) => App ()
 testInternalCommitDuplicateClient = do
