@@ -136,11 +136,9 @@ parseFileKey :: Text -> Text -> Maybe BackupFileRef
 parseFileKey epochPrefix key = do
   rest <- T.stripPrefix epochPrefix key
   case T.splitOn "/" rest of
-    [f, "full"] -> FullFile <$> parseId f
-    [f, "incremental", i] -> IncrementalFile <$> parseId f <*> parseId i
+    [f, "full"] -> FullFile <$> parseCanonicalId f
+    [f, "incremental", i] -> IncrementalFile <$> parseCanonicalId f <*> parseCanonicalId i
     _ -> Nothing
-  where
-    parseId = parseCanonicalId
 
 -- | Canonical lowercase text only.
 parseCanonicalId :: Text -> Maybe BackupFileId
