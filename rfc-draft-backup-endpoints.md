@@ -62,8 +62,8 @@ full it extends (`<FullId>` in its path) and counts as current only as long as
 that full is the newest one. The client learns a full's id from the response of
 the finished upload (or from `GET …/epochs/<BackupEpoch>`), so an incremental
 can only extend a full that successfully finished uploading. An incremental of
-a replaced full is never listed, whatever the timing of the uploads, and is
-deleted together with that full.
+a replaced full is never listed, whatever the timing of the uploads. Why this
+holds under concurrent uploads: see [Safe file management](#safe-file-management).
 
 #### `/backups`
 
@@ -88,8 +88,8 @@ could easily lead to huge payloads. Thus, we provide only a summary of the
 epochs here.
 
 Epochs without a full and clients without any epoch are omitted. (Epochs
-without a full can only exist due to technical corner cases, they have no
-meaning to clients and users.)
+without a full can only exist due to a race, see [Special
+cases](#special-cases); they have no meaning to clients and users.)
 
 Clients are ordered by `createdAt`, newest first.
 
@@ -240,17 +240,17 @@ Checked before any write, in this order: own client, team flag
 `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over
 the cap (raises HTTP 413 `backup-too-large`).
 
-The server keeps only the two newest epochs of a client. After storing a full
-file, it deletes every older epoch, so the oldest epoch disappears when a third
-one starts. Storing an incremental file never deletes epochs (storing
-incrementals is not performed by this endpoint, though).
+The server keeps only the two newest epochs of a client. After storing a full,
+it deletes every older epoch, so the oldest epoch disappears when a third one
+starts.
 
-After storing, the server lists the epoch and deletes everything the new full
-superseded: older fulls (according to the mentioned rule) and all incrementals
-stored under them. Concurrent full uploads delete each other; the newest wins.
-A late older one deletes itself and responds 409 `backup-full-missing`. Example:
-full A starts (slow), full B starts later and finishes first; when A finishes,
-B is newer, so A deletes itself.
+Concurrent uploads (see [Safe file management](#safe-file-management)):
+
+- If a newer full of the same epoch is stored during the upload, this full is
+  deleted: 409 `backup-full-missing`.
+- If two newer epochs are stored during the upload, this full's epoch is
+  deleted: 409 `backup-epoch-not-allowed`.
+- A 200 is no promise that the full stays current: a later full replaces it.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 `Content-Length: 1048576` and 1048576 body bytes → `200`
@@ -274,9 +274,10 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 - **Response:** 200 `<BackupFile>`
 
 Upload an incremental file under the full `<FullId>`, which must be the epoch's
-current full. If no full exists you get 409 `backup-full-missing`, meaning
-there's no such full or it was replaced. If there's no such full, upload a new
-one (via another endpoint); if it was replaced, refer to the current one.
+current full. Otherwise 409 `backup-full-missing`: there's no such full or it
+was replaced, before or during the upload (see [Safe file
+management](#safe-file-management)). Then upload a new full, or extend the
+current one.
 
 These rules apply: size cap (HTTP 413) and file count cap `maxFilesPerEpoch`
 counting the current files including the full (409 `backup-too-many-files`).
@@ -410,7 +411,7 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 | 403    | `operation-denied`, `no-team-member` | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                         |
 | 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller);<br>`GET /backups/clients/<ClientId>`, `GET …/epochs/<BackupEpoch>`,<br>`GET …/full/<FullId>[/incremental/<BackupFileId>]` (`Z-Client` or `<ClientId>` is not a client<br>of the caller; for the last two also no such epoch or file);<br>`POST`s, `DELETE /backups/clients/<ClientId>` (`<ClientId>` is not a client of the caller) |
 | 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                         |
-| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                                                                                                                                                                            |
+| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental` (epoch rule);<br>`POST …/full` (two newer epochs were stored during the upload)                                                                                                                                                                                                                                                                             |
 | 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)<br>`POST …/full` and `…/incremental` (a newer full was stored during the upload)                                                                                                                                                                                                                                                                                                             |
 | 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                                                                                                                           |
 | 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                                |
@@ -438,7 +439,7 @@ The key layout is:
 - `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/full`: Full backup object (“file”)
 - `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/incremental/<BackupFileId>`: Incremental backup object (“file”), stored under the full it extends
 - `backup/<h(uid)>/<h(cid)>/.tombstones/<BackupFileId>`: Empty tombstone object written by the client's own
-  backup deletion (see [Deletion and upload ordering](#deletion-and-upload-ordering)). It is not
+  backup deletion (see [Safe file management](#safe-file-management)). It is not
   an epoch, so listings ignore it.
 
 `uid` and `cid` are userId and clientId respectively. `h()` obfuscates them with
@@ -548,48 +549,151 @@ Constraints on epochs and files are:
   incremental, default 10 MiB). All three are Cargohold settings
   (`settings.backupLimits`).
 
-### Concurrency without locks
+### Safe file management
 
-Uploads are lock-free and safe against races:
+This section argues, on the level of S3 keys, that backups are managed without
+locks, that no race leaves a file that should be gone, and that no race deletes a
+current file. What clients see (status codes) is described with the [API
+endpoints](#api-endpoints).
 
-- An S3 object becomes visible only when its upload completed (uploads are
-  streamed as S3 multipart uploads and completed at the end). A stored file is
-  therefore always complete. There is no lockfile and no readiness flag.
-- No TTL or staleness handling is needed. Clients that are unsure about a full
-  upload can repeat it: the newest full wins.
-- The current full of an epoch is the one with the greatest `fullId`.
-  Incrementals under any other full are superseded and deleted together with
-  that full. One that finishes after the newer full deletes itself (409
-  `backup-full-missing`).
-- An incremental needs the current full, else uploading gets HTTP 409
-  `backup-full-missing`.
-- After storing any file (full or incremental), the server lists the epoch and
-  deletes everything the current full superseded: older fulls and incrementals
-  not stored under the current full. For an incremental upload this removes the
-  orphan of an upload that raced a newer full. Example: incremental I starts
-  under full F1; full F2 finishes while I uploads and prunes F1 (I is not
-  visible yet); when I finishes, F2 is current, so I's own prune deletes I.
-  An upload whose own prune deletes its file responds 409 `backup-full-missing`.
-- After storing a full file (not an incremental), the server also deletes all
-  files of all but the two newest epochs. The epochs are listed after the
-  store, so epochs that other uploads created meanwhile count.
-- A failed upload (storage error, short body, disconnect, client removed or its
-  backups deleted by the client meanwhile) deletes the object it created.
-- After the PUT, the server re-checks that the client still exists and deletes
-  the object if not. Brig deletes the backups only after the client row is
-  gone, so a client deletion racing an upload leaves no orphan (see "Deletion and upload
-  ordering").
+#### Assumptions
 
-The clear relation between fulls and incrementals (see "Newest full wins")
-prevents a couple of difficult issues:
+- An S3 object becomes visible only when its upload completed (uploads are S3
+  multipart uploads, completed at the end). A visible file is always complete.
+- The store has strong list-after-write consistency: a listing shows every
+  object whose PUT completed before the listing started.
+- Deletes remove all versions (see [Deletion and versioned
+  buckets](#deletion-and-versioned-buckets)) and are idempotent.
+- Brig's reads of client rows see its own completed writes.
+- Cargohold clocks are roughly synchronized (NTP), because ids are UUIDv7 (time
+  first). Within the clock skew, the order of ids can differ from the real order:
+  of two fulls started within the skew the earlier one may win, a full started
+  just before a deletion may get an id greater than its tombstone and survive it,
+  and an upload on a lagging instance just after a deletion may be rejected. The
+  skew never changes which full an incremental belongs to: that is in its key.
 
-- Incrementals can never be accounted to a wrong full. (This would render the backup useless!)
-- Race conditions on server-side regarding
-  - lock creation
-  - crashes
+#### State
 
-"Newest full wins" and tombstones rely on UUIDv7 time order across Cargohold
-instances, so their clocks must be roughly synchronized (NTP is enough).
+There is no state besides the keys. Everything follows from a listing:
+
+- The **current full** of an epoch is the full with the greatest `<FullId>`.
+- The **current incrementals** are the keys under the current full's prefix
+  `<BackupEpoch>/<FullId>/`. Every other file of the epoch is **superseded**.
+- The **kept epochs** of a client are its two greatest epochs.
+- A tombstone `t` **covers** every file with `<FullId>` < `t` and every tombstone
+  < `t`.
+
+Every reader and every pruner computes the same result from the same listing.
+
+#### Operations
+
+Each operation writes first, then looks:
+
+- **Upload** (full or incremental):
+  1. PUT the file.
+  2. Look: read the client row (Brig); fail if it is gone.
+  3. Look: list the tombstones; fail if one covers the file.
+  4. Look: list the epoch; delete superseded files. Fail if that includes the
+     file itself.
+  5. Full only. Look: list the epochs; delete all but the kept ones. Fail if that
+     includes the file's epoch.
+
+  A failure in 2 or 3 deletes the file. In 4 and 5 the file is already deleted.
+- **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
+  and delete everything `t` covers.
+- **Client removal:** Brig enqueues an event, then deletes the client row. The
+  consumer deletes the row again (idempotent), then lists the client prefix and
+  deletes everything, tombstones included. It retries until that succeeds. Removal
+  never waits for Cargohold or S3, so a broken store cannot block removing a
+  (possibly compromised) client.
+- **User deletion:** the same with a backend-internal event (`DeleteBackups`,
+  never fanned out), enqueued by Brig's `deleteAccount` before the user is marked
+  deleted. The consumer deletes all client rows, then the user prefix.
+
+#### Why races are safe
+
+The races between uploads and other operations follow one pattern. Operation A
+writes its marker `a`, then looks.
+Operation B writes its marker `b`, then looks:
+
+```
+A:  write a ─────────── look ─ clean up if it sees b
+B:         write b ─ look ─ clean up if it sees a
+```
+
+Of the two looks, the later one starts after both writes have completed, so it
+sees both markers. Hence at least one side sees the other and cleans up. Both may
+do so; deletes are idempotent.
+
+| Race                                         | A writes, then looks at                | B writes, then looks at                      | Ends up deleted             | Deleted by                                      |
+| -------------------------------------------- | -------------------------------------- | -------------------------------------------- | --------------------------- | ----------------------------------------------- |
+| full F1 vs newer full F2, same epoch          | F1; epoch listing                      | F2; epoch listing                            | F1 and its incrementals     | F1 if it sees F2, else F2                       |
+| incremental I under F1 vs newer full F2       | I; epoch listing                       | F2; epoch listing                            | I (and F1)                  | I if it sees F2, else F2                        |
+| full of epoch N vs full of epoch N+2          | full in N; epoch list                  | full in N+2; epoch list                      | epoch N                     | N's upload if it sees N+2, else N+2's upload    |
+| upload vs client or user removal             | file; client row                       | row deletion; client prefix listing          | the file                    | upload if the row is gone, else the removal     |
+| upload vs client deleting its backups (`t`)  | file; tombstones                       | tombstone `t`; client prefix listing         | the file, if `t` covers it  | upload if it sees `t`, else the deletion        |
+
+Notes on the rows:
+
+- Fulls: whichever of F1 and F2 lists the epoch later sees both. F2 has the
+  greater id, so the listing makes F2 current and F1 superseded.
+- Incremental vs full: I extends F1, so its key is under F1's prefix. Once F2 is
+  visible, I is superseded wherever it is listed. It cannot become an
+  incremental of F2.
+- Epochs: a full of N+2 implies one of N+1 (epoch rule), so the later epoch
+  listing sees three epochs and N is not kept.
+- Removal: the client row is the removal's marker. It is deleted before the
+  prefix is listed, so an upload that still sees the row completed its PUT
+  before the removal lists the prefix.
+- Client deletion: a file is covered or not by its `<FullId>`, i.e. by when its
+  full started, not by when it finished. Incrementals follow their full. Files of
+  fulls started after `t` are newer than `t` and kept by both sides.
+
+Two concurrent deletions need no pattern: each deletes only what its own
+tombstone covers, so the newer tombstone survives the older sweep and keeps
+rejecting older uploads.
+
+The converse holds too: no current file is deleted. A file is only deleted when
+it is superseded (a full with a greater id is visible), not kept (two greater
+epochs are visible), covered by a tombstone, or its client is gone. None of these
+can be undone: a full that superseded a file is itself only deleted by a greater
+full, a covering tombstone or an epoch prune, and each of those removes the
+superseded file as well. The one exception is below (rolled-back full).
+
+#### Special cases
+
+These don't follow the pattern. They are bounded:
+
+- **Incremental vs epoch pruning.** An incremental doesn't list the epochs. It
+  can land in epoch N after a full of N+2 listed epoch N for deletion. Then
+  epoch N holds this incremental and no full. It is never listed (no current
+  full) and never attributed to another full. The next full upload of the client
+  deletes epoch N (not kept), as does any deletion of the client's backups.
+  These are the "epochs without a full" of `GET /backups`.
+- **File count cap.** It is checked before the PUT, so concurrent incrementals
+  can exceed it slightly.
+- **Failed deletes.** Every delete above is retried by a later operation:
+  superseded files by the next upload to the epoch, stale epochs by the next
+  full, covered files by the next deletion. The exception: if an upload's own
+  cleanup fails after it saw the client gone or a covering tombstone, the file
+  stays (and may be listed) until that client's next removal or deletion. For a
+  removed client that is the deletion of the user (by user prefix); until then the
+  file is unreachable (reads need a current client).
+- **Rolled-back full.** A full F2 is visible from its PUT until its looks in steps
+  2 and 3 finished. If a look fails for a transient reason (Brig or S3 error,
+  request cancelled), F2 is deleted again. A concurrent upload to the same epoch
+  that listed it meanwhile has already deleted the previous full F1 and its
+  incrementals as superseded. The epoch then has no full until the client uploads
+  a new one, which it does after the failed upload anyway. The other kept epoch is
+  untouched. (If the look fails because the client is gone or a tombstone covers
+  F2, F1 had to go as well.)
+
+#### No locks
+
+Nothing above needs a lock, a readiness flag or a TTL. A visible file is
+complete, the current state is a pure function of the keys, and every race ends
+with the right set of keys. A client that is unsure whether a full upload
+succeeded can simply upload it again: the newest full wins.
 
 ### Deletion and versioned buckets
 
@@ -609,42 +713,6 @@ report version id `null` and take the same path. If the store answers
 `NotImplemented` for `ListObjectVersions`, Cargohold falls back to
 `ListObjectsV2` plus plain deletes. Bucket versioning may therefore be on or
 off.
-
-### Deletion and upload ordering
-
-The client removal request never directly touches Cargohold (clients can be
-removed for security reasons, so a failing Cargohold must not affect it): Brig
-enqueues the deletion as event and then deletes the client row (a failing
-enqueue leaves the client in place, so the removal can be retried). The
-consumer of that queue deletes the client row again (idempotent) and then the client's backups
-(Cargohold, by prefix), and is retried until that succeeds.
-
-Uploads and removals are ordered so that no backup outlives its client. The
-client row is always deleted before the backups. An upload first PUTs the
-object and then asks brig whether the client still exists; if not, it deletes
-the object again and fails. So for any upload overlapping a removal, either the
-prefix deletion lists the object, or the re-check sees the client gone and the
-upload process deletes its object.
-
-Deleting the backups on request of the client (`DELETE /backups/clients/<ClientId>`) has no
-client row to order against, so it uses tombstones. It first stores a tombstone
-(`.tombstones/<BackupFileId>`), then deletes everything under the client prefix
-that is older than the tombstone (one sweep): tombstones by their id, files by their `<FullId>`
-(an incremental belongs to its full). After its PUT and the client check, an upload lists the
-tombstones: one newer than the file's `<FullId>` means the deletion removes the file, so the
-upload deletes its object and fails with 403 `backup-forbidden`. Either the deletion lists the
-object, or the upload sees the tombstone. Fulls started after the deletion, and their
-incrementals, are newer and kept. Keeping newer tombstones means an older concurrent deletion
-cannot erase the tombstone of a newer one. This relies on UUIDv7 time order across
-Cargohold instances, like "Newest full wins". Client and user deletion remove tombstones with
-the prefix.
-
-User deletion will work the same way, with a *new* backend-internal queue event
-(`DeleteBackups`, not a Wire event, never fanned out). Brig's `deleteAccount`
-enqueues it first, before the user is marked deleted, so a failing enqueue
-leaves the deletion retriable. The consumer deletes the user's client rows
-(idempotent) and then all backups of the user (Cargohold, by prefix), and is
-retried until that succeeds.
 
 ## Use cases
 
@@ -672,9 +740,9 @@ its current epoch.
 - **S3:**
   - PUT `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/full` or
     `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/incremental/<BackupFileId>`
+  - lists `backup/<h(uid)>/<h(cid)>/.tombstones/`
   - deletes all versions under `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/` of every superseded
     full
-  - lists `backup/<h(uid)>/<h(cid)>/.tombstones/`
   - a failed upload deletes its own object
 
 Note: the RFC allows only epoch 1 if no epoch is stored; here any epoch ≥ 1 is allowed.
@@ -732,7 +800,7 @@ the device.
     tombstone: tombstones `backup/<h(uid)>/<h(cid)>/.tombstones/<BackupFileId>` by `<BackupFileId>`, files by
     `<FullId>`
   - uploads that were running delete their object (see
-    [Deletion and upload ordering](#deletion-and-upload-ordering))
+    [Safe file management](#safe-file-management))
 
 ```mermaid
 sequenceDiagram
