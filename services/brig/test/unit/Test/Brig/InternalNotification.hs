@@ -19,7 +19,8 @@ module Test.Brig.InternalNotification where
 
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy as BSL
-import Data.Id (clientToText)
+import Data.Id (Id (..), clientToText)
+import Data.UUID qualified as UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -29,7 +30,15 @@ tests :: TestTree
 tests =
   testGroup
     "InternalNotification"
-    [testCase "Golden test for old format of DeleteClient" checkGolden]
+    [ testCase "Golden test for old format of DeleteClient" checkGolden,
+      testCase "DeleteBackups JSON roundtrip" checkDeleteBackups
+    ]
+
+checkDeleteBackups :: IO ()
+checkDeleteBackups = do
+  let n = DeleteBackups (Id UUID.nil)
+  A.eitherDecode (A.encode n) @?= Right n
+  A.toJSON n @?= A.object ["user" A..= Id UUID.nil, "type" A..= ("backup.delete" :: Text)]
 
 checkGolden :: IO ()
 checkGolden = do

@@ -28,3 +28,4 @@ inMemoryDeleteQueueInterpreter = interpret $ \case
   EnqueueUserDeletion uid -> modify (\l -> DeleteUser uid : l)
   EnqueueClientDeletion cid uid mConnId -> modify (\l -> DeleteClient cid uid mConnId : l)
   EnqueueServiceDeletion pid sid -> modify (\l -> DeleteService pid sid : l)
+  EnqueueBackupDeletion uid -> modify (\l -> DeleteBackups uid : l)

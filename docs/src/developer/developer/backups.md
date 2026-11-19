@@ -156,6 +156,13 @@ client exists, deleting the object if not. So for any upload overlapping a remov
 the backup deletion lists the object, or the re-check sees the client gone and the upload
 deletes its object.
 
+User deletion works the same way with a backend-internal queue event
+(`DeleteBackups`, not a Wire event, never fanned out). `deleteAccount`
+(`Brig.API.User`) enqueues it first, before the user is marked deleted, so a failing
+enqueue leaves the deletion retriable. The consumer (`onEvent`, `DeleteBackups`) deletes
+the user's client rows (idempotent), then all backups of the user (by prefix) as its last
+step. A failing deletion makes the queue redeliver the event until it succeeds.
+
 ## Known limitations
 
 - Upload returns HTTP 200 (not 201).
@@ -163,7 +170,7 @@ deletes its object.
 - With `aws.multiIngress` configured, backup download URLs are signed with the
   default S3 env (`s3Endpoint`) and may be unreachable to clients. Follow-up:
   thread `Z-Host` through.
-- Backups of a removed client are deleted asynchronously by the brig delete queue, which
+- Backups of a removed client or user are deleted asynchronously by the brig delete queue, which
   redelivers until cargohold succeeds. Until then they are unreachable via the API (reads
   need a live client). There is no dead-letter handling beyond the queue's own configuration.
 - Bot accounts are deleted without backup cleanup (`deleteBot` in

@@ -57,6 +57,7 @@ runDeleteQueue queueEnv =
     EnqueueUserDeletion userId -> enqueue queueEnv (DeleteUser userId)
     EnqueueClientDeletion clientId userId mConnId -> enqueue queueEnv (DeleteClient clientId userId mConnId)
     EnqueueServiceDeletion providerId serviceId -> enqueue queueEnv (DeleteService providerId serviceId)
+    EnqueueBackupDeletion userId -> enqueue queueEnv (DeleteBackups userId)
 
 -- | Enqueue a message.
 --

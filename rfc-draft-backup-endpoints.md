@@ -46,7 +46,7 @@ Rules shared by all routes under `/backups`:
 - `Z-Client` must be a current client of the caller (checked against brig, the token alone doesn't prove it), else 404 `backup-not-found`.
   - This guards against the case where a client has a valid authorization token, but gets deleted while the token is valid.
 - Only uploads check the team flag `automaticBackups`; reads work whatever its state.
-- There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig).
+- There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig, via queue event).
 - The server keeps at most the two newest epochs of a client: after a full file is stored (`POST …/full`) it deletes all files of every epoch except the two newest, i.e. the oldest one when a third epoch starts. Storing an incremental file deletes nothing.
 
 #### `/backups`
@@ -569,4 +569,11 @@ object and then asks brig whether the client still exists; if not, it deletes
 the object again and fails. So for any upload overlapping a removal, either the
 prefix deletion lists the object, or the re-check sees the client gone and the
 upload process deletes its object.
+
+User deletion will work the same way, with a *new* backend-internal queue event
+(`DeleteBackups`, not a Wire event, never fanned out). Brig's `deleteAccount`
+enqueues it first, before the user is marked deleted, so a failing enqueue
+leaves the deletion retriable. The consumer deletes the user's client rows
+(idempotent) and then all backups of the user (Cargohold, by prefix), and is
+retried until that succeeds.
 

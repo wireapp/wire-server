@@ -34,6 +34,7 @@ import Polysemy.Input (Input)
 import Polysemy.Time
 import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
+import Wire.API.User.Client (Client (clientId))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
 import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
@@ -41,6 +42,7 @@ import Wire.CargoholdAPIAccess qualified as CargoholdAPIAccess
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ConnectionStore (ConnectionStore)
+import Wire.DeleteQueue (DeleteQueue)
 import Wire.Events (Events)
 import Wire.InvitationStore (InvitationStore)
 import Wire.NotificationSubsystem
@@ -74,6 +76,7 @@ onEvent ::
     Member UserGroupSubsystem r,
     Member (Concurrency Unsafe) r,
     Member CargoholdAPIAccess r,
+    Member DeleteQueue r,
     Member ClientStore r
   ) =>
   InternalNotification ->
@@ -100,6 +103,17 @@ onEvent n = handleTimeout $ case n of
     -- wait 'delay' ms before processing the next event
     deleteThrottleMillis <- embed $ fromMaybe defDeleteThrottleMillis <$> asks (.settings.deleteThrottleMillis)
     delay (1000 * deleteThrottleMillis)
+  DeleteBackups uid -> do
+    Log.info $
+      msg (val "Processing backup delete event")
+        ~~ field "user" (toByteString uid)
+    -- The client rows must be gone before the backups are deleted: an upload racing this either
+    -- has its object listed by the deletion, or sees the client gone after its PUT and deletes
+    -- the object itself.
+    ClientStore.lookupClients uid >>= mapM_ (ClientStore.delete uid . (.clientId))
+    -- Last: a failing deletion makes the queue redeliver the event (everything above is
+    -- idempotent).
+    CargoholdAPIAccess.deleteBackupsOfUser uid
   DeleteService pid sid -> do
     Log.info $
       msg (val "Processing service delete event")

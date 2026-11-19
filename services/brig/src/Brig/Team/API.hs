@@ -69,9 +69,9 @@ import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
-import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
 import Wire.ClientStore (ClientStore)
 import Wire.ConnectionStore (ConnectionStore)
+import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
 import Wire.Events (Events)
@@ -121,7 +121,7 @@ servantAPI ::
     Member UserStore r,
     Member UserKeyStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member CargoholdAPIAccess r,
+    Member DeleteQueue r,
     Member (UserPendingActivationStore p) r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -244,7 +244,7 @@ deleteInvitation ::
     Member UserStore r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
-    Member CargoholdAPIAccess r,
+    Member DeleteQueue r,
     Member (Input (Local ())) r
   ) =>
   UserId ->
