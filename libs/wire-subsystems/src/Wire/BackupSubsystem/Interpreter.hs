@@ -155,7 +155,10 @@ uploadBackupImpl uid zcid cid e base len src = do
   fid <- newFileId
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
   store BackupLocation {user = uid, client = cid, epoch = e, file}
-  listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
+  superseded <- pruneTargets <$> listBlobs uid cid e
+  traverse_ (deleteBlob . location) superseded
+  -- A newer full was stored during the upload: this file was just pruned, don't report it.
+  when (file `elem` map (.file) superseded) $ throw BackupErrFullMissing
   -- Epochs listed again: one may have appeared during the upload.
   when (isNothing base) $
     listBlobEpochs uid cid

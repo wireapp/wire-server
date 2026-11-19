@@ -55,13 +55,15 @@ type DownloadLinkDescription =
 
 type FullUploadDescription =
   "The new full backup replaces the epoch's previous full backup and the incremental files \
-  \of it; the newest full backup (by id) wins. A failed or aborted upload leaves no file \
-  \behind. Only the two newest epochs are kept: after the full backup is stored, all files of \
+  \of it; the newest full backup (by id) wins. If a newer full backup is stored during the \
+  \upload, this one is deleted and the upload fails with `backup-full-missing`. A failed or \
+  \aborted upload leaves no file behind. Only the two newest epochs are kept: after the full backup is stored, all files of \
   \the older epochs are deleted."
 
 type IncrementalUploadDescription =
   "Extends the full backup `fullId`, which must be the newest full backup of the epoch \
-  \(`backup-full-missing` otherwise: upload a new full backup instead). A failed or aborted \
+  \(`backup-full-missing` otherwise, also if a newer full backup is stored during the upload: \
+  \upload a new full backup instead). A failed or aborted \
   \upload leaves no file behind."
 
 type DeleteClientBackupsDescription =
@@ -123,6 +125,7 @@ type BackupAPI =
                :> CanThrow 'BackupForbidden
                :> CanThrow 'BackupFeatureDisabled
                :> CanThrow 'BackupEpochNotAllowed
+               :> CanThrow 'BackupFullMissing
                :> CanThrow 'BackupTooLarge
                :> CanThrow 'IncompleteBody
                :> ZLocalUser
