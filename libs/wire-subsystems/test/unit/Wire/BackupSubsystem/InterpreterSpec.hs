@@ -69,7 +69,10 @@ data World = World
     failAfterPut :: Bool,
     -- | 'PutBlob' first runs a deletion of the client's backups (its tombstone is newer than any
     -- file), like a deletion that overtakes an upload.
-    deleteDuringPut :: Bool
+    deleteDuringPut :: Bool,
+    -- | 'PutBlob' first stores full files in the epochs 3 and 4, like uploads of other fulls that
+    -- finish meanwhile.
+    newerEpochsDuringPut :: Bool
   }
 
 -- | Failures of brig and the store other than 'BackupError', like RPC errors in cargohold.
@@ -138,7 +141,8 @@ world0 =
       failLookupFrom = Nothing,
       failDelete = False,
       failAfterPut = False,
-      deleteDuringPut = False
+      deleteDuringPut = False,
+      newerEpochsDuringPut = False
     }
 
 runBackup ::
@@ -191,6 +195,12 @@ failingStore = intercept $ \case
     whenM (gets (.deleteDuringPut)) $ do
       putTombstone l.user l.client (BackupFileId (UUID.fromWords64 maxBound maxBound))
       listBlobEpochs l.user l.client >>= traverse_ (deleteBlobs . EpochPrefix l.user l.client)
+    whenM (gets (.newerEpochsDuringPut)) $
+      for_ [3, 4] $ \e ->
+        putBlob
+          l {epoch = BackupEpoch e, file = FullFile (BackupFileId (UUID.fromWords64 0 (fromIntegral e)))}
+          1
+          (yield "n")
     v <- putBlob l n s
     whenM (gets (.failAfterPut)) $ throw StoreDown
     pure v
@@ -204,7 +214,7 @@ failingStore = intercept $ \case
   DeleteBlobs p -> deleteBlobs p
   PutTombstone u c i -> putTombstone u c i
   ListTombstones u c -> listTombstones u c
-  DeleteTombstone u c i -> deleteTombstone u c i
+  DeleteClientBackupsBefore u c t -> deleteClientBackupsBefore u c t
 
 mockBrig :: (Member (State World) r, Member (Error MockFailure) r) => User -> InterpreterFor BrigAPIAccess r
 mockBrig base = interpret $ \case
@@ -465,6 +475,15 @@ spec = describe "BackupSubsystem" $ do
     Map.size blobs `shouldBe` 1
     res `shouldBe` Right 1
 
+  it "an older client delete keeps the newer tombstone" $ do
+    let old = BackupFileId (UUID.fromWords64 0 1)
+        new = BackupFileId (UUID.fromWords64 maxBound maxBound)
+    (_, res) <- runBackup world0 Nothing $ do
+      putTombstone uA a1 new
+      deleteClientBackupsBefore uA a1 old
+      listTombstones uA a1
+    res `shouldBe` Right [new]
+
   it "removing the client removes its tombstones" $ do
     (_, res) <- runBackup world0 Nothing $ do
       deleteClientBackups (loc uA) a1 a1
@@ -595,6 +614,15 @@ spec = describe "BackupSubsystem" $ do
         _ <- upload uA a1 a1 3 "x"
         epochsOf uA a1 a1
       res `shouldBe` Right [2, 3]
+
+    it "a full racing newer epochs prunes by the epochs after its upload" $ do
+      (_, res) <- runBackup world0 Nothing $ do
+        _ <- upload uA a1 a1 1 "x"
+        _ <- upload uA a1 a1 2 "x"
+        modify (\w -> w {newerEpochsDuringPut = True})
+        _ <- uploadFull uA a1 a1 2 "y"
+        epochsOf uA a1 a1
+      res `shouldBe` Right [3, 4]
 
     it "next epoch is allowed after pruning" $ do
       (_, res) <- runBackup world0 Nothing $ do

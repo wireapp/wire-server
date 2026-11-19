@@ -114,7 +114,9 @@ interpreter onChunk = interpret $ \case
     modify (Set.filter (\(u, c, _) -> not (tombstoneInPrefix p u c)))
   PutTombstone u c i -> modify (Set.insert (u, c, i))
   ListTombstones u c -> gets (map (\(_, _, i) -> i) . filter (\(u', c', _) -> (u', c') == (u, c)) . Set.toList)
-  DeleteTombstone u c i -> modify (Set.delete (u, c, i))
+  DeleteClientBackupsBefore u c t -> do
+    modify (Map.filterWithKey (\l _ -> not (inPrefix (ClientPrefix u c) l)))
+    modify (Set.filter (\(u', c', i) -> (u', c') /= (u, c) || i >= t))
   where
     addVersion l v = do
       h <- gets (Map.findWithDefault [] l)

@@ -40,7 +40,8 @@ All other paths are under `/backups/clients/{cid}/epochs`:
   stop scheduling uploads before the call.
 
 Backups are also deleted on client and user deletion (brig, internal). After storing a full file
-the server deletes all files of all but the two newest epochs of the client.
+the server deletes all files of all but the two newest epochs of the client (listed after the
+store, so epochs created meanwhile count).
 
 `fullId` and `id` come from the upload responses and the list response.
 
@@ -166,8 +167,9 @@ deletes its object.
 
 Deleting the backups on request of the client (`DELETE /backups/clients/{cid}`) has no client row
 to order against, so it uses tombstones. It first stores a tombstone (`.tombstones/<id>`, a UUIDv7
-like file ids), then deletes all epochs, then the older tombstones (the newest one stays). After
-its PUT and the client check, an upload lists the tombstones: one newer than the file's id means
+like file ids), then deletes everything under the client prefix except the tombstones that are
+not older than its own (one sweep, so a concurrent older deletion cannot erase a newer tombstone).
+After its PUT and the client check, an upload lists the tombstones: one newer than the file's id means
 the deletion started after the upload did, so the upload deletes its object and fails with 403.
 Either the deletion lists the object or the upload sees the tombstone. Uploads started after the
 deletion have newer ids and are unaffected. This relies on UUIDv7 time order across cargohold

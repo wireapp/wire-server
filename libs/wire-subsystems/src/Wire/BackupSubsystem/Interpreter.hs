@@ -84,12 +84,11 @@ interpretBackupSubsystem = interpret $ \case
   DeleteClientBackups luid zcid cid -> do
     let uid = tUnqualified luid
     checkWrite uid zcid cid
-    -- Tombstone first, then delete: see 'uploadBackupImpl'. The tombstones survive the deletion
-    -- (only the epochs are deleted), older ones are no longer needed.
+    -- Tombstone first, then delete: see 'uploadBackupImpl'. The deletion keeps the tombstones that
+    -- are not older than 't', also those of concurrent newer deletions.
     t <- newFileId
     putTombstone uid cid t
-    listBlobEpochs uid cid >>= traverse_ (deleteBlobs . EpochPrefix uid cid)
-    listTombstones uid cid >>= traverse_ (deleteTombstone uid cid) . filter (< t)
+    deleteClientBackupsBefore uid cid t
   InternalDeleteClientBackups uid cid -> deleteBlobs (ClientPrefix uid cid)
   InternalDeleteUserBackups uid -> deleteBlobs (UserPrefix uid)
 
@@ -113,8 +112,8 @@ interpretBackupSubsystem = interpret $ \case
 -- an upload lists the tombstones; one newer than the file's id means the deletion started after
 -- the upload did, so the upload deletes its object and fails. Either the deletion lists the
 -- object, or the upload sees the tombstone. Uploads started after the deletion have newer ids
--- and pass. Only the newest tombstone is kept. This relies on UUIDv7 time order across servers,
--- like "newest full file wins".
+-- and pass. The deletion keeps the tombstones not older than its own. This relies on UUIDv7 time
+-- order across servers, like "newest full file wins".
 --
 -- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
 -- new full file replaces the previous one. The newest full file (greatest id) wins. An
@@ -122,8 +121,8 @@ interpretBackupSubsystem = interpret $ \case
 -- cannot belong to a full file that is still uploading. After storing, every upload deletes what
 -- the newest full file superseded: older full files, and incremental files under them, also
 -- orphans of an incremental upload that raced a newer full file. A full file also deletes all
--- files of all but the two newest epochs. Concurrent full uploads prune each other, a late older
--- one deletes itself.
+-- files of all but the two newest epochs (listed after the upload, so epochs created meanwhile
+-- count). Concurrent full uploads prune each other, a late older one deletes itself.
 uploadBackupImpl ::
   ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
@@ -156,9 +155,10 @@ uploadBackupImpl uid zcid cid e base len src = do
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
   store fid BackupLocation {user = uid, client = cid, epoch = e, file}
   listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
+  -- Epochs listed again: one may have appeared during the upload.
   when (isNothing base) $
-    traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $
-      Set.insert e epochs
+    listBlobEpochs uid cid
+      >>= traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs . Set.insert e . Set.fromList
   pure (toFile BackupBlob {file, size = len})
   where
     location b = BackupLocation {user = uid, client = cid, epoch = e, file = b.file}

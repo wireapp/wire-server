@@ -394,14 +394,14 @@ listObjectsV2Pages prefix delimiter = go Nothing
         _ -> pure [r]
 
 -- | Deletes /all versions/ (and delete markers) of the objects below @prefix@ whose key passes
--- @keep@. On a versioned bucket a plain delete only adds a delete marker, the encrypted data
+-- @selected@. On a versioned bucket a plain delete only adds a delete marker, the encrypted data
 -- stays and is restorable. The RFC requires backups of a removed device to be deleted
 -- immediately.
 --
 -- Stores without @ListObjectVersions@ (S3 error @NotImplemented@) are unversioned: falls back
 -- to plain deletes of the listed objects.
 deleteAllVersions :: Text -> (Text -> Bool) -> Handler ()
-deleteAllVersions prefix keep = do
+deleteAllVersions prefix selected = do
   versions <-
     listVersions prefix >>= \case
       Right vs -> pure vs
@@ -411,7 +411,7 @@ deleteAllVersions prefix keep = do
             ~~ msg (val "ListObjectVersions not implemented, deleting without version ids")
         map ((,Nothing) . fst) <$> listObjects prefix
       Left e -> throwM (AWS.GeneralError e)
-  for_ (chunksOf 1000 (filter (keep . fst) versions)) deleteObjects
+  for_ (chunksOf 1000 (filter (selected . fst) versions)) deleteObjects
   where
     chunksOf n xs = case splitAt n xs of
       ([], _) -> []

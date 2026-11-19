@@ -427,6 +427,9 @@ The key layout is:
 
 - `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/full`: Full backup object (“file”)
 - `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/incremental/<id>`: Incremental backup object (“file”), stored under the full it extends
+- `backup/<h(uid)>/<h(cid)>/.tombstones/<id>`: Empty tombstone object written by the client's own
+  backup deletion (see [Deletion and upload ordering](#deletion-and-upload-ordering)). It is not
+  an epoch, so listings ignore it.
 
 `uid` and `cid` are userId and clientId respectively. `h()` obfuscates them with
 an HMAC (see [Obfuscated ids (HMAC)](#obfuscated-ids-hmac)).
@@ -526,9 +529,10 @@ Uploads are lock-free and safe against races:
   not stored under the current full. For an incremental upload this removes the
   orphan of an upload that raced a newer full.
 - After storing a full file (not an incremental), the server also deletes all
-  files of all but the two newest epochs.
-- A failed upload (storage error, short body, disconnect, client removed
-  meanwhile) deletes the object it created.
+  files of all but the two newest epochs. The epochs are listed after the
+  store, so epochs that other uploads created meanwhile count.
+- A failed upload (storage error, short body, disconnect, client removed or its
+  backups deleted by the client meanwhile) deletes the object it created.
 - After the PUT, the server re-checks that the client still exists and deletes
   the object if not. Brig deletes the backups only after the client row is
   gone, so a client deletion racing an upload leaves no orphan (see "Deletion and upload
@@ -576,6 +580,18 @@ object and then asks brig whether the client still exists; if not, it deletes
 the object again and fails. So for any upload overlapping a removal, either the
 prefix deletion lists the object, or the re-check sees the client gone and the
 upload process deletes its object.
+
+Deleting the backups on request of the client (`DELETE /backups/clients/<ClientId>`) has no
+client row to order against, so it uses tombstones. It first stores a tombstone
+(`.tombstones/<id>`, a UUIDv7 like file ids), then deletes everything under the client prefix
+except the tombstones that are not older than its own (one sweep). After its PUT and the client
+check, an upload lists the tombstones: one newer than the file's id means the deletion started
+after the upload did, so the upload deletes its object and fails with 403 `backup-forbidden`.
+Either the deletion lists the object, or the upload sees the tombstone. Uploads started after the
+deletion have newer ids and are unaffected. Keeping newer tombstones means an older concurrent
+deletion cannot erase the tombstone of a newer one. This relies on UUIDv7 time order across
+Cargohold instances, like "Newest full wins". Client and user deletion remove tombstones with
+the prefix.
 
 User deletion will work the same way, with a *new* backend-internal queue event
 (`DeleteBackups`, not a Wire event, never fanned out). Brig's `deleteAccount`
