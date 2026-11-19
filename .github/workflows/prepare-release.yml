@@ -1,0 +1,330 @@
+name: Prepare release
+
+run-name: Prepare ${{ inputs.type }} from ${{ inputs.source_branch }} (by @${{ github.actor }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'Branch to release from: dev, or a maintained release/X.Y line'
+        type: string
+        default: dev
+        required: true
+      type:
+        description: 'Release channel'
+        type: choice
+        options: [ga, alpha, beta, rc]
+        default: alpha
+        required: true
+      bump:
+        description: 'Applies when the latest release is a GA: the next GA, or the first pre-release of the next line'
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+        required: true
+      force:
+        description: 'Reserved for the CI status gate, off while Concourse reports no status on the commits'
+        type: boolean
+        default: false
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: prepare-release-${{ inputs.source_branch }}-${{ inputs.type }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Prepare the release candidate
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      checks: read
+      statuses: read
+      actions: read
+      id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.source.outputs.sha }}
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+      - name: Validate inputs
+        id: inputs
+        uses: wireapp/wire-rm-actions/release-inputs@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          source-branch: ${{ inputs.source_branch }}
+          type: ${{ inputs.type }}
+          version-bump: ${{ inputs.bump }}
+          force: ${{ inputs.force }}
+
+      - name: Verify source branch exists
+        uses: wireapp/wire-rm-actions/release-source@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          mode: verify
+          source-branch: ${{ inputs.source_branch }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Deployable charts of the source commit
+        id: oci_charts
+        run: |
+          set -euo pipefail
+          charts=$(make -s echo-oci-charts)
+          [[ -n "$charts" ]] || { echo "::error::make echo-oci-charts printed nothing"; exit 1; }
+          echo "list=$charts" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve source commit
+        id: source
+        uses: wireapp/wire-rm-actions/release-source@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          mode: resolve
+          source-branch: ${{ inputs.source_branch }}
+
+      - name: Compute target version
+        id: version
+        uses: wireapp/wire-rm-actions/version@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          mode: release
+          source-branch: ${{ inputs.source_branch }}
+          release-type: ${{ steps.inputs.outputs.release-type }}
+          version-bump: ${{ inputs.bump }}
+
+      - name: Summarise the candidate
+        uses: wireapp/wire-rm-actions/release-source@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          mode: summary
+          source-branch: ${{ inputs.source_branch }}
+          version: ${{ steps.version.outputs.version }}
+          release-type: ${{ steps.inputs.outputs.release-type }}
+          source-sha: ${{ steps.source.outputs.sha }}
+          base-tag: ${{ steps.version.outputs.base-tag }}
+          from-tag: ${{ steps.version.outputs.from-tag }}
+          note: Resolving the dev build of this commit on quay.io, then packaging the charts. The draft release link appears here once created.
+
+      - name: Require the release files
+        env:
+          TARGET: ${{ steps.version.outputs.version }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+        run: |
+          set -euo pipefail
+          for f in publication/release-note.md publication/declaration.json publication/compatibility.yaml; do
+            if [[ ! -s "$f" ]]; then
+              echo "error: no $f for ${TARGET} on ${SOURCE_BRANCH} (ADR-0020 §2): a pre-release needs the three release files, like a GA." >&2
+              exit 1
+            fi
+          done
+
+      - name: Resolve release documents
+        id: documents
+        uses: wireapp/wire-rm-actions/release-documents@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          component: wire-server
+          version: ${{ steps.version.outputs.version }}
+          release-type: ${{ inputs.type }}
+          out-dir: ${{ runner.temp }}/release-documents
+
+      - name: Check the compatibility file
+        id: compatibility
+        uses: wireapp/wire-rm-actions/compatibility@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          file: publication/compatibility.yaml
+          output-dir: ${{ runner.temp }}/compatibility
+
+      - name: Copy the compatibility file
+        id: compatibility_copy
+        env:
+          DOCS: ${{ runner.temp }}/release-documents
+          DOCUMENTS_JSON: ${{ steps.documents.outputs.documents-json }}
+        run: |
+          set -euo pipefail
+          cp publication/compatibility.yaml "$DOCS/compatibility.yaml"
+          sha256=$(sha256sum "$DOCS/compatibility.yaml" | awk '{print $1}')
+          documents_json=$(jq -c --arg sha "$sha256" '. + {compatibility: {file: "compatibility.yaml", sha256: $sha}}' <<<"$DOCUMENTS_JSON")
+          echo "documents-json=$documents_json" >> "$GITHUB_OUTPUT"
+
+      - name: Release gate
+        uses: wireapp/wire-rm-actions/ci-gate@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          version: ${{ steps.version.outputs.version }}
+          source-commit: ${{ steps.source.outputs.sha }}
+          checks-gate: false
+
+      - name: Checkout the scripts of wire-rm-actions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: wireapp/wire-rm-actions
+          ref: b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+          path: rm-actions
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Dev build version of the source commit
+        id: devbuild
+        env:
+          REF: ${{ steps.source.outputs.sha }}
+          BRANCH: ${{ inputs.source_branch }}
+          TAG_PREFIX: v
+        run: |
+          set -euo pipefail
+          bash "${GITHUB_WORKSPACE}/rm-actions/scripts/compute-version.sh"
+
+      - name: Install crane
+        env:
+          CRANE_VERSION: v0.22.1
+          CRANE_SHA256: 0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0
+          DEST: ${{ runner.temp }}/crane
+        run: |
+          set -euo pipefail
+          bash "${GITHUB_WORKSPACE}/rm-actions/scripts/install-crane.sh"
+          echo "$DEST" >> "$GITHUB_PATH"
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.19.0
+
+      - name: Package the charts at the release version
+        id: package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          OUT_DIR: ${{ runner.temp }}/charts
+        run: .github/scripts/package-charts.sh
+
+      - name: Images the charts deploy
+        id: images
+        env:
+          CHARTS_DIR: .local/charts
+          TAG: ${{ steps.version.outputs.version }}
+        run: python3 .github/scripts/release-images.py
+
+      - name: Login to quay.io with the OIDC token of the job
+        uses: wireapp/wire-rm-actions/quay-login@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          robot: wire+gha_wire-server
+
+      - name: Resolve the images of the dev build
+        id: digests
+        env:
+          IMAGES: ${{ steps.images.outputs.images }}
+          DEV_VERSION: ${{ steps.devbuild.outputs.version }}
+          DIGESTS_FILE: ${{ runner.temp }}/image-digests.json
+        run: .github/scripts/resolve-images.sh
+
+      - name: Log out of quay.io
+        if: always()
+        run: docker logout quay.io
+
+      - name: Chart checksums
+        id: charts
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          CHART_DIR: ${{ steps.package.outputs.dir }}
+          CHARTS_FILE: ${{ runner.temp }}/charts.json
+        run: .github/scripts/chart-checksums.sh
+
+      - name: Write the release manifests
+        id: manifests
+        env:
+          OUT_DIR: ${{ runner.temp }}/manifests
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TYPE: ${{ inputs.type }}
+          DEV_VERSION: ${{ steps.devbuild.outputs.version }}
+          SOURCE_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
+          SOURCE_REF: ${{ inputs.source_branch }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.sha }}
+          CHARTS_FILE: ${{ steps.charts.outputs.file }}
+          CHART_CHANNEL: ${{ inputs.type == 'ga' && 'stable' || 'dev' }}
+          IMAGE_DIGESTS_FILE: ${{ steps.digests.outputs.file }}
+          COMPATIBILITY_FILE: ${{ steps.compatibility.outputs.manifest-compatibility }}
+          DOCUMENTS_JSON: ${{ steps.compatibility_copy.outputs.documents-json }}
+          BUILD_WORKFLOW: ${{ github.workflow_ref }}
+          BUILD_RUN_ID: ${{ github.run_id }}
+          BUILD_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: .github/scripts/write-release-manifests.sh
+
+      - name: Unreleased changelog fragments
+        id: changelog
+        env:
+          OUT_FILE: ${{ runner.temp }}/changelog.md
+        run: |
+          set -euo pipefail
+          ./changelog.d/mk-changelog.sh > "$OUT_FILE"
+          echo "file=$OUT_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Compose the release body
+        id: body
+        env:
+          RELEASE_TYPE: ${{ inputs.type }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DEV_VERSION: ${{ steps.devbuild.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.sha }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          NOTE_FILE: ${{ runner.temp }}/release-documents/${{ steps.documents.outputs.note-file }}
+          NOTE_PATH: ${{ steps.documents.outputs.note-path }}
+          CHANGELOG_FILE: ${{ steps.changelog.outputs.file }}
+          IMAGES: ${{ steps.images.outputs.images }}
+          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          CHART_CHANNEL: ${{ inputs.type == 'ga' && 'stable' || 'dev' }}
+          OUT_FILE: ${{ runner.temp }}/release-body.md
+        run: .github/scripts/release-body.sh
+
+      - name: Check for existing release (pre-draft)
+        uses: wireapp/wire-rm-actions/ci-gate@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          version: ${{ steps.version.outputs.version }}
+          checks-gate: false
+
+      - name: Create the draft release
+        id: release
+        uses: wireapp/wire-rm-actions/draft-release@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          mode: create
+          version: ${{ steps.version.outputs.version }}
+          target: ${{ steps.source.outputs.sha }}
+          title: v${{ steps.version.outputs.version }}
+          body-file: ${{ steps.body.outputs.file }}
+          assets: |
+            ${{ steps.charts.outputs.assets }}
+            ${{ steps.manifests.outputs.files }}
+            ${{ runner.temp }}/release-documents/release-note.md
+            ${{ runner.temp }}/release-documents/release-declaration.json
+            ${{ runner.temp }}/release-documents/compatibility.yaml
+
+      - name: Summarise the candidate
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DEV_VERSION: ${{ steps.devbuild.outputs.version }}
+          IMAGE_COUNT: ${{ steps.images.outputs.count }}
+          CHARTS: ${{ steps.oci_charts.outputs.list }}
+        run: |
+          set -euo pipefail
+          read -ra charts <<<"$CHARTS"
+          {
+            echo
+            echo "| Candidate | |"
+            echo "| --- | --- |"
+            echo "| Images | ${IMAGE_COUNT} images of the dev build \`${DEV_VERSION}\`, promoted by digest to \`${VERSION}\` at publication |"
+            echo "| Charts | ${#charts[@]} charts packaged at \`${VERSION}\`, attached to the draft release |"
+            echo
+            echo "Install the attached charts with the dev build images in a validation environment, then approve the \`release-publication\` environment on this run. Publication promotes these exact artifacts, it never rebuilds them."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish
+    needs: candidate
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      version: ${{ needs.candidate.outputs.version }}
+      release_id: ${{ needs.candidate.outputs.release_id }}

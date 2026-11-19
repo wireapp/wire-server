@@ -29,6 +29,10 @@ elasticsearch-ephemeral minio-external cassandra-external						\
 ingress-nginx-controller nginx-ingress-services reaper \
 k8ssandra-test-cluster wire-server-enterprise \
 wire-ingress
+# The deployable charts among CHARTS_RELEASE: published to the OCI registry and
+# declared to the release managers, by the dev builds and the releases alike.
+CHARTS_OCI := wire-server wire-server-enterprise nginx-ingress-services ingress-nginx-controller wire-ingress \
+cassandra-external elasticsearch-external minio-external rabbitmq-external reaper redis-ephemeral rabbitmq fake-aws-sqs
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 PSQL_DB               ?= backendA
@@ -596,6 +600,10 @@ upload-charts: charts-release
 .PHONY: echo-release-charts
 echo-release-charts:
 	@echo ${CHARTS_RELEASE}
+
+.PHONY: echo-oci-charts
+echo-oci-charts:
+	@echo ${CHARTS_OCI}
 
 .PHONY: kind-cluster
 kind-cluster:

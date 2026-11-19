@@ -1,0 +1,65 @@
+providesApis:
+  - api: wire-server/client-api
+    versions:
+      supported: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+      deprecated: []
+      development: [19]
+  - api: wire-server/federation-api
+    versions:
+      supported: [0, 1, 2, 3, 4]
+      deprecated: []
+      development: [5]
+
+consumesApis: []
+
+dependsOn:
+  - resource: cassandra
+    range: ">=4.1.0"
+    class: mandatory
+    reason: brig, galley, gundeck and spar keyspaces.
+  - resource: postgresql
+    range: ">=17.0.0"
+    class: mandatory
+    reason: brig, galley, gundeck and background-worker.
+  - resource: elasticsearch
+    range: ">=6.8.0 <7.0.0"
+    class: mandatory
+    reason: brig user index.
+  - resource: redis
+    range: ">=7.0.0"
+    class: mandatory
+    reason: gundeck presence store.
+  - resource: rabbitmq
+    range: ">=3.13.0"
+    class: mandatory
+    reason: Federation notifications, background jobs and client notification queues.
+  - resource: s3
+    range: "*"
+    class: mandatory
+    reason: cargohold assets.
+  - resource: sqs
+    range: "*"
+    class: mandatory
+    reason: brig internal events, SES bounces, team and user journals.
+  - resource: sns
+    range: "*"
+    class: optional
+    reason: Native push notifications to mobile clients.
+  - resource: ses
+    range: "*"
+    class: optional
+    reason: Transactional email, alternative to smtp.
+  - resource: smtp
+    range: "*"
+    class: optional
+    reason: Transactional email, alternative to ses.
+  - resource: dns-srv
+    range: "*"
+    class: optional
+    reason: Federation discovery.
+  - platform: kubernetes
+    range: ">=1.33.0"
+  - platform: helm
+    range: ">=3.12.0"
+
+includes: []

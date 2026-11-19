@@ -1,0 +1,154 @@
+name: Dev build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Dev version built by Concourse, X.Y.Z-<YYYYMMDDHHMMSS>.g<sha7> or X.Y.Z-<pre>.N.<YYYYMMDDHHMMSS>.g<sha7>
+        required: true
+        type: string
+      commit:
+        description: Full sha of the commit Concourse built
+        required: true
+        type: string
+      source_ref:
+        description: Branch the commit was built from
+        required: false
+        type: string
+        default: dev
+  push:
+    branches: [dev]
+    paths: [.github/workflows/dev-build.yml]
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  OCI_REPOSITORY: quay.io/wire/charts/dev
+  S3_REPOSITORY: charts-develop
+  WIRE_BUILDS_BRANCH: dev
+  # Quay deletes the dev charts after this delay, and the dev manifests say so
+  # (expires_at): the release managers do not pin an expired dev build.
+  DEV_BUILD_EXPIRES_AFTER: 30d
+
+jobs:
+  dev-build:
+    name: Dev build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout the workflow scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: ci
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Checkout the built commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: src
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Check the inputs
+        id: inputs
+        working-directory: src
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: ../ci/.github/scripts/dev-build-inputs.sh
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.19.0
+
+      - uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63 # v2.0.3
+
+      - name: Package the charts
+        id: package
+        working-directory: src
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          CHARTS: ${{ steps.inputs.outputs.charts }}
+          OUT_DIR: ${{ runner.temp }}/charts
+        run: ../ci/.github/scripts/package-charts.sh
+
+      - name: Checkout the scripts of wire-rm-actions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: wireapp/wire-rm-actions
+          ref: b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+          path: rm-actions
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Login to quay.io with the OIDC token of the job
+        id: quay
+        uses: wireapp/wire-rm-actions/quay-login@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          robot: wire+gha_wire-server
+
+      - name: Publish the deployable charts to oci://quay.io/wire/charts/dev
+        working-directory: src
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          CHARTS: ${{ steps.inputs.outputs.oci-charts }}
+          CHART_SRC: .local/charts
+          EXPIRES_AFTER: ${{ env.DEV_BUILD_EXPIRES_AFTER }}
+          DIGESTS_FILE: ${{ runner.temp }}/chart-digests.json
+          PUBLISH_CHART: ${{ github.workspace }}/rm-actions/scripts/publish-chart.sh
+          QUAY_USERNAME: ${{ steps.quay.outputs.username }}
+          QUAY_PASSWORD: ${{ steps.quay.outputs.token }}
+        run: ../ci/.github/scripts/publish-charts-oci.sh
+
+      - name: Declare the dev build to the release managers, one record per component
+        working-directory: src
+        env:
+          RM_STAGING_URL: ${{ vars.RM_STAGING_URL }}
+          RM_STAGING_AUDIENCE: wire-release-manager-staging
+          RM_PROD_URL: ${{ vars.RM_PROD_URL }}
+          RM_PROD_AUDIENCE: wire-release-manager-prod
+          VERSION: ${{ steps.inputs.outputs.version }}
+          COMMIT: ${{ steps.inputs.outputs.commit }}
+          BRANCH: ${{ steps.inputs.outputs.source-ref }}
+          CHARTS: ${{ steps.inputs.outputs.oci-charts }}
+          DIGESTS_FILE: ${{ runner.temp }}/chart-digests.json
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTIFY_RM: ${{ github.workspace }}/rm-actions/scripts/notify-rm.sh
+          RELEASE_MANIFEST: ${{ github.workspace }}/rm-actions/scripts/release-manifest.sh
+          EXPIRES_AFTER: ${{ env.DEV_BUILD_EXPIRES_AFTER }}
+          SOURCE_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
+        run: ../ci/.github/scripts/declare-dev-build.sh
+
+      - name: Publish the charts to S3 charts-develop
+        if: vars.DEV_BUILD_PUBLISH_S3_WIRE_BUILDS == 'true'
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          CHARTS: ${{ steps.inputs.outputs.charts }}
+          CHART_DIR: ${{ steps.package.outputs.dir }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: ci/.github/scripts/publish-charts-s3.sh
+
+      - name: Bump the charts in wire-builds dev
+        if: vars.DEV_BUILD_PUBLISH_S3_WIRE_BUILDS == 'true'
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          CHARTS: ${{ steps.inputs.outputs.charts }}
+          COMMIT: ${{ steps.inputs.outputs.commit }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          WIRE_BUILDS_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
+        run: ci/.github/scripts/bump-wire-builds.sh

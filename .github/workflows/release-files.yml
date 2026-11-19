@@ -1,0 +1,57 @@
+name: Release files
+
+on:
+  pull_request:
+    branches: [dev, release/*]
+
+concurrency:
+  group: release-files-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  release-files:
+    name: Release files
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: touched
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet "$BASE_SHA" HEAD -- publication/; then
+            echo "publication/ is not touched by this PR."
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "touched=true" >> "$GITHUB_OUTPUT"
+          for f in publication/release-note.md publication/declaration.json publication/compatibility.yaml; do
+            [[ -s "$f" ]] || { echo "error: $f is missing or empty" >&2; exit 1; }
+          done
+          version=$(jq -r '.version // ""' publication/declaration.json)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "error: publication/declaration.json version '$version' is not a plain X.Y.Z (the base version of the next release)" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - if: steps.touched.outputs.touched == 'true'
+        uses: wireapp/wire-rm-actions/compatibility@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          file: publication/compatibility.yaml
+
+      - if: steps.touched.outputs.touched == 'true'
+        uses: wireapp/wire-rm-actions/release-declaration@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        with:
+          file: publication/declaration.json
+          component: wire-server
+          version: ${{ steps.touched.outputs.version }}
