@@ -64,6 +64,12 @@ type IncrementalUploadDescription =
   \(`backup-full-missing` otherwise: upload a new full backup instead). A failed or aborted \
   \upload leaves no file behind."
 
+type DeleteClientBackupsDescription =
+  "Deletes all backups of the client, which must be the calling client. The team feature is not \
+  \checked, so a client can clean up while the feature is disabled. Succeeds if there is nothing to \
+  \delete. A client has to wait for all its own uploads to finish before calling this: an upload \
+  \that is still running may store a file after the deletion."
+
 type ListFilesDescription =
   "Lists the newest full backup of the epoch and the incremental files stored under it. Presigned \
   \URLs are bearer links valid for `downloadLinkTTL` seconds and expiry is checked at request \
@@ -172,6 +178,21 @@ type BackupAPI =
                :> "epochs"
                :> Capture "epoch" BackupEpoch
                :> Get '[JSON] BackupFiles
+           )
+    :<|> Named
+           "backup-delete-client"
+           ( Summary "Delete all backups of a client"
+               :> From 'V19
+               :> Description DeleteClientBackupsDescription
+               :> CanThrow 'BackupNotFound
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupFeatureDisabled
+               :> ZLocalUser
+               :> ZClient
+               :> "backups"
+               :> "clients"
+               :> Capture "cid" ClientId
+               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 204 "Backups deleted"] ()
            )
     :<|> Named
            "backup-download-full"

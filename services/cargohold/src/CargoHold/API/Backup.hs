@@ -38,6 +38,7 @@ backupServer =
     :<|> Named @"backup-upload-full" (\u z c e len body -> upload u z c e Nothing len body)
     :<|> Named @"backup-upload-incremental" (\u z c e full len body -> upload u z c e (Just full) len body)
     :<|> Named @"backup-list-files" listFiles
+    :<|> Named @"backup-delete-client" deleteClientBackups
     :<|> Named @"backup-download-full" (\u z c e full -> download u z c e full Nothing)
     :<|> Named @"backup-download-incremental" (\u z c e full i -> download u z c e full (Just i))
   where

@@ -80,6 +80,8 @@ data BackupSubsystem m a where
     -- | The incremental file under it, 'Nothing' for the full file itself
     Maybe BackupFileId ->
     BackupSubsystem m URI
+  -- | Deletes all backups of the target client, which must be the caller's own client.
+  DeleteClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ()
   InternalDeleteClientBackups :: UserId -> ClientId -> BackupSubsystem m ()
   InternalDeleteUserBackups :: UserId -> BackupSubsystem m ()
 

@@ -127,6 +127,21 @@ testBackupRoundtrip = do
     resp.status `shouldMatchInt` 200
     BSC.unpack resp.body `shouldMatch` BSC.unpack payload
 
+testBackupDelete :: (HasCallStack) => App ()
+testBackupDelete = do
+  (owner, _, _) <- backupTeam OwnDomain
+  c1 <- newClient owner
+  c2 <- newClient owner
+  let payload = BSC.pack "x"
+  bindResponse (uploadBackup owner c1 c1 1 Nothing payload) $ \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (deleteClientBackups owner c1 c2) $ \resp -> resp.status `shouldMatchInt` 403
+  bindResponse (deleteClientBackups owner c1 c1) $ \resp -> resp.status `shouldMatchInt` 204
+  bindResponse (deleteClientBackups owner c1 c1) $ \resp -> resp.status `shouldMatchInt` 204
+  bindResponse (listClientBackups owner c2 c1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (epochNumbers >=> (`shouldMatch` ([] :: [Int]))) resp
+  bindResponse (uploadBackup owner c1 c1 1 Nothing payload) $ \resp -> resp.status `shouldMatchInt` 200
+
 testBackupEpochRules :: (HasCallStack) => App ()
 testBackupEpochRules = do
   (owner, _, _) <- backupTeam OwnDomain

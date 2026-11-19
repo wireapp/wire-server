@@ -393,6 +393,35 @@ spec = describe "BackupSubsystem" $ do
     void res `shouldBe` Left BackupErrIncompleteBody
     blobs `shouldBe` mempty
 
+  it "client delete removes all epochs of own device only" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      _ <- upload uA a1 a1 1 "x"
+      _ <- upload uA a1 a1 2 "y"
+      g <- upload uA a2 a2 1 "z"
+      deleteClientBackups (loc uA) a1 a1
+      deleteClientBackups (loc uA) a1 a1
+      pure (fullLoc uA a2 1 g)
+    Right kept <- pure res
+    Map.keys blobs `shouldBe` [kept]
+
+  it "client delete of another device is forbidden" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      _ <- upload uA a2 a2 1 "x"
+      attempt (deleteClientBackups (loc uA) a1 a2)
+    res `shouldBe` Right (Left BackupErrForbidden)
+    Map.size blobs `shouldBe` 1
+
+  it "client delete works with the feature disabled, then epoch 1 is allowed again" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      _ <- upload uA a1 a1 1 "x"
+      _ <- upload uA a1 a1 2 "y"
+      modify (\w -> w {feature = FeatureStatusDisabled})
+      deleteClientBackups (loc uA) a1 a1
+      modify (\w -> w {feature = FeatureStatusEnabled})
+      upload uA a1 a1 1 "z"
+    void res `shouldBe` Right ()
+    Map.size blobs `shouldBe` 1
+
   it "internal client delete removes only that device" $ do
     (blobs, res) <- runBackup world0 Nothing $ do
       _ <- upload uA a1 a1 1 "x"

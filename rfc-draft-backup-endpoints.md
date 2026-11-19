@@ -46,7 +46,7 @@ Rules shared by all routes under `/backups`:
 - `Z-Client` must be a current client of the caller (checked against brig, the token alone doesn't prove it), else 404 `backup-not-found`.
   - This guards against the case where a client has a valid authorization token, but gets deleted while the token is valid.
 - Only uploads check the team flag `automaticBackups`; reads work whatever its state.
-- There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig, via queue event).
+- Backups are deleted by the client itself (`DELETE /backups/clients/<ClientId>`), when the client is deleted, and all backups of a user when the user is deleted (internal, by brig, via queue event).
 
 #### Newest full wins
 
@@ -165,6 +165,21 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60` → `200`
   ]
 }
 ```
+
+###### `DELETE /backups/clients/<ClientId>`
+
+- **Headers:** `Z-User`, `Z-Client`
+- **Request body:** none
+- **Response:** 204, empty body
+
+Delete all backups of the client. `<ClientId>` must equal `Z-Client` (403
+`backup-forbidden` otherwise). The team flag `automaticBackups` is not checked, so
+a client can clean up while the feature is disabled. It succeeds if there is nothing to delete.
+
+A client has to wait for all its own uploads to finish before it calls this: an upload that is
+still running may store a file after the deletion.
+
+Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
 
 ---
 

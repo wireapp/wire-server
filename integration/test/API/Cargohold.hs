@@ -457,6 +457,11 @@ listClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String
 listClientBackups user zcid cid =
   backupRequest user zcid cid "" >>= submit "GET"
 
+-- | Delete all backups of the client.
+deleteClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteClientBackups user zcid cid =
+  backupRequest user zcid cid "" >>= submit "DELETE"
+
 -- | A full file ('Nothing') or an incremental file under the full file with the given id.
 uploadBackup ::
   (HasCallStack, MakesValue user) =>

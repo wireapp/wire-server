@@ -32,5 +32,6 @@ interpretBackupSubsystemDisabled = interpret $ \case
   UploadBackup {} -> throw BackupErrFeatureDisabled
   ListFiles {} -> throw BackupErrFeatureDisabled
   DownloadUrl {} -> throw BackupErrFeatureDisabled
+  DeleteClientBackups {} -> throw BackupErrFeatureDisabled
   InternalDeleteClientBackups {} -> pure ()
   InternalDeleteUserBackups {} -> pure ()

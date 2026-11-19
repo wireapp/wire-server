@@ -81,6 +81,10 @@ interpretBackupSubsystem = interpret $ \case
     checkRead uid zcid cid
     unlessM (blobExists l) $ throw BackupErrNotFound
     signedDownloadUrl l
+  DeleteClientBackups luid zcid cid -> do
+    let uid = tUnqualified luid
+    checkWrite uid zcid cid
+    deleteBlobs (ClientPrefix uid cid)
   InternalDeleteClientBackups uid cid -> deleteBlobs (ClientPrefix uid cid)
   InternalDeleteUserBackups uid -> deleteBlobs (UserPrefix uid)
 
