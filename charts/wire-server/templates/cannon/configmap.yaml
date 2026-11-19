@@ -11,6 +11,22 @@ data:
       port: {{ .service.externalPort }}
       externalHostFile: /etc/wire/cannon/externalHost/host.txt
 
+    federationDomain: {{ required "cannon.config.federationDomain or gundeck.config.federationDomain is required" (default $.Values.gundeck.config.federationDomain .config.federationDomain) | quote }}
+    brig:
+      host: brig
+      port: 8080
+    galley:
+      host: galley
+      port: 8080
+    {{- with required "gundeck.config.notificationFanInPostgres is required" $.Values.gundeck.config.notificationFanInPostgres }}
+    notificationFanInPostgres:
+      connection: {{ .connection | toYaml | nindent 8 }}
+      pool: {{ .pool | toYaml | nindent 8 }}
+      {{- if hasKey $.Values.gundeck.secrets "notificationFanInPostgresPassword" }}
+      password: /etc/wire/cannon/fan-in-secrets/notificationFanInPostgresPassword
+      {{- end }}
+    {{- end }}
+
     gundeck:
       host: gundeck
       port: 8080

@@ -84,4 +84,4 @@ swaggerDoc =
     & info . title .~ "Wire-Server internal cannon API"
 
 -- | Background delivery endpoint under the internal /i prefix.
-type FanInCannonAPI = Named "fan-in-notifications" (Summary "Notify connected clients of fan-in events" :> Description "Wake fan-in WebSocket sessions to fetch pending persistent notifications from the database. Forward transient events directly to fan-in WebSocket sessions. This endpoint currently has a placeholder handler." :> "fan-in" :> ReqBody '[JSON] FanInCannonRequest :> Post '[JSON] NoContent)
+type FanInCannonAPI = Named "fan-in-notifications" (Summary "Notify connected clients of fan-in events" :> Description "Wake fan-in WebSocket sessions to fetch pending persistent notifications from the database. Forward transient events directly to fan-in WebSocket sessions." :> "fan-in" :> ReqBody '[JSON] FanInCannonRequest :> Post '[JSON] NoContent)

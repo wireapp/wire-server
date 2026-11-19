@@ -103,6 +103,16 @@ type CannonAPI =
                -- FUTUREWORK: Consider higher-level web socket combinator
                :> WebSocketPending
            )
+    :<|> Named
+           "fan-in-events"
+           ( Summary "Consume fan-in notifications over a websocket connection"
+               :> Description "Resume from server-side acknowledgements. Ordering is guaranteed within each stream. A missing client ID selects all owned clients. Events use session delivery tags; synchronization has no delivery tag or sync marker."
+               :> "events"
+               :> "fan-in"
+               :> ZUser
+               :> QueryParam' '[Optional, Strict] "client" ClientId
+               :> WebSocketPending
+           )
 
 data CannonAPITag
 

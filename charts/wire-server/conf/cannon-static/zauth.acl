@@ -1,3 +1,4 @@
 a (whitelist (regex "/await")
              (regex "/websocket")
-             (regex "(/v[0-9]+)?/events"))
+             (regex "(/v[0-9]+)?/events")
+             (regex "(/v[0-9]+)?/events/fan-in"))

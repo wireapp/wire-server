@@ -92,6 +92,7 @@ library
     API.Brig
     API.BrigCommon
     API.BrigInternal
+    API.Cannon
     API.Cargohold
     API.Common
     API.Federator

@@ -543,6 +543,7 @@ cannon:
     tag: "3.24.1"
     pullPolicy: IfNotPresent
   config:
+    federationDomain: null
     logLevel: Info
     logFormat: StructuredJSON
     logNetStrings: false
