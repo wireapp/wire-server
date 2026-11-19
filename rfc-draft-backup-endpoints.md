@@ -10,9 +10,8 @@ don't (and cannot) provide those.
 
 Backup routes exist from the development API version, which is `V19` at the
 time of writing (this may change due to deferred finishing/merging of this
-feature). I.e. all described the endpoints need a `/v19` (or later) prefix in
-their path: `/v19/backups/...`. Feature routes are not version bound and can be
-access with any version prefix (e.g. `/v{n}/teams/...`).
+feature). I.e. all described `/backups/*` endpoints need a `/v19` (or later)
+prefix in their path: `/v19/backups/...`.
 
 ### Types
 
@@ -24,7 +23,8 @@ This table describes the `<type>` placeholders used in described HTTP routes
 | `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                      | `4b2f7a9c1d3e5f60`                     |
 | `<UserId>`         | as in the rest of the Wire API (UUID)                                                                    | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
 | `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                     | `2`                                    |
-| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`). The id of a full file is its `<FullId>` | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
+| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                          | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
+| `<FullId>`         | `<BackupFileId>`. The id of a full file is its `<FullId>`: the `id` of a finished full upload            | `0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07` |
 | `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                    | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
 | `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                           | `2026-11-12T10:15:30.123Z`             |
 | `<ByteCount>`      | number of bytes, non-negative integer                                                                    | `1048576`                              |
@@ -47,7 +47,6 @@ Rules shared by all routes under `/backups`:
   - This guards against the case where a client has a valid authorization token, but gets deleted while the token is valid.
 - Only uploads check the team flag `automaticBackups`; reads work whatever its state.
 - There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig, via queue event).
-- The server keeps at most the two newest epochs of a client: after a full file is stored (`POST …/full`) it deletes all files of every epoch except the two newest, i.e. the oldest one when a third epoch starts. Storing an incremental file deletes nothing.
 
 #### `/backups`
 
@@ -67,15 +66,15 @@ files. The epoch's contents are:
 - `fileCount`: the number of current files including the full
 - `size`: their total bytes.
 
+The summary is small whatever the number of files: Listing all files as well
+could easily lead to huge payloads. Thus, we provide only a summary of the
+epochs here.
+
 Epochs without a full and clients without any epoch are omitted. (Epochs
 without a full can only exist due to technical corner cases, they have no
 meaning to clients and users.)
 
 Clients are ordered by their newest `createdAt`, newest first.
-
-The summary is small whatever the number of files: Listing all files as well
-could easily lead to huge payloads. Thus, we provide only a summary of the
-epochs here.
 
 To restore, the client picks an entry, lists its files with `GET
 /backups/clients/<ClientId>/epochs/<BackupEpoch>` and fetches each via the
@@ -107,33 +106,24 @@ Example: `GET /v19/backups` → `200`
 
 Rules shared by all routes under `/backups/clients/<ClientId>`:
 
+- `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`.
 - Read routes (GET):
-  - `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`.
   - A client may read the backups of any client of the same user.
 - Write routes (POST):
-  - `Z-Client` and `<ClientId>` must both be clients of the caller, else 404 `backup-not-found`. (Same rule as for GET.)
   - `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`). I.e. clients can only write for their own, never for others!
-- A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
-
-##### Newest full wins
-
-A full upload replaces the epoch's previous full and the incrementals of it.
-The current full of an epoch is the one with the greatest `<BackupFileId>`
-(UUIDv7, i.e. server time). An incremental is stored under the full it extends
-(`<FullId>` in its path) and is current only while that full is the current
-one. The client learns a full's id from the response of the finished upload (or
-from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full
-that finished. An incremental of a replaced full is never listed, whatever the
-timing of the uploads, and the server deletes it on a later upload of the
-epoch.
-
-This clear relation between fulls and incrementals prevents a couple of difficult issues:
-
-- Incrementals can never be accounted to a wrong full. (This would render the backup useless!)
-- Race-conditions on server-side regarding
-  - lock creation
-  - clock synchronization
-  - crashes
+  - A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
+  - Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise
+    only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`).
+  - A failed upload (fewer bytes than `Content-Length` arrive, client disconnect,
+    storage error, client removed meanwhile) removes the file and surfaces the
+    error; a short body or disconnect gives 400 `incomplete-body`.
+  - Size subtlety: the server stores exactly the first `Content-Length` bytes and
+    ignores any excess, because the HTTP layer hands the handler no more than that.
+    Too many bytes can't be detected and give a successful upload of a truncated
+    file; too few give 400 `incomplete-body`. The response `size` is the number of
+    bytes stored, so clients should compare it with the number of bytes they sent
+    and, if it differs, upload a new full, or for an incremental, the incremental
+    again (a new file) or a new full, respectively.
 
 ##### `/backups/clients/<ClientId>`
 
@@ -196,6 +186,19 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
 
 ---
 
+##### Newest full wins
+
+The current full of an epoch is the one with the greatest `<BackupFileId>`
+(UUIDv7, i.e. server time). An incremental is stored under the full it extends
+(`<FullId>` in its path) and is current only while that full is the current
+one. The client learns a full's id from the response of the finished upload (or
+from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full
+that finished. An incremental of a replaced full is never listed, whatever the
+timing of the uploads, and the server deletes it on a later upload of the
+epoch.
+
+---
+
 ##### `/backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
 
 ###### `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
@@ -211,27 +214,15 @@ Checked before any write, in this order: own client, team flag
 `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over
 the cap (413).
 
-Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise
-only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`).
-After a full file is stored, the server deletes all files of all but the two
-newest epochs; storing an incremental file deletes nothing (this happens via
-another endpoint anyways).
+The server keeps at most the two newest epochs of a client: after a full file
+is stored it deletes all files of every epoch except the two newest, i.e. the
+oldest one when a third epoch starts. Storing an incremental file deletes
+nothing.
 
 After storing, the server lists the epoch and deletes everything the new full
 superseded: older fulls (according to the mentioned rule) and all incrementals
 stored under them. Concurrent full uploads delete each other, a late older one
 deletes itself and responds with error; the newest wins.
-
-A failed upload (fewer bytes than `Content-Length` arrive, client disconnect,
-storage error, client removed meanwhile) removes the file and surfaces the
-error; a short body or disconnect gives 400 `incomplete-body`.
-
-Size subtlety: the server stores exactly the first `Content-Length` bytes and
-ignores any excess, because the HTTP layer hands the handler no more than that.
-Too many bytes can't be detected and give a successful upload of a truncated
-file; too few give 400 `incomplete-body`. The response `size` is the number of
-bytes stored, so clients should compare it with the number of bytes they sent
-and, if it differs, upload a new full.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 `Content-Length: 1048576` and 1048576 body bytes → `200`
@@ -259,21 +250,9 @@ current full. If no full exists you get 409 `backup-full-missing`, meaning
 there's no such full or it was replaced. Upload a new full or refer to the
 correct existing one in these cases, respectively.
 
-`<FullId>` is the `id` of a finished full upload.
-
-These rules apply: The epoch rule (as for full), size cap (HTTP 413), and file
-count cap `maxFilesPerEpoch` counting the current files including the full (409
-`backup-too-many-files`). Concurrent incrementals can slightly exceed the file
-amount cap. A failed upload leaves no file (400 `incomplete-body` for a short
-body or disconnect).
-
-Size subtlety: the server stores exactly the first `Content-Length` bytes and
-ignores any excess, because the HTTP layer hands the handler no more than that.
-Too many bytes can't be detected and give a successful upload of a truncated
-file; too few give 400 `incomplete-body`. The response `size` is the number of
-bytes stored, so clients should compare it with the number of bytes they sent
-and, if it differs, upload the incremental again (a new file) or a new full,
-respectively.
+These rules apply: size cap (HTTP 413) and file count cap `maxFilesPerEpoch`
+counting the current files including the full (409 `backup-too-many-files`).
+Concurrent incrementals can slightly exceed the file amount cap.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-7c3b-8d2a-5e6f4a1b9c07/incremental` with `Content-Length: 2048` and 2048 body bytes → `200`
 
@@ -319,7 +298,8 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/0195f2c0-7a1e-
 
 ### `/teams/<TeamId>/features/automaticBackups`
 
-Generic team feature API. `<ConfigBody>` is `{"enforcedSchedule": <BackupSchedule>, "enforced": <Bool>, "serverOnly": <Bool>}`.
+Generic team feature API. Feature routes are not version bound and can be
+accessed with any version prefix (e.g. `/v{n}/teams/...`). `<ConfigBody>` is `{"enforcedSchedule": <BackupSchedule>, "enforced": <Bool>, "serverOnly": <Bool>}`.
 
 Defaults:
 
@@ -535,6 +515,15 @@ Uploads are lock-free and safe against races:
   the object if not. Brig deletes the backups only after the client row is
   gone, so a client deletion racing an upload leaves no orphan (see "Deletion and upload
   ordering").
+
+The clear relation between fulls and incrementals (see "Newest full wins")
+prevents a couple of difficult issues:
+
+- Incrementals can never be accounted to a wrong full. (This would render the backup useless!)
+- Race conditions on server-side regarding
+  - lock creation
+  - clock synchronization
+  - crashes
 
 ### Deletion and versioned buckets
 
