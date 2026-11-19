@@ -18,12 +18,14 @@
 module Wire.FanInNotificationStore.TimestampSpec (spec) where
 
 import Data.Aeson qualified as JSON
+import Data.Bits ((.&.), (.|.))
 import Data.Id (Id (..))
 import Data.Time (UTCTime (..), fromGregorian)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.UUID qualified as UUID
 import Imports
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
 import Wire.FanInNotificationStore
 
 spec :: Spec
@@ -42,9 +44,17 @@ spec = describe "UUIDv7 notification partition timestamps" $ do
   it "preserves the maximum 48-bit timestamp without overflow or rounding" $
     fanInNotificationCreatedAt (notification "ffffffff-ffff-7fff-bfff-ffffffffffff")
       `shouldBe` Right (posixSecondsToUTCTime 281474976710.655)
-  it "ignores random bits within the same millisecond" $
-    fanInNotificationCreatedAt (notification "017f22e2-79b0-7000-8000-000000000000")
-      `shouldBe` fanInNotificationCreatedAt (notification "017f22e2-79b0-7fff-bfff-ffffffffffff")
+  it "allows later ids to share the cursor's partition timestamp" $ do
+    let cursor = (notification "017f22e2-79b0-7000-8000-000000000000").fanInNotificationId
+        later = (notification "017f22e2-79b0-7fff-bfff-ffffffffffff").fanInNotificationId
+    later `shouldSatisfy` (> cursor)
+    fanInNotificationIdCreatedAt later `shouldBe` fanInNotificationIdCreatedAt cursor
+  prop "a later UUIDv7 never has an earlier partition timestamp" $ \words1 words2 ->
+    let first = uuidV7 words1
+        second = uuidV7 words2
+     in case (fanInNotificationIdCreatedAt (max first second), fanInNotificationIdCreatedAt (min first second)) of
+          (Right later, Right earlier) -> later >= earlier
+          _ -> False
   it "rejects legacy and random UUID versions" $
     for_ ["017f22e2-79b0-1cc3-98c4-dc0c0c07398f", "017f22e2-79b0-4cc3-98c4-dc0c0c07398f"] $ \value -> do
       let n = notification value
@@ -56,3 +66,8 @@ spec = describe "UUIDv7 notification partition timestamps" $ do
 
 notification :: String -> FanInNotification
 notification value = FanInNotification (Id (fromJust (UUID.fromString value))) (JSON.object []) Nothing
+
+-- Preserve arbitrary timestamp and random bits while fixing the version and variant.
+uuidV7 :: (Word32, Word32, Word32, Word32) -> Id a
+uuidV7 (high, low, variant, randomBits) =
+  Id (UUID.fromWords high ((low .&. 0xffff0fff) .|. 0x7000) ((variant .&. 0x3fffffff) .|. 0x80000000) randomBits)

@@ -25,6 +25,7 @@ module Wire.FanInNotificationStore
     FanInNotificationPage (..),
     FanInNotificationStoreError (..),
     fanInNotificationCreatedAt,
+    fanInNotificationIdCreatedAt,
     FanInNotificationStore (..),
     appendFanInUserNotifications,
     getFanInUserNotificationPage,
@@ -78,21 +79,24 @@ data FanInNotification = FanInNotification
   }
   deriving stock (Eq, Show)
 
--- | Invalid ids are rejected before a batch is sent to the database.
+-- | Invalid ids are rejected before accessing the database.
 data FanInNotificationStoreError = InvalidFanInNotificationId NotificationId
   deriving stock (Eq, Show)
+
+fanInNotificationCreatedAt :: FanInNotification -> Either FanInNotificationStoreError UTCTime
+fanInNotificationCreatedAt = fanInNotificationIdCreatedAt . fanInNotificationId
 
 -- | RFC 9562 section 5.7: the first 48 bits contain Unix milliseconds.
 -- Validate both version 7 and the RFC variant before interpreting those bits.
 -- Integer/rational arithmetic preserves millisecond precision, including at
 -- the maximum 48-bit timestamp; this does not consult the wall clock.
-fanInNotificationCreatedAt :: FanInNotification -> Either FanInNotificationStoreError UTCTime
-fanInNotificationCreatedAt notification =
-  let (high, low, variant, _) = UUID.toWords (toUUID notification.fanInNotificationId)
+fanInNotificationIdCreatedAt :: NotificationId -> Either FanInNotificationStoreError UTCTime
+fanInNotificationIdCreatedAt nid =
+  let (high, low, variant, _) = UUID.toWords (toUUID nid)
       milliseconds = toInteger high * 65536 + toInteger (low `shiftR` 16)
    in if (low `shiftR` 12) .&. 0xf == 7 && variant `shiftR` 30 == 2
         then Right (posixSecondsToUTCTime (fromRational (milliseconds % 1000)))
-        else Left (InvalidFanInNotificationId notification.fanInNotificationId)
+        else Left (InvalidFanInNotificationId nid)
 
 data FanInNotificationPage = FanInNotificationPage
   { fanInNotifications :: [FanInNotification],

@@ -36,11 +36,16 @@ import Wire.API.MLS.Group (GroupId (..))
 import Wire.API.Notification (NotificationId)
 import Wire.FanInNotificationStore
 
+-- | Reads include an explicit partition-key predicate derived from the UUIDv7.
+-- Pagination keeps UUID ordering within a millisecond, so its timestamp lower
+-- bound is inclusive. With no cursor, the timestamp bound is negative infinity.
+-- Keeping the partition comparison outside an OR also permits runtime pruning
+-- when Postgres uses a generic prepared plan.
 data NotificationStatements key = NotificationStatements
   { insertNotifications :: Statement (Vector (key, FanInNotification, UTCTime)) (),
-    selectPage :: Statement (key, Maybe NotificationId, Int32) (Vector FanInNotification),
+    selectPage :: Statement (key, Maybe NotificationId, Maybe UTCTime, Int32) (Vector FanInNotification),
     selectLast :: Statement key (Maybe NotificationId),
-    notificationExists :: Statement (key, NotificationId) Bool
+    notificationExists :: Statement (key, NotificationId, UTCTime) Bool
   }
 
 -- | The data-modifying CTE and cursor upsert form one atomic statement. Cursor
@@ -67,15 +72,16 @@ userStatements =
           SET notification_id = GREATEST(last_user_notifications.notification_id, EXCLUDED.notification_id)|],
       selectPage =
         dimap
-          (\(key, cursor, pageSize) -> (toUUID key, toUUID <$> cursor, pageSize))
+          (\(key, cursor, createdAt, pageSize) -> (toUUID key, toUUID <$> cursor, createdAt, pageSize))
           (V.map (\(nid, payload, origin) -> FanInNotification (Id nid) payload (Id <$> origin)))
           [vectorStatement|
         SELECT notification_id :: uuid, payload :: jsonb, origin :: uuid?
         FROM user_notifications
         WHERE user_id = ($1 :: uuid)
           AND (($2 :: uuid?) IS NULL OR notification_id > ($2 :: uuid?))
+          AND created_at >= COALESCE(($3 :: timestamptz?), '-infinity'::timestamptz)
         ORDER BY notification_id
-        LIMIT ($3 :: int4)
+        LIMIT ($4 :: int4)
       |],
       selectLast =
         dimap
@@ -86,10 +92,11 @@ userStatements =
       |],
       notificationExists =
         lmap
-          (bimap toUUID toUUID)
+          (\(key, nid, createdAt) -> (toUUID key, toUUID nid, createdAt))
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM user_notifications
-          WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
+          WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)
+            AND created_at = ($3 :: timestamptz)) :: bool
       |]
     }
 
@@ -117,15 +124,16 @@ clientStatements =
           SET notification_id = GREATEST(last_client_notifications.notification_id, EXCLUDED.notification_id)|],
       selectPage =
         dimap
-          (\((uid, cid), cursor, pageSize) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID <$> cursor, pageSize))
+          (\((uid, cid), cursor, createdAt, pageSize) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID <$> cursor, createdAt, pageSize))
           (V.map (\(nid, payload, origin) -> FanInNotification (Id nid) payload (Id <$> origin)))
           [vectorStatement|
         SELECT notification_id :: uuid, payload :: jsonb, origin :: uuid?
         FROM client_notifications
         WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8)
           AND (($3 :: uuid?) IS NULL OR notification_id > ($3 :: uuid?))
+          AND created_at >= COALESCE(($4 :: timestamptz?), '-infinity'::timestamptz)
         ORDER BY notification_id
-        LIMIT ($4 :: int4)
+        LIMIT ($5 :: int4)
       |],
       selectLast =
         dimap
@@ -136,10 +144,11 @@ clientStatements =
       |],
       notificationExists =
         lmap
-          (\((uid, cid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID nid))
+          (\((uid, cid), nid, createdAt) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID nid, createdAt))
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM client_notifications
-          WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8) AND notification_id = ($3 :: uuid)) :: bool
+          WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8) AND notification_id = ($3 :: uuid)
+            AND created_at = ($4 :: timestamptz)) :: bool
       |]
     }
 
@@ -167,15 +176,16 @@ teamStatements =
           SET notification_id = GREATEST(last_team_notifications.notification_id, EXCLUDED.notification_id)|],
       selectPage =
         dimap
-          (\(key, cursor, pageSize) -> (toUUID key, toUUID <$> cursor, pageSize))
+          (\(key, cursor, createdAt, pageSize) -> (toUUID key, toUUID <$> cursor, createdAt, pageSize))
           (V.map (\(nid, payload, origin) -> FanInNotification (Id nid) payload (Id <$> origin)))
           [vectorStatement|
         SELECT notification_id :: uuid, payload :: jsonb, origin :: uuid?
         FROM team_notifications
         WHERE team_id = ($1 :: uuid)
           AND (($2 :: uuid?) IS NULL OR notification_id > ($2 :: uuid?))
+          AND created_at >= COALESCE(($3 :: timestamptz?), '-infinity'::timestamptz)
         ORDER BY notification_id
-        LIMIT ($3 :: int4)
+        LIMIT ($4 :: int4)
       |],
       selectLast =
         dimap
@@ -186,10 +196,11 @@ teamStatements =
       |],
       notificationExists =
         lmap
-          (bimap toUUID toUUID)
+          (\(key, nid, createdAt) -> (toUUID key, toUUID nid, createdAt))
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM team_notifications
-          WHERE team_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
+          WHERE team_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)
+            AND created_at = ($3 :: timestamptz)) :: bool
       |]
     }
 
@@ -217,15 +228,16 @@ epochStatements =
           SET notification_id = GREATEST(last_epoch_notifications.notification_id, EXCLUDED.notification_id)|],
       selectPage =
         dimap
-          (\((gid, ep), cursor, pageSize) -> (unGroupId gid, fromIntegral (epochNumber ep), toUUID <$> cursor, pageSize))
+          (\((gid, ep), cursor, createdAt, pageSize) -> (unGroupId gid, fromIntegral (epochNumber ep), toUUID <$> cursor, createdAt, pageSize))
           (V.map (\(nid, payload, origin) -> FanInNotification (Id nid) payload (Id <$> origin)))
           [vectorStatement|
         SELECT notification_id :: uuid, payload :: jsonb, origin :: uuid?
         FROM epoch_notifications
         WHERE group_id = ($1 :: bytea) AND epoch = ($2 :: int8)
           AND (($3 :: uuid?) IS NULL OR notification_id > ($3 :: uuid?))
+          AND created_at >= COALESCE(($4 :: timestamptz?), '-infinity'::timestamptz)
         ORDER BY notification_id
-        LIMIT ($4 :: int4)
+        LIMIT ($5 :: int4)
       |],
       selectLast =
         dimap
@@ -236,10 +248,11 @@ epochStatements =
       |],
       notificationExists =
         lmap
-          (\((gid, ep), nid) -> (unGroupId gid, fromIntegral (epochNumber ep), toUUID nid))
+          (\((gid, ep), nid, createdAt) -> (unGroupId gid, fromIntegral (epochNumber ep), toUUID nid, createdAt))
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM epoch_notifications
-          WHERE group_id = ($1 :: bytea) AND epoch = ($2 :: int8) AND notification_id = ($3 :: uuid)) :: bool
+          WHERE group_id = ($1 :: bytea) AND epoch = ($2 :: int8) AND notification_id = ($3 :: uuid)
+            AND created_at = ($4 :: timestamptz)) :: bool
       |]
     }
 
@@ -267,15 +280,16 @@ localConnectionStatements =
           SET notification_id = GREATEST(last_local_connection_notifications.notification_id, EXCLUDED.notification_id)|],
       selectPage =
         dimap
-          (\(key, cursor, pageSize) -> (toUUID key, toUUID <$> cursor, pageSize))
+          (\(key, cursor, createdAt, pageSize) -> (toUUID key, toUUID <$> cursor, createdAt, pageSize))
           (V.map (\(nid, payload, origin) -> FanInNotification (Id nid) payload (Id <$> origin)))
           [vectorStatement|
         SELECT notification_id :: uuid, payload :: jsonb, origin :: uuid?
         FROM local_connection_notifications
         WHERE user_id = ($1 :: uuid)
           AND (($2 :: uuid?) IS NULL OR notification_id > ($2 :: uuid?))
+          AND created_at >= COALESCE(($3 :: timestamptz?), '-infinity'::timestamptz)
         ORDER BY notification_id
-        LIMIT ($3 :: int4)
+        LIMIT ($4 :: int4)
       |],
       selectLast =
         dimap
@@ -286,10 +300,11 @@ localConnectionStatements =
       |],
       notificationExists =
         lmap
-          (bimap toUUID toUUID)
+          (\(key, nid, createdAt) -> (toUUID key, toUUID nid, createdAt))
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM local_connection_notifications
-          WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)) :: bool
+          WHERE user_id = ($1 :: uuid) AND notification_id = ($2 :: uuid)
+            AND created_at = ($3 :: timestamptz)) :: bool
       |]
     }
 
@@ -317,15 +332,16 @@ remoteConnectionStatements =
           SET notification_id = GREATEST(last_remote_connection_notifications.notification_id, EXCLUDED.notification_id)|],
       selectPage =
         dimap
-          (\((domain, uid), cursor, pageSize) -> (domainText domain, toUUID uid, toUUID <$> cursor, pageSize))
+          (\((domain, uid), cursor, createdAt, pageSize) -> (domainText domain, toUUID uid, toUUID <$> cursor, createdAt, pageSize))
           (V.map (\(nid, payload, origin) -> FanInNotification (Id nid) payload (Id <$> origin)))
           [vectorStatement|
         SELECT notification_id :: uuid, payload :: jsonb, origin :: uuid?
         FROM remote_connection_notifications
         WHERE user_domain = ($1 :: text) AND user_id = ($2 :: uuid)
           AND (($3 :: uuid?) IS NULL OR notification_id > ($3 :: uuid?))
+          AND created_at >= COALESCE(($4 :: timestamptz?), '-infinity'::timestamptz)
         ORDER BY notification_id
-        LIMIT ($4 :: int4)
+        LIMIT ($5 :: int4)
       |],
       selectLast =
         dimap
@@ -336,9 +352,10 @@ remoteConnectionStatements =
       |],
       notificationExists =
         lmap
-          (\((domain, uid), nid) -> (domainText domain, toUUID uid, toUUID nid))
+          (\((domain, uid), nid, createdAt) -> (domainText domain, toUUID uid, toUUID nid, createdAt))
           [singletonStatement|
         SELECT EXISTS (SELECT 1 FROM remote_connection_notifications
-          WHERE user_domain = ($1 :: text) AND user_id = ($2 :: uuid) AND notification_id = ($3 :: uuid)) :: bool
+          WHERE user_domain = ($1 :: text) AND user_id = ($2 :: uuid) AND notification_id = ($3 :: uuid)
+            AND created_at = ($4 :: timestamptz)) :: bool
       |]
     }
