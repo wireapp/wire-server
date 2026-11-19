@@ -23,6 +23,8 @@
 
 module Wire.ScimTokenStore.Cassandra
   ( scimTokenStoreToCassandra,
+    lookupScimTokenRaw,
+    convertPlaintextToken,
   )
 where
 

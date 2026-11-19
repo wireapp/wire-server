@@ -17,6 +17,7 @@
 
 module Wire.ScimExternalIdStore.Postgres
   ( interpretScimExternalIdStoreToPostgres,
+    upsertScimExternalIdRow,
   )
 where
 
@@ -42,7 +43,7 @@ interpretScimExternalIdStoreToPostgres = interpret $ \case
   LookupStatus tid veid -> lookupScimExternalIdStatusPg tid (validScimIdExternal veid)
 
 -- | Upsert a full row; used by the effect interpreter (Insert with @Nothing@,
--- InsertStatus with @Just@). @Nothing@ for the status
+-- InsertStatus with @Just@) and the migration worker. @Nothing@ for the status
 -- leaves the stored status untouched.
 upsertScimExternalIdRow :: (PGConstraints r) => TeamId -> Text -> UserId -> Maybe ScimUserCreationStatus -> Sem r ()
 upsertScimExternalIdRow tid eid uid status =
