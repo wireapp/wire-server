@@ -21,6 +21,7 @@ module Cannon.API.Public
 where
 
 import Cannon.App (wsapp)
+import Cannon.NotificationFanIn
 import Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp)
 import Cannon.Types
 import Cannon.WS
@@ -39,6 +40,7 @@ publicAPIServer =
     :<|> Named @"websocket" streamData
     :<|> Named @"consume-events@v8" (\userId mClientId -> consumeEvents userId mClientId Nothing)
     :<|> Named @"consume-events" consumeEvents
+    :<|> Named @"fan-in-events" fanInEvents
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
@@ -49,3 +51,8 @@ consumeEvents :: UserId -> Maybe ClientId -> Maybe Text -> PendingConnection -> 
 consumeEvents userId mClientId mSyncMarker con = do
   e <- wsenv
   liftIO $ rabbitMQWebSocketApp userId mClientId mSyncMarker e con
+
+fanInEvents :: UserId -> Maybe ClientId -> PendingConnection -> Cannon ()
+fanInEvents uid cid pending = do
+  (options, runtime, environment) <- fanInEnvironment
+  liftIO $ fanInWebSocketApp options environment runtime uid cid pending

@@ -25,6 +25,7 @@ module Cannon.Types
     mkEnv,
     runCannon,
     clients,
+    fanInEnvironment,
     wsenv,
     runCannonToServant,
   )
@@ -33,6 +34,7 @@ where
 import Bilge (Manager)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
+import Cannon.NotificationFanIn (FanInRuntime, newFanInRuntime)
 import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.WS (Clock, Key, Websocket)
@@ -66,6 +68,7 @@ data Env = Env
     websockets :: !(Dict Key Websocket),
     rabbitConnections :: (Dict Unique Q.Connection),
     reqId :: !RequestId,
+    fanInRuntime :: !FanInRuntime,
     env :: !WS.Env
   }
 
@@ -136,7 +139,8 @@ mkEnv external o cs l d conns p g t endpoint = do
           cs
           pool
           (o ^. notificationTTL)
-  pure $ Env o l d conns (RequestId defRequestId) wsEnv
+  fanIn <- liftIO $ newFanInRuntime o._optsNotificationFanInPostgres
+  pure $ Env o l d conns (RequestId defRequestId) fanIn wsEnv
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e
@@ -154,3 +158,10 @@ wsenv = Cannon $ do
 -- Used to call 'Cannon' from servant.
 runCannonToServant :: Cannon.Types.Env -> Cannon x -> Servant.Handler x
 runCannonToServant env c = liftIO $ runCannon env c
+
+fanInEnvironment :: Cannon (Opts, FanInRuntime, WS.Env)
+fanInEnvironment = do
+  options <- Cannon $ asks opts
+  runtime <- Cannon $ asks fanInRuntime
+  environment <- wsenv
+  pure (options, runtime, environment)

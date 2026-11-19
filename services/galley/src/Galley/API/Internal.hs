@@ -35,6 +35,7 @@ import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
@@ -75,6 +76,7 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
+import Wire.API.Team.Collaborator (gTeam)
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.Team.LegalHold (UserLegalHoldStatusEntry (..))
@@ -101,6 +103,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.TeamCollaboratorsSubsystem qualified as TeamCollaborators
 import Wire.TeamStore
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -233,7 +236,8 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
-  mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
+  mkNamedAPI @"get-user-team-ids" getUserTeamIdsH
+    <@> mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
     <@> mkNamedAPI @"get-team-id" lookupBindingTeam
     <@> mkNamedAPI @"test-get-clients" (\uid -> clientIds uid <$> getClients [uid])
     <@> mkNamedAPI @"test-add-client" createClient
@@ -588,3 +592,11 @@ iGetMLSMemberClients gid = do
       | (quid, clients) <- Map.assocs (unClientMap cm),
         (cid, idx) <- Map.assocs clients
       ]
+
+-- Include current collaborations as well as normal team memberships. Consumers
+-- must refresh this list before accessing a team's notification stream.
+getUserTeamIdsH :: UserId -> Sem GalleyEffects [TeamId]
+getUserTeamIdsH uid = do
+  teams <- E.getUserTeams uid
+  collaborations <- TeamCollaborators.internalGetTeamCollaborations uid
+  pure (Set.toList (Set.fromList (teams <> map gTeam collaborations)))

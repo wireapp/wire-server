@@ -1,15 +1,18 @@
-cabal-version: 1.12
-name:          cannon
-version:       0.31.0
-synopsis:      Push Notification API
-description:   Push Notification API Service.
-category:      Network
-author:        Wire Swiss GmbH
-maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3
-license-file:  LICENSE
-build-type:    Simple
+cabal-version:      1.12
+name:               cannon
+version:            0.31.0
+synopsis:           Push Notification API
+description:        Push Notification API Service.
+category:           Network
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2017 Wire Swiss GmbH
+license:            AGPL-3
+license-file:       LICENSE
+build-type:         Simple
+extra-source-files:
+  cannon.integration.yaml
+  cannon2.integration.yaml
 
 flag static
   description: Enable static linking
@@ -22,6 +25,7 @@ library
     Cannon.API.Public
     Cannon.App
     Cannon.Dict
+    Cannon.NotificationFanIn
     Cannon.Options
     Cannon.RabbitMq
     Cannon.RabbitMqConsumerApp
@@ -98,6 +102,7 @@ library
     , extended
     , extra
     , hashable                              >=1.2
+    , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , http-types                            >=0.8
@@ -106,11 +111,13 @@ library
     , lens                                  >=4.4
     , metrics-wai                           >=0.4
     , mwc-random                            >=0.13
+    , polysemy
     , prometheus-client
     , retry                                 >=0.7
     , safe-exceptions
     , servant-conduit
     , servant-server
+    , stm
     , strict                                >=0.3.2
     , text                                  >=1.1
     , tinylog                               >=0.10
@@ -118,6 +125,7 @@ library
     , types-common                          >=0.16
     , unix
     , unliftio
+    , uuid
     , vector                                >=0.10
     , wai                                   >=3.0
     , wai-extra                             >=3.0
@@ -126,6 +134,7 @@ library
     , websockets                            >=0.11.2
     , wire-api
     , wire-otel
+    , wire-subsystems
 
   default-language:   GHC2021
 
@@ -197,6 +206,8 @@ test-suite cannon-tests
   other-modules:
     Paths_cannon
     Test.Cannon.Dict
+    Test.Cannon.FanInAuthorization
+    Test.Cannon.Options
 
   hs-source-dirs:     test
   default-extensions:
@@ -248,7 +259,8 @@ test-suite cannon-tests
     -Wunused-packages -Wno-x-partial
 
   build-depends:
-      async
+      aeson
+    , async
     , base
     , bytestring
     , cannon
@@ -259,8 +271,10 @@ test-suite cannon-tests
     , tasty             >=0.8
     , tasty-hunit       >=0.8
     , tasty-quickcheck  >=0.8
+    , types-common
     , uuid
     , wire-api
+    , yaml
 
   default-language:   GHC2021
 
