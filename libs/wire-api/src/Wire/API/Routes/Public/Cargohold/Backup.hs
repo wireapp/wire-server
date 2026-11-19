@@ -67,8 +67,9 @@ type IncrementalUploadDescription =
 type DeleteClientBackupsDescription =
   "Deletes all backups of the client, which must be the calling client. The team feature is not \
   \checked, so a client can clean up while the feature is disabled. Succeeds if there is nothing to \
-  \delete. A client has to wait for all its own uploads to finish before calling this: an upload \
-  \that is still running may store a file after the deletion."
+  \delete. Uploads still running \
+  \when this is called are rejected (403) and leave no file behind. Uploads started after the \
+  \response create backups again, so a client should stop scheduling uploads before calling this."
 
 type ListFilesDescription =
   "Lists the newest full backup of the epoch and the incremental files stored under it. Presigned \

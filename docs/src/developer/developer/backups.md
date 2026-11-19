@@ -33,9 +33,14 @@ All other paths are under `/backups/clients/{cid}/epochs`:
 - `GET /{epoch}/full/{fullId}` and `GET /{epoch}/full/{fullId}/incremental/{id}` download:
   302 redirect to a presigned S3 URL.
 
-There are no public deletes. Backups are deleted on client and user deletion (brig,
-internal). After storing a full file the server deletes all files of all but the two newest
-epochs of the client.
+- `DELETE /backups/clients/{cid}` delete all backups of the calling client (`cid` must be
+  `Z-Client`, else 403). The team feature is not checked. Succeeds if nothing exists. Uploads
+  running at that time are rejected (403) and removed, see
+  [Deletion / upload ordering invariant](#deletion--upload-ordering-invariant). The client should
+  stop scheduling uploads before the call.
+
+Backups are also deleted on client and user deletion (brig, internal). After storing a full file
+the server deletes all files of all but the two newest epochs of the client.
 
 `fullId` and `id` come from the upload responses and the list response.
 
@@ -81,6 +86,9 @@ backup/<hmac(uid)>/<hmac(cid)>/<epoch>/<fullId>/incremental/<id>
 - `hmac(x)`: lowercase hex HMAC-SHA256 of `x` with `backupHmacKey` (64 chars).
   Plain user or client ids never appear in S3: keys show up in presigned URLs
   and logs.
+- `backup/<hmac(uid)>/<hmac(cid)>/.tombstones/<id>`: empty object written by the client's own
+  backup deletion, see [Deletion / upload ordering invariant](#deletion--upload-ordering-invariant).
+  Not an epoch, listings ignore it.
 - `epoch`: decimal, `fullId`, `id`: UUIDv7 (creation order). An incremental key
   names the full file it extends.
 - `backup/` is outside the `v3/<retention>/` prefixes, so asset lifecycle
@@ -155,6 +163,15 @@ client row before the backups. An upload (`uploadBackupImpl`,
 client exists, deleting the object if not. So for any upload overlapping a removal, either
 the backup deletion lists the object, or the re-check sees the client gone and the upload
 deletes its object.
+
+Deleting the backups on request of the client (`DELETE /backups/clients/{cid}`) has no client row
+to order against, so it uses tombstones. It first stores a tombstone (`.tombstones/<id>`, a UUIDv7
+like file ids), then deletes all epochs, then the older tombstones (the newest one stays). After
+its PUT and the client check, an upload lists the tombstones: one newer than the file's id means
+the deletion started after the upload did, so the upload deletes its object and fails with 403.
+Either the deletion lists the object or the upload sees the tombstone. Uploads started after the
+deletion have newer ids and are unaffected. This relies on UUIDv7 time order across cargohold
+instances, like "newest full wins". Client and user deletion remove tombstones with the prefix.
 
 User deletion works the same way with a backend-internal queue event
 (`DeleteBackups`, not a Wire event, never fanned out). `deleteAccount`

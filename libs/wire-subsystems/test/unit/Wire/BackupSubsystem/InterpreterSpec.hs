@@ -66,7 +66,10 @@ data World = World
     -- | 'DeleteBlob' throws 'StoreDown'.
     failDelete :: Bool,
     -- | 'PutBlob' stores the object, then throws 'StoreDown'.
-    failAfterPut :: Bool
+    failAfterPut :: Bool,
+    -- | 'PutBlob' first runs a deletion of the client's backups (its tombstone is newer than any
+    -- file), like a deletion that overtakes an upload.
+    deleteDuringPut :: Bool
   }
 
 -- | Failures of brig and the store other than 'BackupError', like RPC errors in cargohold.
@@ -87,6 +90,7 @@ type Effs =
      Resource,
      State World,
      State UTCTime,
+     State Tombstones,
      State BlobVersions,
      Embed IO
    ]
@@ -133,7 +137,8 @@ world0 =
       lookups = 0,
       failLookupFrom = Nothing,
       failDelete = False,
-      failAfterPut = False
+      failAfterPut = False,
+      deleteDuringPut = False
     }
 
 runBackup ::
@@ -155,6 +160,7 @@ runBackupWithFailures w counter prog = do
   fmap (either (error . show) Function.id)
     <$> ( runM
             . runState mempty
+            . evalState (mempty :: Tombstones)
             . evalState t0
             . evalState w
             . runResource
@@ -182,6 +188,9 @@ failingStore ::
   Sem r a
 failingStore = intercept $ \case
   PutBlob l n s -> do
+    whenM (gets (.deleteDuringPut)) $ do
+      putTombstone l.user l.client (BackupFileId (UUID.fromWords64 maxBound maxBound))
+      listBlobEpochs l.user l.client >>= traverse_ (deleteBlobs . EpochPrefix l.user l.client)
     v <- putBlob l n s
     whenM (gets (.failAfterPut)) $ throw StoreDown
     pure v
@@ -193,6 +202,9 @@ failingStore = intercept $ \case
     whenM (gets (.failDelete)) $ throw StoreDown
     deleteBlob l
   DeleteBlobs p -> deleteBlobs p
+  PutTombstone u c i -> putTombstone u c i
+  ListTombstones u c -> listTombstones u c
+  DeleteTombstone u c i -> deleteTombstone u c i
 
 mockBrig :: (Member (State World) r, Member (Error MockFailure) r) => User -> InterpreterFor BrigAPIAccess r
 mockBrig base = interpret $ \case
@@ -243,6 +255,10 @@ uploadSized u c e n = do
 uploadSizedFull :: UserId -> ClientId -> Word32 -> Word64 -> Sem Effs BackupFile
 uploadSizedFull u c e n =
   uploadBackup (loc u) c c (BackupEpoch e) Nothing n (yield (BS.replicate (fromIntegral n) 0))
+
+-- | Moves the clock on: ids created from here on are newer than all earlier ones.
+tick :: Sem Effs ()
+tick = modify (addUTCTime 1)
 
 attempt :: Sem Effs a -> Sem Effs (Either BackupError a)
 attempt = try
@@ -417,10 +433,44 @@ spec = describe "BackupSubsystem" $ do
       _ <- upload uA a1 a1 2 "y"
       modify (\w -> w {feature = FeatureStatusDisabled})
       deleteClientBackups (loc uA) a1 a1
+      tick
       modify (\w -> w {feature = FeatureStatusEnabled})
       upload uA a1 a1 1 "z"
     void res `shouldBe` Right ()
     Map.size blobs `shouldBe` 1
+
+  it "upload racing a client delete is rolled back, no version left" $ do
+    (blobs, res) <-
+      runBackup world0 {deleteDuringPut = True} Nothing $ attempt (uploadFull uA a1 a1 1 "x")
+    res `shouldBe` Right (Left BackupErrForbidden)
+    blobs `shouldBe` mempty
+
+  it "incremental upload racing a client delete is rolled back, nothing left" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      f <- uploadFull uA a1 a1 1 "x"
+      modify (\w -> w {deleteDuringPut = True})
+      attempt (uploadInc f uA a1 a1 1 "y")
+    res `shouldBe` Right (Left BackupErrForbidden)
+    blobs `shouldBe` mempty
+
+  it "client delete keeps only the newest tombstone, uploads after it succeed" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      _ <- upload uA a1 a1 1 "x"
+      deleteClientBackups (loc uA) a1 a1
+      tick
+      deleteClientBackups (loc uA) a1 a1
+      tick
+      _ <- upload uA a1 a1 1 "y"
+      length <$> listTombstones uA a1
+    Map.size blobs `shouldBe` 1
+    res `shouldBe` Right 1
+
+  it "removing the client removes its tombstones" $ do
+    (_, res) <- runBackup world0 Nothing $ do
+      deleteClientBackups (loc uA) a1 a1
+      internalDeleteClientBackups uA a1
+      listTombstones uA a1
+    res `shouldBe` Right []
 
   it "internal client delete removes only that device" $ do
     (blobs, res) <- runBackup world0 Nothing $ do

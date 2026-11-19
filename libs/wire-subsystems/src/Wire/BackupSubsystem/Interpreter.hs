@@ -84,7 +84,12 @@ interpretBackupSubsystem = interpret $ \case
   DeleteClientBackups luid zcid cid -> do
     let uid = tUnqualified luid
     checkWrite uid zcid cid
-    deleteBlobs (ClientPrefix uid cid)
+    -- Tombstone first, then delete: see 'uploadBackupImpl'. The tombstones survive the deletion
+    -- (only the epochs are deleted), older ones are no longer needed.
+    t <- newFileId
+    putTombstone uid cid t
+    listBlobEpochs uid cid >>= traverse_ (deleteBlobs . EpochPrefix uid cid)
+    listTombstones uid cid >>= traverse_ (deleteTombstone uid cid) . filter (< t)
   InternalDeleteClientBackups uid cid -> deleteBlobs (ClientPrefix uid cid)
   InternalDeleteUserBackups uid -> deleteBlobs (UserPrefix uid)
 
@@ -101,6 +106,15 @@ interpretBackupSubsystem = interpret $ \case
 -- deletion lists the object, or this re-check sees the client gone. No orphan either way.
 -- This assumes brig client reads are consistent with its writes and the store has strong
 -- list-after-write consistency.
+--
+-- Backup deletion by the client (see 'DeleteClientBackups') races with uploads of the same
+-- client in the same way: it first stores a tombstone (an object @.tombstones/<id>@ with a
+-- UUIDv7 id, like file ids), then deletes the epochs. After the PUT (and the client check above)
+-- an upload lists the tombstones; one newer than the file's id means the deletion started after
+-- the upload did, so the upload deletes its object and fails. Either the deletion lists the
+-- object, or the upload sees the tombstone. Uploads started after the deletion have newer ids
+-- and pass. Only the newest tombstone is kept. This relies on UUIDv7 time order across servers,
+-- like "newest full file wins".
 --
 -- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
 -- new full file replaces the previous one. The newest full file (greatest id) wins. An
@@ -138,9 +152,9 @@ uploadBackupImpl uid zcid cid e base len src = do
   epochs <- Set.fromList <$> listBlobEpochs uid cid
   blobs <- listBlobs uid cid e
   either (throw . rejectionError) pure $ checkUpload limits base epochs blobs e len
-  fid <- BackupFileId <$> (uuidV7 <$> Now.get <*> Random.uuid)
+  fid <- newFileId
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
-  store BackupLocation {user = uid, client = cid, epoch = e, file}
+  store fid BackupLocation {user = uid, client = cid, epoch = e, file}
   listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
   when (isNothing base) $
     traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs $
@@ -148,15 +162,20 @@ uploadBackupImpl uid zcid cid e base len src = do
   pure (toFile BackupBlob {file, size = len})
   where
     location b = BackupLocation {user = uid, client = cid, epoch = e, file = b.file}
-    store l = do
+    store fid l = do
       let put = void (putBlob l len src) `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
           recheck = do
             stillThere <- Set.member cid <$> clientsOf uid
             unless stillThere $ throw BackupErrForbidden
+            tombstones <- listTombstones uid cid
+            when (any (> fid) tombstones) $ throw BackupErrForbidden
       -- 'onException': removed on /any/ failure (every 'Error' effect interpreted before
       -- 'Resource', and exceptions), the original failure is surfaced. A failing cleanup is
       -- discarded by the 'Resource' interpreter, so it never masks the original failure.
       (put *> recheck) `onException` deleteBlob l
+
+newFileId :: (Member Now r, Member Random r) => Sem r BackupFileId
+newFileId = BackupFileId <$> (uuidV7 <$> Now.get <*> Random.uuid)
 
 rejectionError :: UploadRejection -> BackupError
 rejectionError = \case

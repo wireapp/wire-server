@@ -212,6 +212,7 @@ countingBlobStore received stored = interpret $ \case
   ListBlobs {} -> pure []
   DeleteBlob _ -> writeIORef stored Nothing
   DeleteBlobs _ -> writeIORef stored Nothing
+  ListTombstones _ _ -> pure []
   _ -> error "countingBlobStore: unexpected call"
 
 fakeBrig :: User -> InterpreterFor BrigAPIAccess r

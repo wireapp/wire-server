@@ -61,5 +61,10 @@ data BackupBlobStore m a where
   DeleteBlob :: BackupLocation -> BackupBlobStore m ()
   -- | Deletes all versions of all keys under the prefix (see above why all). Idempotent.
   DeleteBlobs :: BackupPrefix -> BackupBlobStore m ()
+  -- | Stores an empty tombstone object for the client (see 'Wire.BackupSubsystem').
+  PutTombstone :: UserId -> ClientId -> BackupFileId -> BackupBlobStore m ()
+  ListTombstones :: UserId -> ClientId -> BackupBlobStore m [BackupFileId]
+  -- | Deletes all versions of the tombstone. Idempotent.
+  DeleteTombstone :: UserId -> ClientId -> BackupFileId -> BackupBlobStore m ()
 
 makeSem ''BackupBlobStore

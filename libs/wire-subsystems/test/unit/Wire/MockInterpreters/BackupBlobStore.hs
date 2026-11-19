@@ -17,6 +17,7 @@
 
 module Wire.MockInterpreters.BackupBlobStore
   ( BlobVersions,
+    Tombstones,
     versionsOf,
     inMemoryBackupBlobStoreInterpreter,
     countingBackupBlobStoreInterpreter,
@@ -27,6 +28,7 @@ where
 import Conduit
 import Control.Concurrent.STM (retry)
 import Data.ByteString qualified as BS
+import Data.Id (ClientId, UserId)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -45,12 +47,16 @@ import Wire.BackupBlobStore.Key
 -- version id. 'Nothing' is a delete marker.
 type BlobVersions = Map BackupLocation [(Int, Maybe ByteString)]
 
+-- | The tombstones of clients.
+type Tombstones = Set (UserId, ClientId, BackupFileId)
+
 -- | All versions of a key (including delete markers), newest first.
 versionsOf :: BackupLocation -> BlobVersions -> [Maybe ByteString]
 versionsOf l = map snd . Map.findWithDefault [] l
 
 inMemoryBackupBlobStoreInterpreter ::
   ( Member (State BlobVersions) r,
+    Member (State Tombstones) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -59,6 +65,7 @@ inMemoryBackupBlobStoreInterpreter = interpreter (const (pure ()))
 
 countingBackupBlobStoreInterpreter ::
   ( Member (State BlobVersions) r,
+    Member (State Tombstones) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -69,6 +76,7 @@ countingBackupBlobStoreInterpreter consumed =
 
 interpreter ::
   ( Member (State BlobVersions) r,
+    Member (State Tombstones) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
   ) =>
@@ -101,7 +109,12 @@ interpreter onChunk = interpret $ \case
         . Map.toList
         . live
   DeleteBlob l -> modify (Map.delete l)
-  DeleteBlobs p -> modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
+  DeleteBlobs p -> do
+    modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
+    modify (Set.filter (\(u, c, _) -> not (tombstoneInPrefix p u c)))
+  PutTombstone u c i -> modify (Set.insert (u, c, i))
+  ListTombstones u c -> gets (map (\(_, _, i) -> i) . filter (\(u', c', _) -> (u', c') == (u, c)) . Set.toList)
+  DeleteTombstone u c i -> modify (Set.delete (u, c, i))
   where
     addVersion l v = do
       h <- gets (Map.findWithDefault [] l)
@@ -111,6 +124,13 @@ interpreter onChunk = interpret $ \case
 
     live :: BlobVersions -> Map BackupLocation ByteString
     live = Map.mapMaybe (\case (_, Just b) : _ -> Just b; _ -> Nothing)
+
+-- | Tombstones are below the client prefix, not below an epoch prefix.
+tombstoneInPrefix :: BackupPrefix -> UserId -> ClientId -> Bool
+tombstoneInPrefix p u c = case p of
+  UserPrefix u' -> u == u'
+  ClientPrefix u' c' -> u == u' && c == c'
+  EpochPrefix {} -> False
 
 inPrefix :: BackupPrefix -> BackupLocation -> Bool
 inPrefix p l = case p of

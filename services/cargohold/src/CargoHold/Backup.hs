@@ -142,6 +142,13 @@ interpretBackupBlobStoreToS3 env k = interpret $ \case
     pure (mapMaybe blob objects)
   DeleteBlob l -> let key = renderKey k l in runHandlerSem (S3.deleteAllVersions key (== key))
   DeleteBlobs p -> runHandlerSem (S3.deleteAllVersions (renderPrefix k p) (const True))
+  PutTombstone u c i ->
+    runHandlerSem (S3.putEmptyObject (S3.S3AssetKey (renderTombstoneKey k u c i)))
+  ListTombstones u c -> do
+    let p = renderTombstonePrefix k u c
+    mapMaybe (parseTombstoneKey p . fst) <$> runHandlerSem (S3.listObjects p)
+  DeleteTombstone u c i ->
+    let key = renderTombstoneKey k u c i in runHandlerSem (S3.deleteAllVersions key (== key))
   where
     objectKey = S3.S3AssetKey . renderKey k
     -- Exceptions become 'Wai.Error's: 'Resource' discards a failing rollback only if it fails

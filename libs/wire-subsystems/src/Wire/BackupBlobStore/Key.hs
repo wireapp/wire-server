@@ -28,6 +28,9 @@ module Wire.BackupBlobStore.Key
     BackupPrefix (..),
     renderKey,
     renderPrefix,
+    renderTombstonePrefix,
+    renderTombstoneKey,
+    parseTombstoneKey,
     parseEpochPrefix,
     parseFileKey,
   )
@@ -109,6 +112,18 @@ renderKey k loc =
 uuidText :: BackupFileId -> Text
 uuidText = UUID.toText . unBackupFileId
 
+-- | Tombstones of a client, written by its backup deletion: @<clientPrefix>.tombstones/<id>@.
+-- Not an epoch, so listings of epochs ignore them.
+renderTombstonePrefix :: BackupHmacKey -> UserId -> ClientId -> Text
+renderTombstonePrefix k u c = renderPrefix k (ClientPrefix u c) <> ".tombstones/"
+
+renderTombstoneKey :: BackupHmacKey -> UserId -> ClientId -> BackupFileId -> Text
+renderTombstoneKey k u c i = renderTombstonePrefix k u c <> uuidText i
+
+-- | Parses a key returned for a 'renderTombstonePrefix' listing.
+parseTombstoneKey :: Text -> Text -> Maybe BackupFileId
+parseTombstoneKey prefix key = T.stripPrefix prefix key >>= parseCanonicalId
+
 -- | Parses a CommonPrefix returned for a 'ClientPrefix' listing, e.g. "<clientPrefix>7/".
 parseEpochPrefix :: Text -> Text -> Maybe BackupEpoch
 parseEpochPrefix clientPrefix cp = do
@@ -125,11 +140,14 @@ parseFileKey epochPrefix key = do
     [f, "incremental", i] -> IncrementalFile <$> parseId f <*> parseId i
     _ -> Nothing
   where
-    -- canonical lowercase text only
-    parseId t = do
-      uuid <- UUID.fromText t
-      guard (UUID.toText uuid == t)
-      pure (BackupFileId uuid)
+    parseId = parseCanonicalId
+
+-- | Canonical lowercase text only.
+parseCanonicalId :: Text -> Maybe BackupFileId
+parseCanonicalId t = do
+  uuid <- UUID.fromText t
+  guard (UUID.toText uuid == t)
+  pure (BackupFileId uuid)
 
 -- | Plain decimal, no padding, >= 1, fits 'Word32'.
 parseCanonicalEpoch :: Text -> Maybe BackupEpoch

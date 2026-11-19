@@ -30,6 +30,7 @@ module CargoHold.S3
     updateMetadataV3,
     deleteV3,
     uploadBackupBlob,
+    putEmptyObject,
     deleteObject,
     headObjectExists,
     listCommonPrefixes,
@@ -179,6 +180,11 @@ uploadBackupBlob (S3AssetKey key) len src = do
   pure $ case complete of
     Nothing -> Left BlobLengthMismatch
     Just r -> Right (fromObjectVersionId <$> r ^. completeMultipartUploadResponse_versionId)
+
+-- | Stores an empty object (a multipart upload cannot be empty).
+putEmptyObject :: S3AssetKey -> Handler ()
+putEmptyObject (S3AssetKey key) =
+  void . exec $ \b -> newPutObject (BucketName b) (ObjectKey key) (toBody BS.empty)
 
 -- | Stream @src@ to S3 as multipart upload. 'Nothing' if the stream length differs from @len@.
 streamUpload ::
