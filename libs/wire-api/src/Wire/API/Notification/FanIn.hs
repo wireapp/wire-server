@@ -188,9 +188,9 @@ instance ToSchema FanInAcknowledgements where
   schema =
     object $
       FanInAcknowledgements
-        <$> (.user) .= (join <$> maybe_ (optField "user" (unnamed schema)))
-        <*> (.client) .= (join <$> maybe_ (optField "client" (unnamed schema)))
-        <*> (.team) .= (join <$> maybe_ (optField "team" (unnamed schema)))
+        <$> (.user) .= optField "user" (maybeWithDefault A.Null schema)
+        <*> (.client) .= optField "client" (maybeWithDefault A.Null schema)
+        <*> (.team) .= optField "team" (maybeWithDefault A.Null schema)
         <*> (.mls) .= field "mls" (array schema)
 
 deriving via (Schema FanInAcknowledgements) instance ToJSON FanInAcknowledgements
