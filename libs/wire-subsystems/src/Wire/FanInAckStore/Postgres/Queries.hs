@@ -22,6 +22,7 @@
 -- concurrent or reordered writes cannot move the cursor backwards.
 module Wire.FanInAckStore.Postgres.Queries where
 
+import Data.Bifunctor (first)
 import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Profunctor (dimap, lmap)
@@ -279,7 +280,7 @@ remoteConnectionAckStatements =
 insertEmptyCursor :: Statement (NotificationId, UTCTime) ()
 insertEmptyCursor =
   lmap
-    (\(nid, createdAt) -> (toUUID nid, createdAt))
+    (first toUUID)
     [resultlessStatement|INSERT INTO fan_in_empty_cursors (cursor_id, created_at)
     VALUES ($1 :: uuid, $2 :: timestamptz)
     ON CONFLICT (cursor_id, created_at) DO NOTHING|]
@@ -287,6 +288,6 @@ insertEmptyCursor =
 emptyCursorExists :: Statement (NotificationId, UTCTime) Bool
 emptyCursorExists =
   lmap
-    (\(nid, createdAt) -> (toUUID nid, createdAt))
+    (first toUUID)
     [singletonStatement|SELECT EXISTS (SELECT 1 FROM fan_in_empty_cursors
     WHERE cursor_id = ($1 :: uuid) AND created_at = ($2 :: timestamptz)) :: bool|]
