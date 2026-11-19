@@ -22,6 +22,10 @@
 -- single atomic upsert; authorization and stream access belong to the subsystem.
 module Wire.FanInAckStore.Postgres (interpretFanInAckStoreToPostgres) where
 
+import Data.Bits
+import Data.Id (Id (..))
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.UUID qualified as UUID
 import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as PG
 import Hasql.Session qualified as Session
@@ -37,6 +41,20 @@ import Wire.Postgres (useWithResetAndRetry)
 interpretFanInAckStoreToPostgres :: forall r. (Member (Embed IO) r, Member (Error UsageError) r, Member (Error FanInAckStoreError) r) => PG.Pool -> InterpreterFor FanInAckStore r
 interpretFanInAckStoreToPostgres pool = interpret $ \case
   GetFanInAck key -> withAckKey key $ \statements params -> execute params statements.selectAck
+  CreateFanInEmptyCursor -> do
+    milliseconds <- liftIO (floor . (* 1000) <$> getPOSIXTime)
+    -- The lowest UUIDv7 at this millisecond includes all events from the same
+    -- millisecond. Sharing a boundary between initializations is harmless.
+    let nid = Id (UUID.fromWords (fromIntegral (milliseconds `shiftR` 16)) ((fromIntegral (milliseconds :: Integer) `shiftL` 16) .|. 0x7000) 0x80000000 0)
+    createdAt <- either (const (throw (InvalidFanInAckNotificationId nid))) pure (fanInNotificationIdCreatedAt nid)
+    execute (nid, createdAt) insertEmptyCursor
+    pure nid
+  HasFanInEmptyCursor nid -> do
+    createdAt <- either (const (throw (InvalidFanInAckNotificationId nid))) pure (fanInNotificationIdCreatedAt nid)
+    execute (nid, createdAt) emptyCursorExists
+  InitializeFanInAck key nid -> do
+    validate nid
+    withAckKey key $ \statements params -> execute (params, nid) statements.initializeAck
   UpsertFanInAck key nid -> do
     validate nid
     withAckKey key $ \statements params -> execute (params, nid) statements.upsertAck
