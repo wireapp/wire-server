@@ -600,3 +600,153 @@ leaves the deletion retriable. The consumer deletes the user's client rows
 (idempotent) and then all backups of the user (Cargohold, by prefix), and is
 retried until that succeeds.
 
+## Use cases
+
+The backend related use cases of the RFC "Secure Automatic Backups" and how they map to this
+design. Each use case lists:
+
+- **Public endpoints:** the routes the client calls (or the generic Wire flow that triggers it)
+- **Internal:** calls between services and queue events
+- **S3:** objects that are created, deleted or read (see [Key layout](#key-layout))
+
+A variant of another use case only states its difference.
+
+### 1. Automatic backup upload
+
+RFC: "Wire server", "Encrypting a backup file". A device uploads a full or incremental file of
+its current epoch.
+
+- **Public endpoints:**
+  - `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full`
+  - `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full/<FullId>/incremental`
+  - optionally `GET /backups/clients/<ClientId>` to learn the stored epochs
+- **Internal:**
+  - Cargohold → Brig: the client exists, before the upload and again after the PUT
+  - Cargohold → Galley: team flag `automaticBackups` is enabled
+- **S3:**
+  - PUT `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/full` or
+    `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/incremental/<id>`
+  - deletes all versions under `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/` of every superseded
+    full
+  - lists `backup/<h(uid)>/<h(cid)>/.tombstones/`
+  - a failed upload deletes its own object
+
+Note: the RFC allows only epoch 1 if no epoch is stored; here any epoch ≥ 1 is allowed.
+
+### 2. New backup epoch
+
+RFC: "Restoring from a remote backup", "Encrypting a backup file". After sharing its BEK the
+device increments its epoch and uploads a new full.
+
+- **Public endpoints:** `POST /backups/clients/<ClientId>/epochs/<BackupEpoch>/full` (epoch N+1)
+- **Internal:** as in [1](#1-automatic-backup-upload)
+- **S3:** PUT `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/full`, then deletes all versions under
+  `backup/<h(uid)>/<h(cid)>/<epoch>/` of every epoch but the two newest
+
+Note: in the RFC the client deletes its epochs ≤ `epoch - 2` before the first upload of an epoch.
+Here the server prunes after storing a full, so the client needs no delete call. With epochs N
+and N+1 stored the RFC allows only N+1; here N+2 is allowed too and its full prunes N.
+
+### 3. Restore from a remote backup
+
+RFC: "Restoring from a remote backup". Device A restores an epoch of device B of the same user,
+with the BEK that B shared via MLS.
+
+- **Public endpoints:**
+  - `GET /backups` (overview of all clients) or `GET /backups/clients/<ClientId>`
+  - `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>`
+  - `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>/full/<FullId>` and
+    `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>/full/<FullId>/incremental/<BackupFileId>`:
+    302 to a presigned URL
+- **Internal:** Cargohold → Brig: A and B are clients of the caller
+- **S3:** read only. Lists `backup/<h(uid)>/<h(cid)>/` (epochs) and
+  `backup/<h(uid)>/<h(cid)>/<epoch>/`, presigned GET of
+  `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/full` and
+  `backup/<h(uid)>/<h(cid)>/<epoch>/<fullId>/incremental/<id>`
+
+Note: the team flag is not checked on reads.
+
+### 4. Restore after losing the only device
+
+RFC: "Overview", scenario 2. Like [3](#3-restore-from-a-remote-backup), except: the BEK is derived from the imported RootBEK, not
+shared by another device. It only works while the lost client is still registered: removing it
+([7](#7-device-removed-or-compromised)) deletes its backups. So restore first, then remove the lost device.
+
+### 5. Device deletes its backups
+
+RFC: "Backups under user control", "Backups under team administrator control". The user
+disables backups on the device, or the admin lifts the enforcement and backups are disabled on
+the device.
+
+- **Public endpoints:** `DELETE /backups/clients/<ClientId>` (own client only)
+- **Internal:** Cargohold → Brig: the client exists
+- **S3:**
+  - PUT `backup/<h(uid)>/<h(cid)>/.tombstones/<id>`
+  - deletes all versions under `backup/<h(uid)>/<h(cid)>/` except the tombstones
+    `backup/<h(uid)>/<h(cid)>/.tombstones/<id>` not older than its own
+  - uploads that were running delete their object (see
+    [Deletion and upload ordering](#deletion-and-upload-ordering))
+
+```mermaid
+sequenceDiagram
+    participant U as Running upload
+    participant C as Cargohold DELETE
+    participant S as S3
+    U->>S: PUT file with id f
+    C->>S: PUT tombstone t, t > f
+    C->>S: delete all under client prefix except tombstones >= t
+    U->>S: list tombstones
+    S-->>U: t
+    U->>S: t > f, so delete own file
+```
+
+Either the deletion lists the file, or the upload sees the tombstone.
+
+### 6. Device enables backups again
+
+RFC: "Backups under user control". Like [1](#1-automatic-backup-upload), except: the device has a new RootBEK and starts at
+epoch 1 again. After [5](#5-device-deletes-its-backups) no epoch is stored (tombstones are no epochs), so epoch 1 is allowed. The
+remaining tombstone `backup/<h(uid)>/<h(cid)>/.tombstones/<id>` is older than the new upload and
+does not reject it.
+
+### 7. Device removed or compromised
+
+RFC: "Backup deletion", "Device compromise". The user removes a device.
+
+- **Public endpoints:** the existing client removal, `DELETE /clients/<ClientId>`
+- **Internal:**
+  - Brig deletes the client row and enqueues `DeleteClient`
+  - the queue consumer deletes the row again, then calls Cargohold
+    `DELETE /i/backups/users/<UserId>/clients/<ClientId>`, retried until it succeeds
+- **S3:** deletes all versions under `backup/<h(uid)>/<h(cid)>/`, tombstones included
+
+Note: the RFC requires immediate deletion. Here it is asynchronous via the queue, but reads need
+a current client, so the backups are unreachable as soon as the client row is gone.
+
+### 8. User deleted
+
+RFC: "Backup deletion".
+
+- **Public endpoints:** the generic user deletion
+- **Internal:**
+  - Brig's `deleteAccount` enqueues `DeleteBackups` first
+  - the queue consumer deletes the user's client rows, then calls Cargohold
+    `DELETE /i/backups/users/<UserId>`, retried until it succeeds
+- **S3:** deletes all versions under `backup/<h(uid)>/`
+
+### 9. Team deleted
+
+RFC: "Backup deletion". Like [8](#8-user-deleted), except: triggered by the generic team deletion. Galley deletes
+each team member via Brig, which runs [8](#8-user-deleted) per member.
+
+```mermaid
+flowchart LR
+    T[Team deletion] -->|per member| UD[User deletion]
+    UD --> DB[DeleteBackups event]
+    DB --> CU[Cargohold: delete user prefix]
+    CR[Client removal] --> DC[DeleteClient event]
+    DC --> CC[Cargohold: delete client prefix]
+    CU --> S3[(S3)]
+    CC --> S3
+```
+
