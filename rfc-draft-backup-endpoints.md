@@ -240,13 +240,16 @@ the cap (413).
 
 The server keeps at most the two newest epochs of a client: after a full file
 is stored it deletes all files of every epoch except the two newest, i.e. the
-oldest one when a third epoch starts. Storing an incremental file deletes
-nothing.
+oldest one when a third epoch starts. Storing an incremental file deletes no
+epochs.
 
 After storing, the server lists the epoch and deletes everything the new full
 superseded: older fulls (according to the mentioned rule) and all incrementals
-stored under them. Concurrent full uploads delete each other, a late older one
-deletes itself and responds with error; the newest wins.
+stored under them. Concurrent full uploads delete each other; the newest wins.
+A late older one deletes itself but still responds 200 with its `id`; an
+incremental upload under that id then gets 409 `backup-full-missing`. Example:
+full A starts (slow), full B starts later and finishes first; when A finishes,
+B is newer, so A deletes itself.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 `Content-Length: 1048576` and 1048576 body bytes → `200`
@@ -331,7 +334,7 @@ Defaults:
 - `lockStatus`: `unlocked`
 - `enforcedSchedule`: `weekly`
 - `enforced`: `false`
-- `serverOnly`: `false` (This flag is checked on uploads only.)
+- `serverOnly`: `false` (Not checked by the server: tells clients to store backups on the server only, not locally.)
 
 #### `GET /teams/<TeamId>/features/automaticBackups`
 
@@ -528,13 +531,16 @@ Uploads are lock-free and safe against races:
 - No TTL or staleness handling is needed. Clients that are unsure about a full
   upload can repeat it: the newest full wins.
 - The current full of an epoch is the one with the greatest `fullId`.
-  Incrementals under any other full are superseded (never listed, never served).
+  Incrementals under any other full are superseded: never listed, but
+  downloadable until pruned (only by the same client).
 - An incremental needs the current full, else uploading gets HTTP 409
   `backup-full-missing`.
 - After storing any file (full or incremental), the server lists the epoch and
   deletes everything the current full superseded: older fulls and incrementals
   not stored under the current full. For an incremental upload this removes the
-  orphan of an upload that raced a newer full.
+  orphan of an upload that raced a newer full. Example: incremental I starts
+  under full F1; full F2 finishes while I uploads and prunes F1 (I is not
+  visible yet); when I finishes, F2 is current, so I's own prune deletes I.
 - After storing a full file (not an incremental), the server also deletes all
   files of all but the two newest epochs. The epochs are listed after the
   store, so epochs that other uploads created meanwhile count.
@@ -551,8 +557,10 @@ prevents a couple of difficult issues:
 - Incrementals can never be accounted to a wrong full. (This would render the backup useless!)
 - Race conditions on server-side regarding
   - lock creation
-  - clock synchronization
   - crashes
+
+"Newest full wins" and tombstones rely on UUIDv7 time order across Cargohold
+instances, so their clocks must be roughly synchronized (NTP is enough).
 
 ### Deletion and versioned buckets
 
@@ -577,8 +585,9 @@ off.
 
 The client removal request never directly touches Cargohold (clients can be
 removed for security reasons, so a failing Cargohold must not affect it): Brig
-deletes the client row and enqueues the deletion as event. The consumer of that
-queue deletes the client row again (idempotent) and then the client's backups
+enqueues the deletion as event and then deletes the client row (a failing
+enqueue leaves the client in place, so the removal can be retried). The
+consumer of that queue deletes the client row again (idempotent) and then the client's backups
 (Cargohold, by prefix), and is retried until that succeeds.
 
 Uploads and removals are ordered so that no backup outlives its client. The
@@ -725,7 +734,7 @@ RFC: "Backup deletion", "Device compromise". The user removes a device.
 
 - **Public endpoints:** the existing client removal, `DELETE /clients/<ClientId>`
 - **Internal:**
-  - Brig deletes the client row and enqueues `DeleteClient`
+  - Brig enqueues `DeleteClient`, then deletes the client row
   - the queue consumer deletes the row again, then calls Cargohold
     `DELETE /i/backups/users/<UserId>/clients/<ClientId>`, retried until it succeeds
 - **S3:** deletes all versions under `backup/<h(uid)>/<h(cid)>/`, tombstones included
