@@ -24,6 +24,7 @@
 module Wire.FanInAckStore
   ( FanInAckKey (..),
     FanInAckStore (..),
+    FanInAckStoreError (..),
     getFanInAck,
     upsertFanInAck,
     advanceFanInAck,
@@ -53,6 +54,8 @@ data FanInAckStore m a where
   GetFanInAck :: FanInAckKey -> FanInAckStore m (Maybe NotificationId)
   -- | Set a cursor exactly, including rewinding it for an explicit reset.
   -- Normal WebSocket acknowledgements must use AdvanceFanInAck.
+  -- Write operations require UUIDv7 cursors; resetting to an expired cursor
+  -- is allowed, with retention-gap handling left to the delivery subsystem.
   UpsertFanInAck :: FanInAckKey -> NotificationId -> FanInAckStore m ()
   -- | Atomically advance a cursor without regressing it under concurrent acks.
   AdvanceFanInAck :: FanInAckKey -> NotificationId -> FanInAckStore m ()
@@ -60,3 +63,7 @@ data FanInAckStore m a where
   DeleteFanInAck :: FanInAckKey -> FanInAckStore m ()
 
 makeSem ''FanInAckStore
+
+-- | Invalid cursors are rejected before database access.
+data FanInAckStoreError = InvalidFanInAckNotificationId NotificationId
+  deriving stock (Eq, Show)
