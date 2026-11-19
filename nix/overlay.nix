@@ -17,7 +17,7 @@ self: super: {
     };
   };
 
-  nginz = super.nginx.override ({
+  nginz = (super.nginx.override ({
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders
@@ -28,7 +28,19 @@ self: super: {
     # supported by Clang (the default compiler on macOS). Use gccStdenv
     # to ensure GCC is used for the build.
     stdenv = self.gccStdenv;
-  });
+  })).overrideAttrs (_:
+    let
+      # CVE-2026-123007 and CVE-2026-123633. Remove once pinned nixpkgs ships the fixes.
+      version = "1.30.7";
+    in
+    {
+      inherit version;
+      nginxVersion = version;
+      src = self.fetchurl {
+        url = "https://nginx.org/download/nginx-${version}.tar.gz";
+        hash = "sha256-JWW1yDcFDpWPcPsPc8SOK8pFQq00n9NW9G+wxyYQvG4=";
+      };
+    });
 
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
