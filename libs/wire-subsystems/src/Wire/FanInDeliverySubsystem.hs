@@ -28,7 +28,8 @@ import Polysemy
 import Wire.API.Notification.FanIn
 
 data FanInDeliverySubsystem m a where
-  -- | Bind authenticated identity to a session and register Presence. An absent
+  -- | Bind authenticated identity to a session. The WebSocket adapter registers
+  -- Presence for the actual connection. An absent
   -- client id selects all clients as specified by the RFC. The interpreter owns
   -- the tag->stream/cursor map and limits outstanding deliveries per session.
   OpenFanInSession :: UserId -> Maybe ClientId -> FanInDeliverySubsystem m FanInSessionId
@@ -41,6 +42,7 @@ data FanInDeliverySubsystem m a where
   HandleFanInClientMessage :: FanInSessionId -> FanInClientMessage -> FanInDeliverySubsystem m ()
   -- | Wake persistent sessions or forward transient payloads as appropriate.
   NotifyFanInSessions :: FanInCannonRequest -> FanInDeliverySubsystem m ()
+  DeliverFanInTransient :: FanInSessionId -> FanInPush -> FanInDeliverySubsystem m (Maybe FanInServerMessage)
   CloseFanInSession :: FanInSessionId -> FanInDeliverySubsystem m ()
 
 -- | Session identity independent of legacy RabbitMQ channel delivery tags.
@@ -48,3 +50,11 @@ newtype FanInSessionId = FanInSessionId UUID
   deriving stock (Eq, Ord, Show)
 
 makeSem ''FanInDeliverySubsystem
+
+data FanInDeliveryError
+  = FanInUnknownSession
+  | FanInClientNotOwned
+  | FanInInvalidDeliveryTag
+  | FanInUnexpectedFullSyncAck
+  | FanInInvalidStoredPayload
+  deriving stock (Eq, Show)

@@ -367,7 +367,9 @@ library
     Wire.FanInAckStore
     Wire.FanInAckStore.Postgres
     Wire.FanInAckStore.Postgres.Queries
+    Wire.FanInDeliveryAccess
     Wire.FanInDeliverySubsystem
+    Wire.FanInDeliverySubsystem.Interpreter
     Wire.FanInEpochMembershipStore
     Wire.FanInEpochMembershipStore.Postgres
     Wire.FanInEpochMembershipStore.Postgres.Queries
@@ -688,6 +690,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FanInAckStore.PostgresSpec
+    Wire.FanInDeliverySubsystem.InterpreterSpec
     Wire.FanInNotificationStore.TimestampSpec
     Wire.FanInNotificationSubsystem.InterpreterSpec
     Wire.FederationAPIAccess.GalleySpec
