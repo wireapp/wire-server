@@ -22,7 +22,6 @@
 -- keeps separate typed operations for each scope.
 module Wire.FanInNotificationStore.Postgres.Queries where
 
-import Data.Bifunctor (bimap)
 import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Profunctor (dimap, lmap)
