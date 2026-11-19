@@ -133,12 +133,12 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
   - A stored file is always complete: the object only becomes visible once its
   upload finished. A failed upload leaves no file.
   - Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed;
-  otherwise only the newest stored epoch `N` or `N+1` (409
+  otherwise only the newest stored epoch `N` or `N+1` (violations raise HTTP 409
   `backup-epoch-not-allowed`).
   - A failed upload (fewer bytes than `Content-Length` arrive, client
   disconnect, storage error, client removed meanwhile) removes the file and
   surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
-  - Size subtlety: the server stores exactly the first `Content-Length` bytes
+  - **Size subtlety:** the server stores exactly the first `Content-Length` bytes
   and ignores any excess, because the HTTP layer hands the handler no more than
   that. Too many bytes can't be detected and give a successful upload of a
   truncated file; too few give 400 `incomplete-body`. The response `size` is
@@ -184,9 +184,10 @@ Delete all backups of the client. `<ClientId>` must equal `Z-Client` (403
 a client can clean up while the feature is disabled. It succeeds if there is nothing to delete.
 
 Uploads that are still running when this is called are rejected (403 `backup-forbidden`) and
-leave no file behind, as are incrementals under a full older than the call. Fulls uploaded after
-the call, and their incrementals, are kept and create backups again, so the client stops
-scheduling uploads before it calls this.
+leave no file behind. The same goes for incrementals under a full from before the call.
+
+Fulls that start uploading after the call are kept, together with their incrementals, so they
+create backups again. The client should therefore stop scheduling uploads before it calls this.
 
 Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
 
@@ -238,7 +239,7 @@ and the incrementals of it.
 
 Checked before any write, in this order: own client, team flag
 `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over
-the cap (413).
+the cap (raises HTTP 413).
 
 The server keeps at most the two newest epochs of a client: after a full file
 is stored it deletes all files of every epoch except the two newest, i.e. the
