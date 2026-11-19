@@ -239,18 +239,17 @@ and the incrementals of it.
 
 Checked before any write, in this order: own client, team flag
 `automaticBackups` enabled (user has a team), epoch rule, `Content-Length` over
-the cap (raises HTTP 413).
+the cap (raises HTTP 413 `backup-too-large`).
 
-The server keeps at most the two newest epochs of a client: after a full file
-is stored it deletes all files of every epoch except the two newest, i.e. the
-oldest one when a third epoch starts. Storing an incremental file deletes no
-epochs.
+The server keeps only the two newest epochs of a client. After storing a full
+file, it deletes every older epoch, so the oldest epoch disappears when a third
+one starts. Storing an incremental file never deletes epochs (storing
+incrementals is not performed by this endpoint, though).
 
 After storing, the server lists the epoch and deletes everything the new full
 superseded: older fulls (according to the mentioned rule) and all incrementals
 stored under them. Concurrent full uploads delete each other; the newest wins.
-A late older one deletes itself but still responds 200 with its `id`; an
-incremental upload under that id then gets 409 `backup-full-missing`. Example:
+A late older one deletes itself and responds 409 `backup-full-missing`. Example:
 full A starts (slow), full B starts later and finishes first; when A finishes,
 B is newer, so A deletes itself.
 
@@ -278,11 +277,11 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 Upload an incremental file under the full `<FullId>`, which must be the epoch's
 current full. If no full exists you get 409 `backup-full-missing`, meaning
 there's no such full or it was replaced. If there's no such full, upload a new
-one; if it was replaced, refer to the current one.
+one (via another endpoint); if it was replaced, refer to the current one.
 
 These rules apply: size cap (HTTP 413) and file count cap `maxFilesPerEpoch`
 counting the current files including the full (409 `backup-too-many-files`).
-Concurrent incrementals can slightly exceed the file amount cap.
+Concurrent incremental uploads can slightly exceed the file amount cap.
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07/incremental` with `Content-Length: 2048` and 2048 body bytes → `200`
 
@@ -317,7 +316,7 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/01a1cf41-5e4b-
 
 - **Headers:** `Z-User`, `Z-Client`
 - **Request body:** none
-- **Response:** 302, empty body, `Location: <Url>` (as above)
+- **Response:** 302, empty body, `Location: <Url>` (presigned S3 URL, bearer link valid for `downloadLinkTTL` seconds)
 
 Download an incremental file via redirect. 404 `backup-not-found` if no such
 file exists under that full.
@@ -413,7 +412,7 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 | 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller);<br>`GET /backups/clients/<ClientId>`, `GET …/epochs/<BackupEpoch>`,<br>`GET …/full/<FullId>[/incremental/<BackupFileId>]` (`Z-Client` or `<ClientId>` is not a client<br>of the caller; for the last two also no such epoch or file);<br>`POST`s, `DELETE /backups/clients/<ClientId>` (`<ClientId>` is not a client of the caller) |
 | 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                         |
 | 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental`                                                                                                                                                                                                                                                                                                                                                            |
-| 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)                                                                                                                                                                                                                                                                                                                |
+| 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)<br>`POST …/full` and `…/incremental` (a newer full was stored during the upload)                                                                                                                                                                                                                                                                                                             |
 | 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                                                                                                                           |
 | 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                                |
 | 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap;<br>checked on the declared value, before any byte is read)                                                                                                                                                                                                                                                        |
@@ -544,6 +543,7 @@ Uploads are lock-free and safe against races:
   orphan of an upload that raced a newer full. Example: incremental I starts
   under full F1; full F2 finishes while I uploads and prunes F1 (I is not
   visible yet); when I finishes, F2 is current, so I's own prune deletes I.
+  An upload whose own prune deletes its file responds 409 `backup-full-missing`.
 - After storing a full file (not an incremental), the server also deletes all
   files of all but the two newest epochs. The epochs are listed after the
   store, so epochs that other uploads created meanwhile count.

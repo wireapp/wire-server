@@ -63,7 +63,7 @@ After a full is stored the server deletes everything else in the epoch, so a new
 replaces the old one and its incrementals. Every upload deletes what the current full
 superseded, which also removes an incremental that was stored just after a newer full
 (it raced the new full). Concurrent fulls prune each other, a late older one deletes
-itself.
+itself. An upload whose own prune deletes its file fails with `409 backup-full-missing`.
 
 A failed or aborted upload (any error, client disconnect) removes the file it created.
 Incremental uploads need the current full (`409 backup-full-missing` otherwise).
