@@ -48,6 +48,17 @@ Rules shared by all routes under `/backups`:
 - Only uploads check the team flag `automaticBackups`; reads work whatever its state.
 - There is no public delete endpoint. Backups of a client are deleted when the client is deleted, all backups of a user when the user is deleted (internal, by brig, via queue event).
 
+#### Newest full wins
+
+The current full of an epoch is the one with the greatest `<BackupFileId>`
+(UUIDv7, i.e. server time). An incremental is stored under the full it extends
+(`<FullId>` in its path) and is current only while that full is the current
+one. The client learns a full's id from the response of the finished upload (or
+from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full
+that finished. An incremental of a replaced full is never listed, whatever the
+timing of the uploads, and the server deletes it on a later upload of the
+epoch.
+
 #### `/backups`
 
 ##### `GET /backups`
@@ -187,19 +198,6 @@ Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2` → `200`
   ]
 }
 ```
-
----
-
-##### Newest full wins
-
-The current full of an epoch is the one with the greatest `<BackupFileId>`
-(UUIDv7, i.e. server time). An incremental is stored under the full it extends
-(`<FullId>` in its path) and is current only while that full is the current
-one. The client learns a full's id from the response of the finished upload (or
-from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full
-that finished. An incremental of a replaced full is never listed, whatever the
-timing of the uploads, and the server deletes it on a later upload of the
-epoch.
 
 ---
 
