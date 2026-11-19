@@ -110,20 +110,23 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
 - Read routes (GET):
   - A client may read the backups of any client of the same user.
 - Write routes (POST):
-  - `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`). I.e. clients can only write for their own, never for others!
-  - A stored file is always complete: the object only becomes visible once its upload finished. A failed upload leaves no file.
-  - Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed; otherwise
-    only the newest stored epoch `N` or `N+1` (409 `backup-epoch-not-allowed`).
-  - A failed upload (fewer bytes than `Content-Length` arrive, client disconnect,
-    storage error, client removed meanwhile) removes the file and surfaces the
-    error; a short body or disconnect gives 400 `incomplete-body`.
-  - Size subtlety: the server stores exactly the first `Content-Length` bytes and
-    ignores any excess, because the HTTP layer hands the handler no more than that.
-    Too many bytes can't be detected and give a successful upload of a truncated
-    file; too few give 400 `incomplete-body`. The response `size` is the number of
-    bytes stored, so clients should compare it with the number of bytes they sent
-    and, if it differs, upload a new full, or for an incremental, the incremental
-    again (a new file) or a new full, respectively.
+  - `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`). I.e.
+  clients can only write for their own, never for others!
+  - A stored file is always complete: the object only becomes visible once its
+  upload finished. A failed upload leaves no file.
+  - Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed;
+  otherwise only the newest stored epoch `N` or `N+1` (409
+  `backup-epoch-not-allowed`).
+  - A failed upload (fewer bytes than `Content-Length` arrive, client
+  disconnect, storage error, client removed meanwhile) removes the file and
+  surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
+  - Size subtlety: the server stores exactly the first `Content-Length` bytes
+  and ignores any excess, because the HTTP layer hands the handler no more than
+  that. Too many bytes can't be detected and give a successful upload of a
+  truncated file; too few give 400 `incomplete-body`. The response `size` is
+  the number of bytes stored, so clients should compare it with the number of
+  bytes they sent and, if it differs, upload a new full, or for an incremental,
+  the incremental again (a new file) or a new full, respectively.
 
 ##### `/backups/clients/<ClientId>`
 
@@ -133,7 +136,8 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
 - **Request body:** none
 - **Response:** 200 `<ClientBackups>`
 
-The restorable epochs of one client, as one entry of `GET /backups`. `"epochs": []` if the client has no restorable backup.
+The restorable epochs of one client, as one entry of `GET /backups`. `"epochs":
+[]` if the client has no restorable backup.
 
 Example: `GET /v19/backups/clients/4b2f7a9c1d3e5f60` → `200`
 
