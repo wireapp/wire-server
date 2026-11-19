@@ -92,12 +92,6 @@
       flake = false;
     };
 
-    cryptostore = {
-      # Use master because the released version doesn't work with the latest version of cyrpton.
-      url = "git+https://codeberg.org/ocheron/cryptostore.git";
-      flake = false;
-    };
-
     hsaml2 = {
       url = "github:wireapp/hsaml2/use-crypton-asn1";
       flake = false;

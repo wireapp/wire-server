@@ -21,6 +21,7 @@
 module SAML2.WebSSO.Test.Arbitrary where
 
 import Control.Lens
+import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
 import Crypto.PubKey.RSA qualified as RSA
 import Crypto.PubKey.RSA.PKCS15 qualified as PKCS15
@@ -511,7 +512,7 @@ mkArbitrarySignedCert = do
   where
     signMsg msg =
       either (error "mkArbitrarySignedCert: signing failed") id $
-        PKCS15.sign Nothing (Just SHA256) arbitraryCertPrivKey msg
+        PKCS15.signDigest Nothing arbitraryCertPrivKey (hashWith SHA256 msg)
 
 -- | Fixed RSA key pair for test cert signing. Hardcoded primes avoid IO.
 arbitraryCertPubKey :: RSA.PublicKey

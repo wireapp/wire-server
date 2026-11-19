@@ -84,22 +84,6 @@
         "type": "github"
       }
     },
-    "cryptostore": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1775634484,
-        "narHash": "sha256-L4sFE6+1MwwRFIkz/EZhTPuty8dH3IbKU6GyDQylEYg=",
-        "ref": "refs/heads/master",
-        "rev": "06afcd9e10445053ef8dc42aa0d9b94f900adfb7",
-        "revCount": 254,
-        "type": "git",
-        "url": "https://codeberg.org/ocheron/cryptostore.git"
-      },
-      "original": {
-        "type": "git",
-        "url": "https://codeberg.org/ocheron/cryptostore.git"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -388,7 +372,6 @@
         "bloodhound": "bloodhound",
         "cql": "cql",
         "cql-io": "cql-io",
-        "cryptostore": "cryptostore",
         "flake-utils": "flake-utils",
         "hasql-migration": "hasql-migration",
         "hasql-resource-pool": "hasql-resource-pool",
