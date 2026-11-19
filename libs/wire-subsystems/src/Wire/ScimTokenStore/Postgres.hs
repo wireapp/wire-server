@@ -19,6 +19,8 @@
 
 module Wire.ScimTokenStore.Postgres
   ( interpretScimTokenStoreToPostgres,
+    upsertScimTokenByKey,
+    pgConvertPlaintextToken,
   )
 where
 
@@ -85,8 +87,9 @@ insertTuple key ScimTokenInfo {..} =
     Just stiName
   )
 
--- | Upsert under the given lookup key (the write path always uses the hashed
--- key).
+-- | Upsert with a caller-supplied lookup key. The migration worker uses this to
+-- preserve plaintext-vs-hashed keys; the normal write path always uses the
+-- hashed key.
 upsertScimTokenByKey :: (PGConstraints r) => ScimTokenLookupKey -> ScimTokenInfo -> Sem r ()
 upsertScimTokenByKey key info =
   runStatement (insertTuple key info) upsertScimTokenStatement
@@ -122,7 +125,8 @@ lookupScimTokenPg token = do
   case byKey of
     -- A plaintext-key row means the token predates hashing. Prefer it over a
     -- hashed row (both can exist if a previous conversion crashed between the
-    -- upsert and the delete): convert it to the hashed key and
+    -- upsert and the delete, or if the migration worker copied the plaintext
+    -- row after a concurrent conversion): convert it to the hashed key and
     -- delete the stale plaintext row, mirroring the C* re-keying. The
     -- conversion re-reads the row in-statement, so a revocation that raced the
     -- lookup cannot be resurrected here.
@@ -162,7 +166,8 @@ selectScimTokenByKeys =
 -- an earlier lookup), so if the token was deleted between the lookup and this
 -- conversion, there is nothing to insert and no credential is resurrected;
 -- @DO NOTHING@ never clobbers a fresher hashed row written by a concurrent
--- insert or conversion. Used by the Postgres read path.
+-- insert or conversion. Used both by the Postgres read path and mirrored from
+-- the DualWrite interpreter.
 pgConvertPlaintextToken :: (PGConstraints r) => ScimToken -> Sem r ()
 pgConvertPlaintextToken token = do
   runStatement (hashedKey, plainKey) convertPlaintextStatement
@@ -198,7 +203,8 @@ getScimTokensPg team = do
           Map.fromListWith preferPlaintextKey [(tokenId r, r) | r <- V.toList rows]
   where
     -- Plaintext and hashed rows can coexist for the same token after an
-    -- interrupted conversion. Deduplicate by token id, preferring the plaintext-key row
+    -- interrupted conversion, or after a read-path conversion raced the
+    -- backfill. Deduplicate by token id, preferring the plaintext-key row
     -- (same precedence as 'lookupScimTokenPg'), so one credential is not
     -- listed — and counted toward maxScimTokens — twice.
     preferPlaintextKey a b

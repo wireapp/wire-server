@@ -46,6 +46,7 @@
 , optparse-applicative
 , polysemy
 , polysemy-check
+, polysemy-conc
 , polysemy-plugin
 , polysemy-wire-zoo
 , QuickCheck
@@ -113,6 +114,7 @@ mkDerivation {
     optparse-applicative
     polysemy
     polysemy-check
+    polysemy-conc
     polysemy-plugin
     polysemy-wire-zoo
     QuickCheck
