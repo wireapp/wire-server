@@ -62,4 +62,6 @@ ingress-nginx:
       # *-snippet annotations (risk "Critical"), e.g. the federator ingress'
       # configuration-snippet. Rejected ingresses get served the fake default cert.
       annotations-risk-level: Critical
+      # Mitigate CVE-2026-123007 / nginx2root by disabling HTTP/2
+      use-http2: false
     allowSnippetAnnotations: true # needed up to and including version 1.13
