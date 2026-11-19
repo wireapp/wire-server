@@ -177,8 +177,9 @@ Delete all backups of the client. `<ClientId>` must equal `Z-Client` (403
 a client can clean up while the feature is disabled. It succeeds if there is nothing to delete.
 
 Uploads that are still running when this is called are rejected (403 `backup-forbidden`) and
-leave no file behind. Uploads started after the response create backups again, so the client
-stops scheduling uploads before it calls this.
+leave no file behind, as are incrementals under a full older than the call. Fulls uploaded after
+the call, and their incrementals, are kept and create backups again, so the client stops
+scheduling uploads before it calls this.
 
 Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
 
@@ -584,12 +585,13 @@ upload process deletes its object.
 Deleting the backups on request of the client (`DELETE /backups/clients/<ClientId>`) has no
 client row to order against, so it uses tombstones. It first stores a tombstone
 (`.tombstones/<id>`, a UUIDv7 like file ids), then deletes everything under the client prefix
-except the tombstones that are not older than its own (one sweep). After its PUT and the client
-check, an upload lists the tombstones: one newer than the file's id means the deletion started
-after the upload did, so the upload deletes its object and fails with 403 `backup-forbidden`.
-Either the deletion lists the object, or the upload sees the tombstone. Uploads started after the
-deletion have newer ids and are unaffected. Keeping newer tombstones means an older concurrent
-deletion cannot erase the tombstone of a newer one. This relies on UUIDv7 time order across
+that is older than the tombstone (one sweep): tombstones by their id, files by their `<FullId>`
+(an incremental belongs to its full). After its PUT and the client check, an upload lists the
+tombstones: one newer than the file's `<FullId>` means the deletion removes the file, so the
+upload deletes its object and fails with 403 `backup-forbidden`. Either the deletion lists the
+object, or the upload sees the tombstone. Fulls started after the deletion, and their
+incrementals, are newer and kept. Keeping newer tombstones means an older concurrent deletion
+cannot erase the tombstone of a newer one. This relies on UUIDv7 time order across
 Cargohold instances, like "Newest full wins". Client and user deletion remove tombstones with
 the prefix.
 
@@ -682,8 +684,9 @@ the device.
 - **Internal:** Cargohold → Brig: the client exists
 - **S3:**
   - PUT `backup/<h(uid)>/<h(cid)>/.tombstones/<id>`
-  - deletes all versions under `backup/<h(uid)>/<h(cid)>/` except the tombstones
-    `backup/<h(uid)>/<h(cid)>/.tombstones/<id>` not older than its own
+  - deletes all versions under `backup/<h(uid)>/<h(cid)>/` that are older than its own
+    tombstone: tombstones `backup/<h(uid)>/<h(cid)>/.tombstones/<id>` by `<id>`, files by
+    `<FullId>`
   - uploads that were running delete their object (see
     [Deletion and upload ordering](#deletion-and-upload-ordering))
 
@@ -692,9 +695,9 @@ sequenceDiagram
     participant U as Running upload
     participant C as Cargohold DELETE
     participant S as S3
-    U->>S: PUT file with id f
+    U->>S: PUT file with full id f
     C->>S: PUT tombstone t, t > f
-    C->>S: delete all under client prefix except tombstones >= t
+    C->>S: delete all under client prefix older than t
     U->>S: list tombstones
     S-->>U: t
     U->>S: t > f, so delete own file
@@ -707,7 +710,8 @@ Either the deletion lists the file, or the upload sees the tombstone.
 RFC: "Backups under user control". Like [1](#1-automatic-backup-upload), except: the device has a new RootBEK and starts at
 epoch 1 again. After [5](#5-device-deletes-its-backups) no epoch is stored (tombstones are no epochs), so epoch 1 is allowed. The
 remaining tombstone `backup/<h(uid)>/<h(cid)>/.tombstones/<id>` is older than the new upload and
-does not reject it.
+does not reject it. The upload need not wait for the response of the deletion: its full is newer
+than the tombstone, so the deletion keeps it.
 
 ### 7. Device removed or compromised
 

@@ -35,9 +35,8 @@ All other paths are under `/backups/clients/{cid}/epochs`:
 
 - `DELETE /backups/clients/{cid}` delete all backups of the calling client (`cid` must be
   `Z-Client`, else 403). The team feature is not checked. Succeeds if nothing exists. Uploads
-  running at that time are rejected (403) and removed, see
-  [Deletion / upload ordering invariant](#deletion--upload-ordering-invariant). The client should
-  stop scheduling uploads before the call.
+  running at that time are rejected (403) and removed, uploads started after it are kept, see
+  [Deletion / upload ordering invariant](#deletion--upload-ordering-invariant).
 
 Backups are also deleted on client and user deletion (brig, internal). After storing a full file
 the server deletes all files of all but the two newest epochs of the client (listed after the
@@ -167,13 +166,14 @@ deletes its object.
 
 Deleting the backups on request of the client (`DELETE /backups/clients/{cid}`) has no client row
 to order against, so it uses tombstones. It first stores a tombstone (`.tombstones/<id>`, a UUIDv7
-like file ids), then deletes everything under the client prefix except the tombstones that are
-not older than its own (one sweep, so a concurrent older deletion cannot erase a newer tombstone).
-After its PUT and the client check, an upload lists the tombstones: one newer than the file's id means
-the deletion started after the upload did, so the upload deletes its object and fails with 403.
-Either the deletion lists the object or the upload sees the tombstone. Uploads started after the
-deletion have newer ids and are unaffected. This relies on UUIDv7 time order across cargohold
-instances, like "newest full wins". Client and user deletion remove tombstones with the prefix.
+like file ids), then deletes everything under the client prefix that is older than the tombstone, in
+one sweep: tombstones by their id, files by their `fullId` (an incremental belongs to its full). So
+a concurrent older deletion cannot erase a newer tombstone or newer files. After its PUT and the
+client check, an upload lists the tombstones: one newer than the file's `fullId` means the deletion
+removes the file, so the upload deletes its object and fails with 403. Either the deletion lists the
+object or the upload sees the tombstone. Fulls started after the deletion, and their incrementals,
+are newer and kept. This relies on UUIDv7 time order across cargohold instances, like "newest full
+wins". Client and user deletion remove tombstones with the prefix.
 
 User deletion works the same way with a backend-internal queue event
 (`DeleteBackups`, not a Wire event, never fanned out). `deleteAccount`
