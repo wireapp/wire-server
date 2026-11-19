@@ -49,6 +49,7 @@ import Wire.BackupBlobStore.Key
 import Wire.BackupSubsystem
 import Wire.BackupSubsystem.Interpreter
 import Wire.BackupSubsystem.Rules
+import Wire.BackupSubsystem.UUIDv7 (uuidV7)
 import Wire.BrigAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters
@@ -70,6 +71,9 @@ data World = World
     -- | 'PutBlob' first runs a deletion of the client's backups (its tombstone is newer than any
     -- file), like a deletion that overtakes an upload.
     deleteDuringPut :: Bool,
+    -- | 'PutBlob' stores the object, then runs the deletion of the client's newest tombstone
+    -- (again), like a deletion that lists the client's objects only after the PUT.
+    sweepAfterPut :: Bool,
     -- | 'PutBlob' first stores full files in the epochs 3 and 4, like uploads of other fulls that
     -- finish meanwhile.
     newerEpochsDuringPut :: Bool
@@ -142,6 +146,7 @@ world0 =
       failDelete = False,
       failAfterPut = False,
       deleteDuringPut = False,
+      sweepAfterPut = False,
       newerEpochsDuringPut = False
     }
 
@@ -193,8 +198,9 @@ failingStore ::
 failingStore = intercept $ \case
   PutBlob l n s -> do
     whenM (gets (.deleteDuringPut)) $ do
-      putTombstone l.user l.client (BackupFileId (UUID.fromWords64 maxBound maxBound))
-      listBlobEpochs l.user l.client >>= traverse_ (deleteBlobs . EpochPrefix l.user l.client)
+      let t = BackupFileId (UUID.fromWords64 maxBound maxBound)
+      putTombstone l.user l.client t
+      deleteClientBackupsBefore l.user l.client t
     whenM (gets (.newerEpochsDuringPut)) $
       for_ [3, 4] $ \e ->
         putBlob
@@ -202,6 +208,9 @@ failingStore = intercept $ \case
           1
           (yield "n")
     v <- putBlob l n s
+    whenM (gets (.sweepAfterPut)) $
+      listTombstones l.user l.client
+        >>= traverse_ (deleteClientBackupsBefore l.user l.client) . foldr (max . Just) Nothing
     whenM (gets (.failAfterPut)) $ throw StoreDown
     pure v
   ListBlobs u c e -> listBlobs u c e
@@ -424,6 +433,7 @@ spec = describe "BackupSubsystem" $ do
       _ <- upload uA a1 a1 1 "x"
       _ <- upload uA a1 a1 2 "y"
       g <- upload uA a2 a2 1 "z"
+      tick
       deleteClientBackups (loc uA) a1 a1
       deleteClientBackups (loc uA) a1 a1
       pure (fullLoc uA a2 1 g)
@@ -442,6 +452,7 @@ spec = describe "BackupSubsystem" $ do
       _ <- upload uA a1 a1 1 "x"
       _ <- upload uA a1 a1 2 "y"
       modify (\w -> w {feature = FeatureStatusDisabled})
+      tick
       deleteClientBackups (loc uA) a1 a1
       tick
       modify (\w -> w {feature = FeatureStatusEnabled})
@@ -459,6 +470,29 @@ spec = describe "BackupSubsystem" $ do
     (blobs, res) <- runBackup world0 Nothing $ do
       f <- uploadFull uA a1 a1 1 "x"
       modify (\w -> w {deleteDuringPut = True})
+      attempt (uploadInc f uA a1 a1 1 "y")
+    res `shouldBe` Right (Left BackupErrForbidden)
+    blobs `shouldBe` mempty
+
+  it "full upload after a client delete is kept by the delete's late sweep" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      _ <- upload uA a1 a1 1 "x"
+      deleteClientBackups (loc uA) a1 a1
+      tick
+      modify (\w -> w {sweepAfterPut = True})
+      f <- uploadFull uA a1 a1 1 "y"
+      pure (fullLoc uA a1 1 f)
+    Right kept <- pure res
+    Map.keys blobs `shouldBe` [kept]
+
+  it "incremental upload after a client delete, under an older full, is rolled back" $ do
+    (blobs, res) <- runBackup world0 Nothing $ do
+      f <- uploadFull uA a1 a1 1 "x"
+      tick
+      now <- get @UTCTime
+      putTombstone uA a1 (BackupFileId (uuidV7 now UUID.nil))
+      tick
+      modify (\w -> w {sweepAfterPut = True})
       attempt (uploadInc f uA a1 a1 1 "y")
     res `shouldBe` Right (Left BackupErrForbidden)
     blobs `shouldBe` mempty

@@ -130,3 +130,22 @@ spec = do
         (s, parseEpochPrefix cp (cp <> s)) `shouldBe` (s, Nothing)
     it "rejects different prefix" $
       parseEpochPrefix cp ("other/7/") `shouldBe` Nothing
+
+  describe "parseClientKeyId" $ do
+    prop "is the full file id of renderKey" $ forAll genLoc $ \loc ->
+      parseClientKeyId
+        (renderPrefix testKey (ClientPrefix loc.user loc.client))
+        (renderKey testKey loc)
+        === Just (fullFileId loc.file)
+    let cp = renderPrefix testKey (ClientPrefix uid1 cid1)
+        fid2 = BackupFileId (UUID.fromWords64 1 2)
+    it "is the id of a tombstone" $
+      parseClientKeyId cp (renderTombstoneKey testKey uid1 cid1 fid1) `shouldBe` Just fid1
+    it "is the full file id of an incremental file" $
+      parseClientKeyId cp (cp <> "7/" <> fidText <> "/incremental/" <> UUID.toText fid2.unBackupFileId)
+        `shouldBe` Just fid1
+    it "rejects invalid" $
+      forM_ ["x/" <> fidText <> "/full", "7/" <> fidText <> "/diff", ".tombstones/x", "7/"] $ \s ->
+        (s, parseClientKeyId cp (cp <> s)) `shouldBe` (s, Nothing)
+    it "rejects different prefix" $
+      parseClientKeyId cp (renderTombstoneKey testKey uid1 (ClientId 0x1a2c) fid1) `shouldBe` Nothing

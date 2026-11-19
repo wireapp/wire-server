@@ -84,8 +84,8 @@ interpretBackupSubsystem = interpret $ \case
   DeleteClientBackups luid zcid cid -> do
     let uid = tUnqualified luid
     checkWrite uid zcid cid
-    -- Tombstone first, then delete: see 'uploadBackupImpl'. The deletion keeps the tombstones that
-    -- are not older than 't', also those of concurrent newer deletions.
+    -- Tombstone first, then delete: see 'uploadBackupImpl'. The deletion keeps what is not older
+    -- than 't': files of later uploads, tombstones of concurrent newer deletions.
     t <- newFileId
     putTombstone uid cid t
     deleteClientBackupsBefore uid cid t
@@ -108,12 +108,13 @@ interpretBackupSubsystem = interpret $ \case
 --
 -- Backup deletion by the client (see 'DeleteClientBackups') races with uploads of the same
 -- client in the same way: it first stores a tombstone (an object @.tombstones/<id>@ with a
--- UUIDv7 id, like file ids), then deletes the epochs. After the PUT (and the client check above)
--- an upload lists the tombstones; one newer than the file's id means the deletion started after
--- the upload did, so the upload deletes its object and fails. Either the deletion lists the
--- object, or the upload sees the tombstone. Uploads started after the deletion have newer ids
--- and pass. The deletion keeps the tombstones not older than its own. This relies on UUIDv7 time
--- order across servers, like "newest full file wins".
+-- UUIDv7 id, like file ids), then deletes everything older than the tombstone. A file is as old
+-- as its full file ('fullFileId'): incremental files belong to it. After the PUT (and the client
+-- check above) an upload lists the tombstones; one newer than the file's full file id means the
+-- deletion removes the file, so the upload deletes its object and fails. Either the deletion
+-- lists the object, or the upload sees the tombstone. Files of full files started after the
+-- deletion are newer, kept by the deletion and pass. This relies on UUIDv7 time order across
+-- servers, like "newest full file wins".
 --
 -- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
 -- new full file replaces the previous one. The newest full file (greatest id) wins. An
@@ -153,7 +154,7 @@ uploadBackupImpl uid zcid cid e base len src = do
   either (throw . rejectionError) pure $ checkUpload limits base epochs blobs e len
   fid <- newFileId
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
-  store fid BackupLocation {user = uid, client = cid, epoch = e, file}
+  store BackupLocation {user = uid, client = cid, epoch = e, file}
   listBlobs uid cid e >>= traverse_ (deleteBlob . location) . pruneTargets
   -- Epochs listed again: one may have appeared during the upload.
   when (isNothing base) $
@@ -162,13 +163,13 @@ uploadBackupImpl uid zcid cid e base len src = do
   pure (toFile BackupBlob {file, size = len})
   where
     location b = BackupLocation {user = uid, client = cid, epoch = e, file = b.file}
-    store fid l = do
+    store l = do
       let put = void (putBlob l len src) `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
           recheck = do
             stillThere <- Set.member cid <$> clientsOf uid
             unless stillThere $ throw BackupErrForbidden
             tombstones <- listTombstones uid cid
-            when (any (> fid) tombstones) $ throw BackupErrForbidden
+            when (any (> fullFileId l.file) tombstones) $ throw BackupErrForbidden
       -- 'onException': removed on /any/ failure (every 'Error' effect interpreted before
       -- 'Resource', and exceptions), the original failure is surfaced. A failing cleanup is
       -- discarded by the 'Resource' interpreter, so it never masks the original failure.

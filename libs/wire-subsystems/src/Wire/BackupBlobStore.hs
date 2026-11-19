@@ -64,8 +64,9 @@ data BackupBlobStore m a where
   -- | Stores an empty tombstone object for the client (see 'Wire.BackupSubsystem').
   PutTombstone :: UserId -> ClientId -> BackupFileId -> BackupBlobStore m ()
   ListTombstones :: UserId -> ClientId -> BackupBlobStore m [BackupFileId]
-  -- | Deletes all versions of all keys under the client prefix (see above why all), except the
-  -- tombstones that are not older than the given id. Idempotent.
+  -- | Deletes all versions (see above why all) of all keys under the client prefix that are older
+  -- than the given id: tombstones by their id, files by their full file id. Keys that do not parse
+  -- are deleted too. Idempotent.
   DeleteClientBackupsBefore :: UserId -> ClientId -> BackupFileId -> BackupBlobStore m ()
 
 makeSem ''BackupBlobStore

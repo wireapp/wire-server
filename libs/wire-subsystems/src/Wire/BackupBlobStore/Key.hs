@@ -24,6 +24,7 @@ module Wire.BackupBlobStore.Key
     mkBackupHmacKey,
     BackupFileRef (..),
     fileRefId,
+    fullFileId,
     BackupLocation (..),
     BackupPrefix (..),
     renderKey,
@@ -31,6 +32,7 @@ module Wire.BackupBlobStore.Key
     renderTombstonePrefix,
     renderTombstoneKey,
     parseTombstoneKey,
+    parseClientKeyId,
     parseEpochPrefix,
     parseFileKey,
   )
@@ -71,6 +73,11 @@ data BackupFileRef
 fileRefId :: BackupFileRef -> BackupFileId
 fileRefId (FullFile i) = i
 fileRefId (IncrementalFile _ i) = i
+
+-- | The id of the full file: its own for a full file, the extended one for an incremental file.
+fullFileId :: BackupFileRef -> BackupFileId
+fullFileId (FullFile f) = f
+fullFileId (IncrementalFile f _) = f
 
 data BackupLocation = BackupLocation
   { user :: UserId,
@@ -123,6 +130,16 @@ renderTombstoneKey k u c i = renderTombstonePrefix k u c <> uuidText i
 -- | Parses a key returned for a 'renderTombstonePrefix' listing.
 parseTombstoneKey :: Text -> Text -> Maybe BackupFileId
 parseTombstoneKey prefix key = T.stripPrefix prefix key >>= parseCanonicalId
+
+-- | Parses a key returned for a 'ClientPrefix' listing into the id that orders it against a
+-- backup deletion: the id of a tombstone, the full file id ('fullFileId') of a file.
+parseClientKeyId :: Text -> Text -> Maybe BackupFileId
+parseClientKeyId clientPrefix key =
+  parseTombstoneKey (clientPrefix <> ".tombstones/") key <|> do
+    rest <- T.stripPrefix clientPrefix key
+    let seg = fst (T.breakOn "/" rest)
+    _ <- parseCanonicalEpoch seg
+    fullFileId <$> parseFileKey (clientPrefix <> seg <> "/") key
 
 -- | Parses a CommonPrefix returned for a 'ClientPrefix' listing, e.g. "<clientPrefix>7/".
 parseEpochPrefix :: Text -> Text -> Maybe BackupEpoch
