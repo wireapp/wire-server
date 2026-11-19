@@ -26,6 +26,9 @@ module Wire.FanInAckStore
     FanInAckStore (..),
     FanInAckStoreError (..),
     getFanInAck,
+    createFanInEmptyCursor,
+    hasFanInEmptyCursor,
+    initializeFanInAck,
     upsertFanInAck,
     advanceFanInAck,
     deleteFanInAck,
@@ -48,10 +51,18 @@ data FanInAckKey
   | FanInEpochAck UserId ClientId GroupId Epoch
   | FanInLocalConnectionAck UserId UserId
   | FanInRemoteConnectionAck UserId Domain UserId
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Ord, Show)
 
 data FanInAckStore m a where
   GetFanInAck :: FanInAckKey -> FanInAckStore m (Maybe NotificationId)
+  -- | Retained boundary for a stream that has never had a notification. It is
+  -- not an event and must never appear on the WebSocket. Expiring it permits
+  -- the same conservative gap detection as expiring a real notification.
+  CreateFanInEmptyCursor :: FanInAckStore m NotificationId
+  HasFanInEmptyCursor :: NotificationId -> FanInAckStore m Bool
+  -- | Initialize only if absent, returning the winning cursor. Concurrent opens
+  -- must not overwrite acknowledgements or explicit resets.
+  InitializeFanInAck :: FanInAckKey -> NotificationId -> FanInAckStore m NotificationId
   -- | Set a cursor exactly, including rewinding it for an explicit reset.
   -- Normal WebSocket acknowledgements must use AdvanceFanInAck.
   -- Write operations require UUIDv7 cursors; resetting to an expired cursor
