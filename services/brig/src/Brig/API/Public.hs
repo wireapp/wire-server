@@ -236,10 +236,11 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V19)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V20)) =
   swaggerSchemaUIServer $
     devVersionSwagger
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
+versionedSwaggerDocsAPI (Just (VersionNumber V19)) = swaggerPregenUIServer $(pregenSwagger V19)
 versionedSwaggerDocsAPI (Just (VersionNumber V18)) = swaggerPregenUIServer $(pregenSwagger V18)
 versionedSwaggerDocsAPI (Just (VersionNumber V17)) = swaggerPregenUIServer $(pregenSwagger V17)
 versionedSwaggerDocsAPI (Just (VersionNumber V16)) = swaggerPregenUIServer $(pregenSwagger V16)
