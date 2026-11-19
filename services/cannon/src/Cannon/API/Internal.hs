@@ -45,7 +45,7 @@ internalServer =
     :<|> Named @"push-notification" pushHandler
     :<|> Named @"bulk-push-notifications" bulkPushHandler
     -- TODO: Implement fan-in wake-up and transient delivery handling.
-    :<|> Named @"fan-in-notifications" (\_ -> undefined)
+    :<|> Named @"fan-in-notifications" (const undefined)
     :<|> Named @"check-presence" checkPresenceHandler
 
 pushHandler :: UserId -> ConnId -> RawJson -> Cannon (Maybe ())
