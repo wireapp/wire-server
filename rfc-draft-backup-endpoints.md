@@ -1,17 +1,17 @@
 ## API endpoints
 
 Only public endpoints are described here. They are grouped by path. `<type>`
-marks a value of that type (see Types); the examples show filled-in values.
+marks a value of that type (see [Types](#types)); the examples show filled-in values.
 
 All routes are authenticated via an access token in the header: `Authorization:
 Bearer <AccessToken>`. nginz extracts and sets the internal `Z-User`
 (`<UserId>`) and `Z-Client` (`<ClientId>`) headers from the token. Clients
 don't (and cannot) provide those.
 
-Backup routes exist from the development API version, which is `V19` at the
-time of writing (this may change due to deferred finishing/merging of this
-feature). I.e. all described `/backups/*` endpoints need a `/v19` (or later)
-prefix in their path: `/v19/backups/...`.
+Backup routes exist starting from the development API version, which is `V19`
+at the time of writing (this may change due to deferred finishing/merging of
+this feature). I.e. all described `/backups/*` endpoints need a `/v19` (or
+later) prefix in their path: `/v19/backups/...`.
 
 ### Types
 
@@ -51,18 +51,20 @@ Rules shared by all routes under `/backups`:
 - `Z-Client` must be a current client of the caller (checked against brig; the token alone doesn't prove it), else 404 `backup-not-found`.
   - This guards against the case where a client has a valid authorization token, but gets deleted while the token is valid.
 - Only uploads check the team flag `automaticBackups`; reads work whatever its state.
-- Backups are deleted by the client itself (`DELETE /backups/clients/<ClientId>`), when the client is deleted, and all backups of a user when the user is deleted (internal, by brig, via queue event).
+  - We don't want to cut users off their existing backups.
+- Backups are deleted by the client itself (`DELETE /backups/clients/<ClientId>`), when the client is deleted, and all backups of a user when the user is deleted.
 
 #### Newest full wins
 
-The current full of an epoch is the one with the greatest `<BackupFileId>`
-(UUIDv7, i.e. server time). An incremental is stored under the full it extends
-(`<FullId>` in its path) and is current only while that full is the current
-one. The client learns a full's id from the response of the finished upload (or
-from `GET …/epochs/<BackupEpoch>`), so an incremental can only extend a full
-that finished. An incremental of a replaced full is never listed, whatever the
-timing of the uploads, and the server deletes it on a later upload of the
-epoch.
+The current full backup of an epoch is the one with the greatest
+`<BackupFileId>` (UUIDv7, i.e. server time). An incremental is stored under the
+full it extends (`<FullId>` in its path) and counts as current only as long as
+that full is the newest one. The client learns a full's id from the response of
+the finished upload (or from `GET …/epochs/<BackupEpoch>`), so an incremental
+can only extend a full that successfully finished uploading. An incremental of
+a replaced full is never listed, whatever the timing of the uploads. It stays
+in storage until the next upload (full or incremental) to the same epoch
+finishes and deletes it.
 
 #### `/backups`
 
@@ -90,7 +92,7 @@ Epochs without a full and clients without any epoch are omitted. (Epochs
 without a full can only exist due to technical corner cases, they have no
 meaning to clients and users.)
 
-Clients are ordered by their newest `createdAt`, newest first.
+Clients are ordered by `createdAt`, newest first.
 
 To restore, the client picks an entry, lists its files with `GET
 /backups/clients/<ClientId>/epochs/<BackupEpoch>` and fetches each via the
