@@ -1,6 +1,5 @@
 {-# LANGUAGE StrictData #-}
 
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
