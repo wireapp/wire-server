@@ -123,7 +123,8 @@ interpretBackupSubsystem = interpret $ \case
 -- the newest full file superseded: older full files, and incremental files under them, also
 -- orphans of an incremental upload that raced a newer full file. A full file also deletes all
 -- files of all but the two newest epochs (listed after the upload, so epochs created meanwhile
--- count). Concurrent full uploads prune each other, a late older one deletes itself.
+-- count). Concurrent full uploads prune each other, a late older one deletes itself. An upload
+-- whose own prune deletes its file fails.
 uploadBackupImpl ::
   ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
@@ -160,9 +161,11 @@ uploadBackupImpl uid zcid cid e base len src = do
   -- A newer full was stored during the upload: this file was just pruned, don't report it.
   when (file `elem` map (.file) superseded) $ throw BackupErrFullMissing
   -- Epochs listed again: one may have appeared during the upload.
-  when (isNothing base) $
-    listBlobEpochs uid cid
-      >>= traverse_ (deleteBlobs . EpochPrefix uid cid) . staleEpochs . Set.insert e . Set.fromList
+  when (isNothing base) $ do
+    stale <- staleEpochs . Set.insert e . Set.fromList <$> listBlobEpochs uid cid
+    traverse_ (deleteBlobs . EpochPrefix uid cid) stale
+    -- Two newer epochs were stored during the upload: this epoch was just pruned, don't report it.
+    when (e `elem` stale) $ throw BackupErrEpochNotAllowed
   pure (toFile BackupBlob {file, size = len})
   where
     location b = BackupLocation {user = uid, client = cid, epoch = e, file = b.file}

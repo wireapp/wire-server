@@ -674,15 +674,15 @@ spec = describe "BackupSubsystem" $ do
         epochsOf uA a1 a1
       res `shouldBe` Right [2, 3]
 
-    it "a full racing newer epochs prunes by the epochs after its upload" $ do
+    it "a full racing newer epochs prunes by the epochs after its upload and is rejected" $ do
       (_, res) <- runBackup world0 Nothing $ do
         _ <- upload uA a1 a1 1 "x"
         _ <- upload uA a1 a1 2 "x"
         modify (\w -> w {newerEpochsDuringPut = True})
         passTime 1
-        _ <- uploadFull uA a1 a1 2 "y"
-        epochsOf uA a1 a1
-      res `shouldBe` Right [3, 4]
+        r <- attempt (uploadFull uA a1 a1 2 "y")
+        (r,) <$> epochsOf uA a1 a1
+      res `shouldBe` Right (Left BackupErrEpochNotAllowed, [3, 4])
 
     it "next epoch is allowed after pruning" $ do
       (_, res) <- runBackup world0 Nothing $ do

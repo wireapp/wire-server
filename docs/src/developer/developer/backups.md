@@ -40,7 +40,8 @@ All other paths are under `/backups/clients/{cid}/epochs`:
 
 Backups are also deleted on client and user deletion (brig, internal). After storing a full file
 the server deletes all files of all but the two newest epochs of the client (listed after the
-store, so epochs created meanwhile count).
+store, so epochs created meanwhile count). If this deletes the uploaded full's own epoch (two newer
+epochs were stored meanwhile), the upload fails with `409 backup-epoch-not-allowed`.
 
 `fullId` and `id` come from the upload responses and the list response.
 

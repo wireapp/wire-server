@@ -58,7 +58,8 @@ type FullUploadDescription =
   \of it; the newest full backup (by id) wins. If a newer full backup is stored during the \
   \upload, this one is deleted and the upload fails with `backup-full-missing`. A failed or \
   \aborted upload leaves no file behind. Only the two newest epochs are kept: after the full backup is stored, all files of \
-  \the older epochs are deleted."
+  \the older epochs are deleted. If two newer epochs are stored during the upload, this epoch is deleted \
+  \and the upload fails with `backup-epoch-not-allowed`."
 
 type IncrementalUploadDescription =
   "Extends the full backup `fullId`, which must be the newest full backup of the epoch \
