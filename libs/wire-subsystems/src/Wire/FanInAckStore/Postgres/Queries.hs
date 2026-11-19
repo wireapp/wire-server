@@ -164,7 +164,7 @@ localConnectionAckStatements =
   AckStatements
     { selectAck =
         dimap
-          (\(uid, connected) -> (toUUID uid, toUUID connected))
+          (bimap toUUID toUUID)
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM local_connection_acks
         WHERE user_id = ($1 :: uuid) AND connected_user_id = ($2 :: uuid)|],
@@ -184,7 +184,7 @@ localConnectionAckStatements =
           SET last_notification_id = GREATEST(local_connection_acks.last_notification_id, EXCLUDED.last_notification_id)|],
       deleteAck =
         lmap
-          (\(uid, connected) -> (toUUID uid, toUUID connected))
+          (bimap toUUID toUUID)
           [resultlessStatement|DELETE FROM local_connection_acks
         WHERE user_id = ($1 :: uuid) AND connected_user_id = ($2 :: uuid)|]
     }
