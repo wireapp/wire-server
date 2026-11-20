@@ -910,14 +910,18 @@ Either the deletion lists the file, or the upload sees the tombstone.
 ### 6. Device enables backups again
 
 RFC: "Backups under user control". Like [1](#1-automatic-backup-upload), except: the device has a new RootBEK and starts at
-epoch 1 again. After [5](#5-device-deletes-its-backups) no epoch is stored (tombstones are not epochs), so epoch 1 is allowed. The
-remaining tombstone `backup/<h(uid)>/<h(cid)>/.tombstones/<BackupFileId>` is older than the new upload and
-does not reject it. The upload need not wait for the response of the deletion to be safe: the
-server assigns the full's id when it processes the upload, and both sides compare it with the
-tombstone. A full created after the tombstone is kept; one created before it is removed, by the
-upload itself or by the deletion. Only the outcome depends on the timing: a concurrent upload may
-be rejected (403 `backup-forbidden`, or 409 `backup-epoch-not-allowed` while the old epochs are
-still listed) or answer 200 and be deleted afterwards. An upload started after the 204 is kept.
+epoch 1 again.
+
+- **Epoch 1 is allowed:** after [5](#5-device-deletes-its-backups) no epoch is stored (tombstones
+  are not epochs).
+- **The remaining tombstone doesn't reject the upload:** the server assigns the full's id when it
+  processes the upload, so a full uploaded after the deletion returned (204) is newer than the
+  tombstone and kept.
+- **Not waiting for the 204 is safe, but unpredictable:** both sides compare the full's id with
+  the tombstone. A full created after the tombstone is kept; one created before it is removed, by
+  the upload itself or by the deletion. So a concurrent upload may be rejected (403
+  `backup-forbidden`, or 409 `backup-epoch-not-allowed` while the old epochs are still listed) or
+  answer 200 and be deleted afterwards.
 
 ### 7. Device removed or compromised
 
