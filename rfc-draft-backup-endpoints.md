@@ -277,18 +277,19 @@ Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full` with
 - **Response:** 200 `<BackupFile>`
 
 Upload an incremental file under the full `<FullId>`, which must be the epoch's
-current full. Otherwise 409 `backup-full-missing`: there's no such full or it
-was replaced, before or during the upload (see [Safe file
-management](#safe-file-management)). Then upload a new full, or extend the
-current one.
+current full. If it isn't, the upload fails with 409 `backup-full-missing`; meaning the
+full doesn't exist, or a newer full replaced it before or during the upload (see
+[Safe file management](#safe-file-management)). The client then either uploads
+a new full, or fetches the current full's id (`GET .../epochs/<BackupEpoch>`)
+and extends that one.
 
 These rules apply: size cap (HTTP 413) and file count cap `maxFilesPerEpoch`
 counting the current files including the full (409 `backup-too-many-files`).
 Concurrent incremental uploads can slightly exceed the file count cap.
 
 Clients must tolerate duplicate incrementals on restore, e.g. by a sequence
-number in the plaintext: in rare infrastructure failures a retried incremental
-is stored twice (see [Special cases](#special-cases)).
+number in the plaintext as in rare infrastructure failures a retried
+incremental is stored twice (see [Special cases](#special-cases)).
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07/incremental` with `Content-Length: 2048` and 2048 body bytes → `200`
 
