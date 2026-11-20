@@ -1,0 +1,1 @@
+nginz now accepts request bodies up to 4 MB on `/mls/key-packages`, because a batch of 100 ML-DSA key packages is larger than the 512 KB default.

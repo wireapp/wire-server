@@ -1661,8 +1661,14 @@ spec = describe "UserSubsystem.Interpreter" do
       where
         qualifiedId = Qualified user.id localDomain'
 
+    -- The next suite with a different signature scheme. Clients store signature keys per scheme,
+    -- so a suite with the same scheme would share the signature key.
     nextSuite :: CipherSuiteTag -> CipherSuiteTag
-    nextSuite suite = if suite == maxBound then minBound else succ suite
+    nextSuite suite =
+      fromJust . find ((/= csSignatureScheme suite) . csSignatureScheme) $
+        drop 1 (dropWhile (/= suite) suites) <> suites
+      where
+        suites = [minBound .. maxBound]
 
     -- Runs all (name, actual status, expected status) rows and reports every failing name.
     checks :: [(String, IO (Maybe ContactStatus), Maybe ContactStatus)] -> IO Property
