@@ -917,11 +917,9 @@ epoch 1 again.
 - **The remaining tombstone doesn't reject the upload:** the server assigns the full's id when it
   processes the upload, so a full uploaded after the deletion returned (204) is newer than the
   tombstone and kept.
-- **Not waiting for the 204 is safe, but unpredictable:** both sides compare the full's id with
-  the tombstone. A full created after the tombstone is kept; one created before it is removed, by
-  the upload itself or by the deletion. So a concurrent upload may be rejected (403
-  `backup-forbidden`, or 409 `backup-epoch-not-allowed` while the old epochs are still listed) or
-  answer 200 and be deleted afterwards.
+- **Wait for the 204:** the device should start uploading only after the deletion returned. An
+  upload racing the deletion stays safe, but its outcome depends on the timing (see
+  `DELETE /backups/clients/<ClientId>`).
 
 ### 7. Device removed or compromised
 
