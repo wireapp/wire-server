@@ -32,7 +32,6 @@ import Bilge
 import Bilge.RPC
 import Bilge.Retry (httpHandlers)
 import Brig.App
-import Brig.Provider.DB (ServiceConn (..))
 import Brig.RPC
 import Control.Error
 import Control.Lens (set, (^.))
@@ -57,6 +56,7 @@ import Wire.API.Bot.Service qualified as Galley
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Provider (httpsUrl)
 import Wire.API.Provider.External
+import Wire.API.Provider.Service (ServiceConn (..))
 import Wire.API.Provider.Service qualified as Galley
 import Wire.ParseException
 import Wire.Rpc
