@@ -2430,6 +2430,7 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
+      verificationCodes: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2503,6 +2504,7 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
+         verificationCodes: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2584,6 +2586,7 @@ The current settings and their background-worker flags are:
          budget: postgresql
          nonce: postgresql
          connections: postgresql
+         verificationCodes: postgresql
    background-worker:
      config:
        migrateConversations: false

@@ -25,6 +25,8 @@ module API.Provider
 where
 
 import API.Team.Util qualified as Team
+import API.User.Util (VerificationCodeDB, mkVerificationCodeDB)
+import API.User.Util qualified as UserUtil
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import Brig.Options qualified as Opts
@@ -110,10 +112,10 @@ import Wire.API.User.Client.Prekey
 import Wire.RateLimit.Interpreter
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
-import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
 
 tests :: Domain -> Opts.Opts -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
-tests dom brigOpts conf p db b c g n = do
+tests dom brigOpts conf p cas b c g n = do
+  db <- mkVerificationCodeDB brigOpts cas
   pure $
     testGroup
       "provider"
@@ -195,14 +197,14 @@ instance FromJSON Config
 -- Provider Accounts
 
 -- | Test provider register by accessing the DB directly
-testRegisterProviderDB :: DB.ClientState -> Brig -> Http ()
+testRegisterProviderDB :: VerificationCodeDB -> Brig -> Http ()
 testRegisterProviderDB = testRegisterProvider . Just
 
 -- | Test provider register using an internal HTTP endpoint
 testRegisterProviderInternal :: Brig -> Http ()
 testRegisterProviderInternal = testRegisterProvider Nothing
 
-testLoginProvider :: DB.ClientState -> Brig -> Http ()
+testLoginProvider :: VerificationCodeDB -> Brig -> Http ()
 testLoginProvider db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -221,7 +223,7 @@ testLoginProvider db brig = do
   let Just (tok :: ZAuth.Token ZAuth.P) = fromByteString (setCookieValue cok)
   liftIO $ assertEqual "principal" pid (Id tok.body.provider)
 
-testUpdateProvider :: DB.ClientState -> Brig -> Http ()
+testUpdateProvider :: VerificationCodeDB -> Brig -> Http ()
 testUpdateProvider db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -242,7 +244,7 @@ testUpdateProvider db brig = do
     assertEqual "url" newUrl (providerUrl prv')
     assertEqual "description" newDescr (providerDescr prv')
 
-testDeleteProvider :: DB.ClientState -> Brig -> Http ()
+testDeleteProvider :: VerificationCodeDB -> Brig -> Http ()
 testDeleteProvider db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -257,7 +259,7 @@ testDeleteProvider db brig = do
 -------------------------------------------------------------------------------
 -- Provider Services
 
-testAddGetServiceBadKey :: Config -> DB.ClientState -> Brig -> Http ()
+testAddGetServiceBadKey :: Config -> VerificationCodeDB -> Brig -> Http ()
 testAddGetServiceBadKey config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -268,7 +270,7 @@ testAddGetServiceBadKey config db brig = do
   let newBad = new {newServiceKey = ServiceKeyPEM k}
   addService brig pid newBad !!! const 400 === statusCode
 
-testAddGetService :: Config -> DB.ClientState -> Brig -> Http ()
+testAddGetService :: Config -> VerificationCodeDB -> Brig -> Http ()
 testAddGetService config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -311,7 +313,7 @@ testAddGetService config db brig = do
 -- TODO: Check that disabled services can not be found via tag search?
 --       Need to generate a unique service name for that.
 
-testUpdateService :: Config -> DB.ClientState -> Brig -> Http ()
+testUpdateService :: Config -> VerificationCodeDB -> Brig -> Http ()
 testUpdateService config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -348,7 +350,7 @@ testUpdateService config db brig = do
     let Just _svc = responseJsonMaybe _rs
     liftIO $ assertEqual "tags" t (serviceTags _svc)
 
-testUpdateServiceConn :: Config -> DB.ClientState -> Brig -> Http ()
+testUpdateServiceConn :: Config -> VerificationCodeDB -> Brig -> Http ()
 testUpdateServiceConn config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -377,7 +379,7 @@ testUpdateServiceConn config db brig = do
     assertEqual "token" newTokens (serviceTokens _svc)
     assertBool "enabled" (serviceEnabled _svc)
 
-testListServices :: Opts.Opts -> Config -> DB.ClientState -> Brig -> Http ()
+testListServices :: Opts.Opts -> Config -> VerificationCodeDB -> Brig -> Http ()
 testListServices brigOpts config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
@@ -455,7 +457,7 @@ testListServices brigOpts config db brig = do
         }
     select (Name prefix) = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
-testDeleteService :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeleteService :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testDeleteService config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
@@ -489,7 +491,7 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   void $ aFewTimes 12 (getService brig pid sid) ((== 404) . statusCode)
   void $ aFewTimes 12 (getServiceProfile brig uid1 pid sid) ((== 404) . statusCode)
 
-testAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testAddRemoveBot :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (pid, sid, u1, u2, h) <- prepareUsers sref brig
   let uid1 = userId u1
@@ -502,7 +504,7 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
   let cid = cnv.qualifiedId.qUnqualified
   testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
-testAddBotForbidden :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testAddBotForbidden :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testAddBotForbidden config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, userId -> uid1, userId -> uid2, _) <- prepareUsers sref brig
   -- Create conversation without the service access role
@@ -514,7 +516,7 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
 
-testClaimUserPrekeys :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testClaimUserPrekeys :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testClaimUserPrekeys config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
@@ -537,7 +539,7 @@ testClaimUserPrekeys config db brig galley = withTestService config db brig defS
 
   liftIO $ assertEqual "claim prekeys" expected actual
 
-testListUserProfiles :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testListUserProfiles :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testListUserProfiles config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, u1, u2, _h) <- prepareUsers sref brig
   cid <- do
@@ -550,7 +552,7 @@ testListUserProfiles config db brig galley = withTestService config db brig defS
   resp :: [Ext.BotUserView] <- responseJsonError =<< listUserProfiles brig bid [(User.userId u1), (User.userId u2)] <!! const 200 === statusCode
   liftIO $ Set.fromList (fmap (.botUserViewId) resp) @?= Set.fromList [(User.userId u1), (User.userId u2)]
 
-testGetUserClients :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testGetUserClients :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testGetUserClients config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
@@ -565,7 +567,7 @@ testGetUserClients config db brig galley = withTestService config db brig defSer
   [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid (User.userId u1) <!! const 200 === statusCode
   liftIO $ actual.pubClientId @?= expected.clientId
 
-testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testAddBotBlocked :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
   (userId -> u1, _, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   enabled2ndFaForTeamInternal galley tid
@@ -573,7 +575,7 @@ testAddBotBlocked config db brig galley = withTestService config db brig defServ
     const 403 === statusCode
     const (Just "access-denied") === fmap Error.label . responseJsonMaybe
 
-testNonConvAdminCannotAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testNonConvAdminCannotAddRemoveBot :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testNonConvAdminCannotAddRemoveBot config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
@@ -597,7 +599,7 @@ testNonConvAdminCannotAddRemoveBot config db brig galley = withTestService confi
     const 403 === statusCode
     const (Just "action-denied") === fmap Error.label . responseJsonMaybe
 
-testGetBotConvBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testGetBotConvBlocked :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testGetBotConvBlocked config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (user1, userId -> u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let Qualified u1 localDomain = userQualifiedId user1
@@ -623,7 +625,7 @@ prepareUsers sref brig = do
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   pure (pid, sid, u1, u2, h)
 
-testMessageBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testMessageBot :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testMessageBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
@@ -639,7 +641,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @(Conversation GroupConvType) _rs
   testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
-testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testBadFingerprint :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort, sock) -> do
   -- Generate a random key and register a service using that key
   sref <- withSystemTempFile "wire-provider.key" $ \fp h -> do
@@ -662,14 +664,14 @@ testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort
     addBot brig uid pid sid cid
       !!! const 502 === statusCode
 
-testAddRemoveBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testAddRemoveBotTeam :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (u1, u2, h, _, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let quid1 = userQualifiedId u1
       localDomain = qDomain quid1
   testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
-testBotTeamOnlyConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testBotTeamOnlyConv :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testBotTeamOnlyConv config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (u1, u2, _h, _tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let uid2 = userId u2
@@ -739,7 +741,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       updateConversationAccess galley uid qcid [InviteAccess] role
         !!! const 200 === statusCode
 
-testMessageBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testMessageBotTeam :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
@@ -755,7 +757,7 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   quid <- userQualifiedId . selfUser <$> getSelfProfile brig uid
   testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
-testDeleteConvBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeleteConvBotTeam :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testDeleteConvBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   -- Prepare users and the bot
   (u1, u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
@@ -778,7 +780,7 @@ testDeleteConvBotTeam config db brig galley cannon = withTestService config db b
     getConversationQualified galley uid qcid !!! const 404 === statusCode
   getBotConv galley bid cid !!! const 404 === statusCode
 
-testDeleteTeamBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeleteTeamBotTeam :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testDeleteTeamBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   -- Prepare users and the bot
   (u1, u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
@@ -806,7 +808,7 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
 -------------------------------------------------------------------------------
 -- Service Whitelist
 
-testWhitelistSearchPermissions :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testWhitelistSearchPermissions :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testWhitelistSearchPermissions _config _db brig galley = do
   -- Create a team
   (owner, tid) <- Team.createUserWithTeam brig
@@ -820,7 +822,7 @@ testWhitelistSearchPermissions _config _db brig galley = do
   listTeamServiceProfilesByPrefix brig member tid Nothing True 20
     !!! const 200 === statusCode
 
-testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Http ()
+testSearchWhitelistHonorUpdates :: Config -> VerificationCodeDB -> Brig -> Http ()
 testSearchWhitelistHonorUpdates config db brig = do
   -- Create a team with an owner
   (uid, tid) <- Team.createUserWithTeam brig
@@ -847,7 +849,7 @@ testSearchWhitelistHonorUpdates config db brig = do
   dewhitelistService brig uid tid pid sid
   expectWhitelist [] []
 
-testWhitelistBasic :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testWhitelistBasic :: Config -> VerificationCodeDB -> Brig -> Galley -> Http ()
 testWhitelistBasic config db brig galley =
   withTestService config db brig defServiceApp $ \sref buf -> do
     let pid = sref ^. serviceRefProvider
@@ -876,7 +878,7 @@ testWhitelistBasic config db brig galley =
     disableService brig pid sid
     whitelistService brig owner tid pid sid
 
-testWhitelistKickout :: Domain -> Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testWhitelistKickout :: Domain -> Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testWhitelistKickout localDomain config db brig galley cannon = do
   -- Create a team and a conversation
   (owner, tid) <- Team.createUserWithTeam brig
@@ -921,7 +923,7 @@ testWhitelistKickoutNotConvAdmin ::
   Bool ->
   Domain ->
   Config ->
-  DB.ClientState ->
+  VerificationCodeDB ->
   Brig ->
   Galley ->
   Cannon ->
@@ -973,7 +975,7 @@ testWhitelistKickoutNotConvAdmin ownerInConv localDomain config db brig galley c
     -- The owner can only fetch the conversation if they are a member of it
     when ownerInConv $ assertBotGone owner
 
-testDeWhitelistDeletedConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeWhitelistDeletedConv :: Config -> VerificationCodeDB -> Brig -> Galley -> Cannon -> Http ()
 testDeWhitelistDeletedConv config db brig galley cannon = do
   -- Create a service
   withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1520,8 +1522,8 @@ getUserClients brig bid uid =
 --------------------------------------------------------------------------------
 -- DB Operations
 
-lookupCode :: (MonadIO m) => DB.ClientState -> VerificationCodeGen -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db gen = liftIO . DB.runClient db . VerificationCodeStore.lookupCodeImpl gen.genKey
+lookupCode :: (MonadIO m) => VerificationCodeDB -> VerificationCodeGen -> Code.Scope -> m (Maybe Code.Code)
+lookupCode db gen = UserUtil.lookupCode db gen.genKey
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -1530,7 +1532,7 @@ lookupCode db gen = liftIO . DB.runClient db . VerificationCodeStore.lookupCodeI
 -- of pre- and post-conditions. Activation can be done through
 -- direct DB access (if given) otherwise it falls back to using
 -- an internal endpoint
-testRegisterProvider :: Maybe DB.ClientState -> Brig -> Http ()
+testRegisterProvider :: Maybe VerificationCodeDB -> Brig -> Http ()
 testRegisterProvider db' brig = do
   email <- randomEmail
   let new = defNewProvider email
@@ -1584,7 +1586,7 @@ testRegisterProvider db' brig = do
     assertEqual "description" defProviderDescr (providerDescr p)
     assertEqual "profile" (ProviderProfile p) pp
 
-randomProvider :: (HasCallStack) => DB.ClientState -> Brig -> Http Provider
+randomProvider :: (HasCallStack) => VerificationCodeDB -> Brig -> Http Provider
 randomProvider db brig = do
   email <- randomEmail
   let gen = mkVerificationCodeGen email
@@ -1784,7 +1786,7 @@ openFreePortAnyAddr = liftIO $ bindRandomPortTCP "*"
 -- | Run a test case with an external service application.
 withTestService ::
   Config ->
-  DB.ClientState ->
+  VerificationCodeDB ->
   Brig ->
   (Chan e -> Application) ->
   (ServiceRef -> Chan e -> Http a) ->
@@ -1793,7 +1795,7 @@ withTestService config db brig mkApp go = withFreePortAnyAddr $ \(sPort, sock) -
   sref <- registerService config sPort db brig
   runService config sPort sock mkApp (go sref)
 
-registerService :: Config -> Warp.Port -> DB.ClientState -> Brig -> Http ServiceRef
+registerService :: Config -> Warp.Port -> VerificationCodeDB -> Brig -> Http ServiceRef
 registerService config sPort db brig = do
   prv <- randomProvider db brig
   new <- defNewService config
@@ -2226,7 +2228,7 @@ prepareBotUsersTeam brig galley sref = do
   cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
   pure (u1, u2, h, tid, cid, pid, sid)
 
-testWhitelistNginz :: Config -> DB.ClientState -> Brig -> Nginz -> Http ()
+testWhitelistNginz :: Config -> VerificationCodeDB -> Brig -> Nginz -> Http ()
 testWhitelistNginz config db brig nginz = withTestService config db brig defServiceApp $ \sref _ -> do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId

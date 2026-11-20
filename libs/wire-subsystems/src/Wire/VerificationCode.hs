@@ -29,9 +29,12 @@ module Wire.VerificationCode
 where
 
 import Cassandra hiding (Value)
+import Data.Bifunctor (first)
 import Data.Code
+import Data.Text (pack)
 import Data.UUID (UUID)
 import Imports hiding (lookup)
+import Wire.API.PostgresMarshall
 import Wire.API.User qualified as User
 import Wire.API.User.Identity
 import Wire.Arbitrary
@@ -131,3 +134,24 @@ instance Cql Retries where
   toCql = CqlInt . fromIntegral . numRetries
   fromCql (CqlInt n) = pure (Retries (fromIntegral n))
   fromCql _ = Left "fromCql: Retries: int expected"
+
+-- | Mirrors the 'Cql' mapping, so the Postgres @scope@ column (int4) stays
+-- consistent with the Cassandra column.
+instance PostgresMarshall Int32 Scope where
+  postgresMarshall = \case
+    AccountDeletion -> 1
+    IdentityVerification -> 2
+    PasswordReset -> 3
+    AccountLogin -> 4
+    AccountApproval -> 5
+    CreateScimToken -> 6
+    DeleteTeam -> 7
+
+instance PostgresUnmarshall Int32 Scope where
+  postgresUnmarshall n = first pack (fromCql (CqlInt (fromIntegral n)))
+
+instance PostgresMarshall Int32 Retries where
+  postgresMarshall = fromIntegral . numRetries
+
+instance PostgresUnmarshall Int32 Retries where
+  postgresUnmarshall n = pure (Retries (fromIntegral n))

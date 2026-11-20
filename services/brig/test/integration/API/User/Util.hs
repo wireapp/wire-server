@@ -23,6 +23,7 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import Brig.Options qualified as Opt
 import Cassandra qualified as DB
 import Codec.MIME.Type qualified as MIME
 import Control.Lens (preview, (^?))
@@ -45,6 +46,7 @@ import Data.Range (unsafeRange)
 import Data.String.Conversions
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token qualified as ZAuth
+import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
@@ -68,8 +70,10 @@ import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken (Proof)
 import Wire.API.User.Handle
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (verificationCodes), StorageLocation (..))
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
+import Wire.VerificationCodeStore.Postgres qualified as VerificationCodeStorePostgres
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -457,8 +461,23 @@ setTeamFeatureLockStatus ::
 setTeamFeatureLockStatus galley tid status =
   put (galley . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
-lookupCode :: (MonadIO m) => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db k = liftIO . DB.runClient db . VerificationCodeStore.lookupCodeImpl k
+-- | The store the brig under test keeps verification codes in.
+data VerificationCodeDB
+  = VerificationCodeDBCassandra DB.ClientState
+  | VerificationCodeDBPostgres HasqlPool.Pool
+
+-- | 'PostgresqlStorage' reads go to Postgres, every other storage location
+-- reads Cassandra.
+mkVerificationCodeDB :: (MonadIO m) => Opt.Opts -> DB.ClientState -> m VerificationCodeDB
+mkVerificationCodeDB opts db = case opts.postgresMigration.verificationCodes of
+  PostgresqlStorage ->
+    VerificationCodeDBPostgres
+      <$> liftIO (HasqlPool.initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword)
+  _ -> pure (VerificationCodeDBCassandra db)
+
+lookupCode :: (MonadIO m) => VerificationCodeDB -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
+lookupCode (VerificationCodeDBCassandra db) k = liftIO . DB.runClient db . VerificationCodeStore.lookupCodeImpl k
+lookupCode (VerificationCodeDBPostgres pool) k = liftIO . VerificationCodeStorePostgres.lookupCodeRaw pool k
 
 getNonce ::
   (MonadHttp m) =>

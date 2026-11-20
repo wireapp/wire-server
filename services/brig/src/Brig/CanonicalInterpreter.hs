@@ -188,6 +188,7 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
 import Wire.VerificationCodeStore
 import Wire.VerificationCodeStore.Cassandra
+import Wire.VerificationCodeStore.Postgres (interpretVerificationCodeStoreToPostgres)
 import Wire.VerificationCodeSubsystem
 import Wire.VerificationCodeSubsystem.Interpreter
 
@@ -469,6 +470,21 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordResetCodeStoreToCassandraAndPostgres @Cas.Client
               . raiseUnder2
 
+      -- Same reasoning as passwordResetCodeStoreInterpreter above:
+      -- VerificationCodeStore is peeled before the global Pool/UsageError
+      -- providers, so the Postgres-backed branch supplies them locally.
+      -- There is no dual-write for verification codes, so
+      -- 'MigrationToPostgresql' keeps using Cassandra.
+      verificationCodeStoreInterpreter =
+        case e.postgresMigration.verificationCodes of
+          CassandraStorage -> interpretVerificationCodeStoreCassandra e.casClient
+          MigrationToPostgresql -> interpretVerificationCodeStoreCassandra e.casClient
+          PostgresqlStorage ->
+            runInputConst e.hasqlPool
+              . mapError postgresUsageErrorToHttpError
+              . interpretVerificationCodeStoreToPostgres
+              . raiseUnder2
+
       budgetStoreInterpreter =
         case e.postgresMigration.budget of
           CassandraStorage -> budgetStoreToCassandra @Cas.Client
@@ -545,7 +561,7 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
-              . interpretVerificationCodeStoreCassandra e.casClient
+              . verificationCodeStoreInterpreter
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
               . interpretIndexedUserStoreES indexedUserStoreConfig
