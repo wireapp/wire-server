@@ -572,8 +572,9 @@ endpoints](#api-endpoints).
 #### Assumptions
 
 - An S3 object becomes visible only when its upload completed.
-  - The AWS S3 store provides strong read-after-write consistency: a listing shows only
-    objects whose PUT completed before the listing started.
+  - The store has strong list-after-write and list-after-delete consistency: a listing shows
+    every object whose PUT completed before the listing started, and no object whose delete
+    completed before then.
 - Deletes remove all versions (see [Deletion and versioned
   buckets](#deletion-and-versioned-buckets)) and are idempotent.
 - Brig's reads of client rows see its own completed writes. I.e. a client deletion is immediately visible afterwards.
@@ -618,8 +619,11 @@ Each operation writes first, then looks:
 - **Client removal:** Brig enqueues an event, then deletes the client row. The
   consumer deletes the row again (idempotent), then enqueues a second event
   (`DeleteClientBackups`). Its consumer lists the client prefix and deletes
-  everything, tombstones included. It retries until that succeeds, without
-  repeating the client removal and its notification. Removal never waits for
+  everything, tombstones included. On failure the queue redelivers this event,
+  without repeating the client removal and its notification, until the broker's
+  dead-letter limit (STOMP) or the redrive policy or retention period (SQS) ends
+  it. Operators must monitor the dead-letter queue and replay failed deletions.
+  Removal never waits for
   Cargohold or S3, so a broken store cannot block removing a (possibly
   compromised) client.
 - **User deletion:** the same with a backend-internal event (`DeleteBackups`,
@@ -645,7 +649,7 @@ do so; deletes are idempotent.
 | Race                                        | A writes, then looks at | B writes, then looks at              | Ends up deleted            | Deleted by                                   |
 | ------------------------------------------- | ----------------------- | ------------------------------------ | -------------------------- | -------------------------------------------- |
 | full F1 vs newer full F2, same epoch        | F1; epoch listing       | F2; epoch listing                    | F1 and its incrementals    | F1 if it sees F2, else F2                    |
-| incremental I under F1 vs newer full F2     | I; epoch listing        | F2; epoch listing                    | I (and F1)                 | I if it sees F2, else F2                     |
+| incremental I under F1 vs newer full F2     | I; epoch listing        | F2; epoch listing                    | I (and F1)                 | I if it sees F2, else F2 (F1 always by F2)   |
 | full of epoch N vs full of epoch N+2        | full in N; epoch list   | full in N+2; epoch list              | epoch N                    | N's upload if it sees N+2, else N+2's upload |
 | upload vs client or user removal            | file; client row        | row deletion; client prefix listing  | the file                   | upload if the row is gone, else the removal  |
 | upload vs client deleting its backups (`t`) | file; tombstones        | tombstone `t`; client prefix listing | the file, if `t` covers it | upload if it sees `t`, else the deletion     |
@@ -654,8 +658,9 @@ Notes on the rows:
 
 - Fulls: whichever of F1 and F2 lists the epoch later sees both. F2 has the
   greater id, so the listing makes F2 current and F1 superseded. A superseded
-  upload deletes only its own file, never others: only the upload of the current
-  full prunes, after its own looks in steps 2 and 3 passed.
+  upload deletes only its own file, never others. Only an upload whose own file
+  is current in its listing (the current full, or an incremental under it)
+  prunes, after its own looks in steps 2 and 3 passed.
 - Incremental vs full: I extends F1, so its key is under F1's prefix. Once F2 is
   visible, I is superseded wherever it is listed. It cannot become an
   incremental of F2.
@@ -690,13 +695,18 @@ again:
 - A newer full is only deleted by an even newer full, a covering tombstone, an
   epoch prune or the removal of its client. Each of those deletes the older
   file as well.
-- Epochs, tombstones and client removals are never undone.
+- Tombstones and client removals are never undone, greater epochs only by the
+  exception below.
 
 One exception: if a look of a new full fails in step 2 or 3 (e.g. a Brig or S3
 error), the upload deletes its own full again, after others may have seen it.
-That is harmless: it has not pruned anything yet, and concurrent uploads that
-saw it deleted only their own file. So the previous full stays current. (If
-this self deletion fails too, see [Special cases](#special-cases).)
+Within its epoch that is harmless: it has not pruned anything yet, and
+concurrent uploads that saw it deleted only their own file. So the previous
+full stays current. Across epochs it is not, but the damage is bounded: a full
+of another epoch that saw it may already have deleted the oldest epoch. Only
+that one epoch is lost, and the newer epoch stays restorable (see *Rolled-back
+newest epoch* in [Special cases](#special-cases)). (If this self deletion fails too, see
+[Special cases](#special-cases).)
 
 #### Special cases
 
@@ -874,8 +884,12 @@ Either the deletion lists the file, or the upload sees the tombstone.
 RFC: "Backups under user control". Like [1](#1-automatic-backup-upload), except: the device has a new RootBEK and starts at
 epoch 1 again. After [5](#5-device-deletes-its-backups) no epoch is stored (tombstones are no epochs), so epoch 1 is allowed. The
 remaining tombstone `backup/<h(uid)>/<h(cid)>/.tombstones/<BackupFileId>` is older than the new upload and
-does not reject it. The upload need not wait for the response of the deletion: its full is newer
-than the tombstone, so the deletion keeps it.
+does not reject it. The upload need not wait for the response of the deletion to be safe: the
+server assigns the full's id when it processes the upload, and both sides compare it with the
+tombstone. A full created after the tombstone is kept; one created before it is removed, by the
+upload itself or by the deletion. Only the outcome depends on the timing: a concurrent upload may
+be rejected (403 `backup-forbidden`, or 409 `backup-epoch-not-allowed` while the old epochs are
+still listed) or answer 200 and be deleted afterwards. An upload started after the 204 is kept.
 
 ### 7. Device removed or compromised
 
@@ -885,8 +899,8 @@ RFC: "Backup deletion", "Device compromise". The user removes a device.
 - **Internal:**
   - Brig enqueues `DeleteClient`, then deletes the client row
   - the queue consumer deletes the row again, then enqueues `DeleteClientBackups`
-  - its consumer calls Cargohold `DELETE /i/backups/users/<UserId>/clients/<ClientId>`, retried
-    until it succeeds
+  - its consumer calls Cargohold `DELETE /i/backups/users/<UserId>/clients/<ClientId>`; the queue
+    redelivers the event on failure (see [Operations](#operations))
 - **S3:** deletes all versions under `backup/<h(uid)>/<h(cid)>/`, tombstones included
 
 Note: the RFC requires immediate deletion. Here it is asynchronous via the queue, but reads need
@@ -901,7 +915,8 @@ RFC: "Backup deletion".
   - Brig's `deleteAccount` enqueues `DeleteBackups` last; `DELETE /i/users/<UserId>` enqueues
     it again for an already deleted user
   - the queue consumer deletes the user's client rows, then calls Cargohold
-    `DELETE /i/backups/users/<UserId>`, retried until it succeeds
+    `DELETE /i/backups/users/<UserId>`; the queue redelivers the event on failure (see
+    [Operations](#operations))
 - **S3:** deletes all versions under `backup/<h(uid)>/`
 
 ### 9. Team deleted
