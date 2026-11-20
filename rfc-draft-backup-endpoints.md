@@ -506,11 +506,17 @@ CommonPrefixes: backup/<h(uid)>/<h(cid)>/.tombstones/
 ```
 
 The server parses the segment after the prefix as an epoch: `1` and `2`.
-`.tombstones/` is not a valid epoch and is skipped. One entry per epoch, however
-many files it holds, so one cheap call lists a client's epochs. Uploads use
-this listing. `GET /backups` and `GET /backups/clients/<ClientId>` need all
-files anyway: they list the client prefix without delimiter (one call per 1000
-keys) and group the keys by epoch, skipping the tombstones.
+`.tombstones/` is not a valid epoch and is skipped.
+
+The server lists a client prefix in two ways:
+
+- With delimiter `/` (as above): one entry per epoch, however many files it
+  holds, so one cheap call lists a client's epochs. Uploads use it for the epoch
+  rule and the epoch pruning.
+- Without delimiter: all keys under one client's prefix (S3 returns at most 1000
+  per call). `GET /backups/clients/<ClientId>` lists that client, `GET /backups`
+  each client of the user, as their summaries need every file. The server groups
+  the keys by epoch and skips the tombstones.
 
 Object metadata (`x-amz-meta-*`) is not used as it is immutable, needs a HEAD
 per object and is returned as response headers to the holder of a presigned
