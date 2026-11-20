@@ -43,6 +43,8 @@
 , mmorph
 , mtl
 , optparse-applicative
+, polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
 , resourcet
@@ -51,6 +53,7 @@
 , servant
 , servant-client
 , servant-server
+, stm
 , tagged
 , tasty
 , tasty-ant-xml
@@ -70,8 +73,10 @@
 , wai
 , wai-extra
 , wai-utilities
+, warp
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -113,6 +118,8 @@ mkDerivation {
     metrics-core
     metrics-wai
     mime
+    polysemy
+    polysemy-wire-zoo
     prometheus-client
     QuickCheck
     resourcet
@@ -136,6 +143,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -179,17 +187,30 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cargohold-types
+    conduit
+    containers
+    data-default
     extended
+    http-client
+    http-types
     imports
     mime
+    polysemy
+    polysemy-wire-zoo
+    QuickCheck
+    servant-server
+    stm
     tasty
+    tasty-hunit
     tasty-quickcheck
     text
     types-common
     unix
     unliftio
     uri-bytestring
+    warp
     wire-api
+    wire-subsystems
   ];
   description = "Asset Storage API";
   license = lib.licenses.agpl3Only;

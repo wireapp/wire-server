@@ -905,6 +905,31 @@ config:
           lockStatus: locked
 ```
 
+### Automatic Backups
+
+Feature toggle for `automaticBackups`. It carries a config with the backup
+`enforcedSchedule` (`daily`, `weekly` or `monthly`), `enforced` (whether users must
+back up) and `serverOnly` (whether backups are stored on the server only).
+The lock status for individual teams can be changed via the internal API
+(`PUT /i/teams/:tid/features/automaticBackups/(un)?locked`).
+
+Example default configuration:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      automaticBackups:
+        defaults:
+          status: disabled
+          lockStatus: unlocked
+          config:
+            enforcedSchedule: weekly
+            enforced: false
+            serverOnly: false
+```
+
 ### Apps
 
 Feature toggle for `apps`.
@@ -1535,6 +1560,43 @@ provides a lot of useful information.
 
 - `settings.maxTotalBytes` (integer, bytes): maximum upload size for team users.
 - `settings.maxTotalBytesStrict` (integer, bytes): stricter maximum upload size for non-team users (including ephemeral users).
+
+### Backups
+
+Cargohold stores backups in S3 only (no database). Backups need a secret used
+to HMAC user and client ids in S3 keys. It is optional: without it, backups are
+not configured (upload and read routes return 403 `backup-feature-disabled`,
+deletes are no-ops).
+
+```yaml
+# Helm
+cargohold:
+  secrets:
+    backupHmacKey: <random-secret> # at least 32 bytes
+```
+
+```yaml
+# cargohold.yaml
+backupHmacKey: /path/to/backup-hmac-key # file; at least 32 bytes
+```
+
+If set but shorter than 32 bytes or unreadable, cargohold refuses to start.
+**Never change or lose this secret**: rotation makes all existing backups
+unreachable and undeletable via the API.
+
+The S3 store must provide strong list-after-write consistency (e.g. AWS S3,
+Cloudflare R2, MinIO, Garage); see `developer/backups.md` for the table and
+versioned bucket handling. Limits:
+
+```yaml
+settings:
+  backupLimits:
+    maxFullBytes: 1073741824      # first file of an epoch (1 GiB)
+    maxIncrementalBytes: 10485760 # later files of an epoch (10 MiB)
+    maxFilesPerEpoch: 3650
+```
+
+See `developer/backups.md` for details and known limitations.
 
 ## Settings in cannon
 

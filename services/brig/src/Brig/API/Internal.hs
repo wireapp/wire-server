@@ -103,6 +103,7 @@ import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ConnectionStore (ConnectionStore)
+import Wire.DeleteQueue (DeleteQueue)
 import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem, sendMeetingCancelEmail, sendMeetingInvitationEmail, sendMeetingUpdateEmail)
 import Wire.EnterpriseLoginSubsystem
@@ -195,6 +196,7 @@ servantSitemap ::
     Member ClientStore r,
     Member ClientSubsystem r,
     Member MlsKeyPackageSubsystem r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
@@ -267,6 +269,7 @@ accountAPI ::
     Member (Concurrency Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -659,6 +662,7 @@ deleteUserNoAuthH ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->

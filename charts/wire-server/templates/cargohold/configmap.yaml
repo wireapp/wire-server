@@ -22,6 +22,14 @@ data:
       host: brig
       port: 8080
 
+    galley:
+      host: galley
+      port: 8080
+
+    {{- if $.Values.cargohold.secrets.backupHmacKey }}
+    backupHmacKey: /etc/wire/cargohold/secrets/backupHmacKey
+    {{- end }}
+
     aws:
       {{- with .Values.cargohold.config.aws }}
       s3Bucket: {{ .s3Bucket }}
@@ -62,4 +70,5 @@ data:
       federationDomain: {{ $.Values.cargohold.config.settings.federationDomain }}
       disabledAPIVersions: {{ toJson .disabledAPIVersions }}
       disabledFederationAPIVersions: {{ toJson $.Values.apiVersions.disabledFederationAPIVersions }}
+      backupLimits: {{ toYaml .backupLimits | nindent 8 }}
       {{- end }}

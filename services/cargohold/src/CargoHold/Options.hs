@@ -32,6 +32,7 @@ import Util.Options
 import Util.SuffixNamer
 import qualified Wire.API.Federation.Version as Federation
 import Wire.API.Routes.Version
+import Wire.BackupSubsystem.Rules (BackupLimits)
 
 -- | AWS CloudFront settings.
 data CloudFrontOpts = CloudFrontOpts
@@ -153,7 +154,8 @@ data Settings = Settings
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     federationDomain :: !Domain,
     disabledAPIVersions :: !(Set VersionExp),
-    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp)
+    disabledFederationAPIVersions :: !(Set Federation.FederationVersionExp),
+    backupLimits :: !BackupLimits
   }
   deriving (Show, Generic)
 
@@ -170,6 +172,11 @@ data Opts = Opts
     federator :: Maybe Endpoint,
     -- | Brig endpoint
     brig :: !Endpoint,
+    galley :: !Endpoint,
+    -- | File with the secret (at least 32 bytes) used to HMAC user and client ids in backup S3
+    -- keys. Unset: automatic backups are disabled. Never change it once set: existing backups
+    -- become unreachable.
+    backupHmacKey :: !(Maybe FilePathSecrets),
     -- Logging
 
     -- | Log level (Debug, Info, etc)

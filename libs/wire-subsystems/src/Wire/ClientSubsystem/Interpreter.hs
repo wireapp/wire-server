@@ -344,6 +344,10 @@ onClientEvent orig conn e = do
     ]
 
 -- | Enqueue an orderly deletion of an existing client.
+--
+-- The client's backups are not deleted here: the queue consumer
+-- ('Brig.InternalEvent.Process.onEvent') deletes them, retried until it succeeds, so that a
+-- failing cargohold never affects the removal of a client (which may be security relevant).
 execDelete ::
   ( Member DeleteQueue r,
     Member AuthenticationSubsystem r,

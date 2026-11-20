@@ -34,10 +34,16 @@ import Polysemy.Input (Input)
 import Polysemy.Time
 import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
+import Wire.API.User.Client (Client (clientId))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
+import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
+import Wire.CargoholdAPIAccess qualified as CargoholdAPIAccess
 import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.ConnectionStore (ConnectionStore)
+import Wire.DeleteQueue (DeleteQueue)
+import Wire.DeleteQueue qualified as DeleteQueue
 import Wire.Events (Events)
 import Wire.InvitationStore (InvitationStore)
 import Wire.NotificationSubsystem
@@ -70,6 +76,8 @@ onEvent ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member (Concurrency Unsafe) r,
+    Member CargoholdAPIAccess r,
+    Member DeleteQueue r,
     Member ClientStore r
   ) =>
   InternalNotification ->
@@ -78,6 +86,21 @@ onEvent n = handleTimeout $ case n of
   DeleteClient clientId uid mcon -> do
     rmClient uid clientId
     Intra.onClientEvent uid mcon (ClientRemoved clientId)
+    -- The row may still exist if this event raced the removal. It must be gone before the
+    -- backups are deleted: an upload racing this either has its object listed by the deletion,
+    -- or sees the client gone after its PUT and deletes the object itself.
+    ClientStore.delete uid clientId
+    -- A separate event: a failing cargohold makes the queue redeliver only the backup deletion,
+    -- not the client removal and its notification.
+    DeleteQueue.enqueueClientBackupDeletion uid clientId
+  DeleteClientBackups uid clientId -> do
+    Log.info $
+      msg (val "Processing client backup delete event")
+        ~~ field "user" (toByteString uid)
+        ~~ field "client" (toByteString clientId)
+    -- Enqueued by 'DeleteClient' after the client row is gone; a failing deletion makes the
+    -- queue redeliver the event.
+    CargoholdAPIAccess.deleteBackupsOfClient uid clientId
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")
@@ -89,6 +112,17 @@ onEvent n = handleTimeout $ case n of
     -- wait 'delay' ms before processing the next event
     deleteThrottleMillis <- embed $ fromMaybe defDeleteThrottleMillis <$> asks (.settings.deleteThrottleMillis)
     delay (1000 * deleteThrottleMillis)
+  DeleteBackups uid -> do
+    Log.info $
+      msg (val "Processing backup delete event")
+        ~~ field "user" (toByteString uid)
+    -- The client rows must be gone before the backups are deleted: an upload racing this either
+    -- has its object listed by the deletion, or sees the client gone after its PUT and deletes
+    -- the object itself.
+    ClientStore.lookupClients uid >>= mapM_ (ClientStore.delete uid . (.clientId))
+    -- Last: a failing deletion makes the queue redeliver the event (everything above is
+    -- idempotent).
+    CargoholdAPIAccess.deleteBackupsOfUser uid
   DeleteService pid sid -> do
     Log.info $
       msg (val "Processing service delete event")

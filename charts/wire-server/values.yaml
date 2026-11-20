@@ -371,6 +371,14 @@ galley:
           defaults:
             status: disabled
             lockStatus: locked
+        automaticBackups:
+          defaults:
+            status: disabled
+            lockStatus: unlocked
+            config:
+              enforcedSchedule: weekly
+              enforced: false
+              serverOnly: false
     aws:
       region: "eu-west-1"
     proxy: {}
@@ -502,6 +510,12 @@ cargohold:
       # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
       # brig, cannon, cargohold, galley, gundeck, proxy, spar.
       disabledAPIVersions: [development]
+      # Automatic backups: size cap of the first (full) file of an epoch, of later
+      # (incremental) files, and the number of files per (user, client, epoch).
+      backupLimits:
+        maxFullBytes: 1073741824 # 1 GiB
+        maxIncrementalBytes: 10485760 # 10 MiB
+        maxFilesPerEpoch: 3650
   serviceAccount:
     # When setting this to 'false', either make sure that a service account named
     # 'cargohold' exists or change the 'name' field to 'default'
@@ -510,6 +524,11 @@ cargohold:
     annotations: {}
     automountServiceAccountToken: true
   secrets: {}
+  # secrets:
+  #   # Automatic backups: secret (at least 32 bytes) to HMAC user and client ids in S3 keys.
+  #   # Unset: automatic backups are disabled. Never change it once set: existing backups
+  #   # become unreachable. Generate e.g. with `head -c 48 /dev/urandom | base64 -w0`.
+  #   backupHmacKey: <random-secret>
   podSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
