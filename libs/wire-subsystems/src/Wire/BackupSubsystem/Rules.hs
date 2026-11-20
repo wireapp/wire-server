@@ -54,7 +54,7 @@ data BackupLimits = BackupLimits
   deriving stock (Eq, Show, Generic)
   deriving anyclass (FromJSON)
 
-data UploadRejection = EpochNotAllowed | FullMissing | TooManyFiles | TooLarge
+data UploadRejection = EpochNotAllowed | FullMissing | TooManyFiles | TooLarge | EmptyFile
   deriving stock (Eq, Show)
 
 -- | Decide whether a file may be stored at the given epoch, given the stored epochs and the
@@ -72,6 +72,8 @@ checkUpload ::
   Word64 ->
   Either UploadRejection ()
 checkUpload limits base epochs blobs e size = do
+  -- S3 multipart uploads cannot be empty
+  when (size == 0) $ Left EmptyFile
   unless (e.unBackupEpoch >= 1 && epochAllowed (Set.lookupMax epochs)) $ Left EpochNotAllowed
   case base of
     Nothing -> when (size > limits.maxFullBytes) $ Left TooLarge

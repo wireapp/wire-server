@@ -97,6 +97,8 @@ spec = describe "Rules" $ do
       it "full above cap rejected" $ full [] 1 1073741825 `shouldBe` Left TooLarge
       it "incremental at cap OK" $ inc [(1, 1)] 1 10485760 `shouldBe` Right ()
       it "incremental above cap rejected" $ inc [(1, 1)] 1 10485761 `shouldBe` Left TooLarge
+      it "empty full rejected" $ full [] 1 0 `shouldBe` Left EmptyFile
+      it "empty incremental rejected" $ inc [(1, 1)] 1 0 `shouldBe` Left EmptyFile
     describe "count rule" $ do
       it "{3:3650} + 3 -> too many" $ inc [(3, 3650)] 3 1 `shouldBe` Left TooManyFiles
       it "{3:3649} + 3 -> OK" $ inc [(3, 3649)] 3 1 `shouldBe` Right ()

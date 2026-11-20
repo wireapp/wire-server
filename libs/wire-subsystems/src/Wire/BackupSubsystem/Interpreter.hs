@@ -195,6 +195,7 @@ rejectionError = \case
   FullMissing -> BackupErrFullMissing
   TooManyFiles -> BackupErrTooManyFiles
   TooLarge -> BackupErrTooLarge
+  EmptyFile -> BackupErrInvalidLength
 
 -- | The restorable epochs of a client, ascending. Epochs without a full file are left out.
 clientBackups :: (Member BackupBlobStore r) => UserId -> ClientId -> Sem r ClientBackups

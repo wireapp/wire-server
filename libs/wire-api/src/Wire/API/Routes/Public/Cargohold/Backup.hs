@@ -129,6 +129,7 @@ type BackupAPI =
                :> CanThrow 'BackupFullMissing
                :> CanThrow 'BackupTooLarge
                :> CanThrow 'IncompleteBody
+               :> CanThrow 'InvalidLength
                :> ZLocalUser
                :> ZClient
                :> "backups"
@@ -154,6 +155,7 @@ type BackupAPI =
                :> CanThrow 'BackupTooManyFiles
                :> CanThrow 'BackupTooLarge
                :> CanThrow 'IncompleteBody
+               :> CanThrow 'InvalidLength
                :> ZLocalUser
                :> ZClient
                :> "backups"

@@ -40,6 +40,7 @@ data BackupError
   | BackupErrFeatureDisabled
   | BackupErrIncompleteBody
   | BackupErrFullMissing
+  | BackupErrInvalidLength
   deriving stock (Eq, Show)
 
 backupErrorToWai :: BackupError -> Wai.Error
@@ -52,6 +53,7 @@ backupErrorToWai = \case
   BackupErrFeatureDisabled -> errorToWai @E.BackupFeatureDisabled
   BackupErrIncompleteBody -> errorToWai @E.IncompleteBody
   BackupErrFullMissing -> errorToWai @E.BackupFullMissing
+  BackupErrInvalidLength -> errorToWai @E.InvalidLength
 
 -- | Public operations take the caller (user and @Z-Client@) and the target client @cid@.
 data BackupSubsystem m a where
