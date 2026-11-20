@@ -22,6 +22,7 @@ module Wire.EmailSubsystem.TemplateFixtures where
 
 import Data.Map qualified as Map
 import Imports
+import System.FilePath ((</>))
 import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
@@ -70,18 +71,38 @@ branding =
       ("support", "https://support.wire.com/")
     ]
 
--- | Load the on-disk team templates. Relies on the test suite running with the
--- package directory as its working directory (as @cabal test@ does).
+-- | Root of the package's on-disk test data (email templates, SAML certs,
+-- mail text parts).
+-- Mirrors the interpreter-parameter pattern used in production, where brig
+-- passes its configured @general.templateDir@ into 'loadTeamTemplates' et
+-- al. Defaults to @.@ (paths relative to the working directory, the
+-- @cabal test@ behavior); set @WIRE_SUBSYSTEMS_TEST_ROOT@ to an absolute
+-- path to run the suite from anywhere.
+testDataRoot :: IO FilePath
+testDataRoot = fromMaybe "." <$> lookupEnv "WIRE_SUBSYSTEMS_TEST_ROOT"
+
+templatesDir :: IO FilePath
+templatesDir = (</> "templates") <$> testDataRoot
+
+-- | Absolute-or-relative path of the SAML test certificate store. See
+-- 'testDataRoot'.
+testCertsStorePath :: IO FilePath
+testCertsStorePath = (</> "test/resources/saml/certs.store") <$> testDataRoot
+
+-- | Load the on-disk team templates. See 'templatesDir'.
 loadTestTeamTemplates :: IO (Localised TeamTemplates)
-loadTestTeamTemplates = loadTeamTemplates teamOpts "templates" defLocale emailSender
+loadTestTeamTemplates =
+  templatesDir >>= \base -> loadTeamTemplates teamOpts base defLocale emailSender
 
 -- | Load the on-disk user templates. See 'loadTestTeamTemplates'.
 loadTestUserTemplates :: IO (Localised UserTemplates)
-loadTestUserTemplates = loadUserTemplates userTemplateOpts "templates" defLocale emailSender
+loadTestUserTemplates =
+  templatesDir >>= \base -> loadUserTemplates userTemplateOpts base defLocale emailSender
 
 -- | Load the on-disk meeting templates. See 'loadTestTeamTemplates'.
 loadTestMeetingTemplates :: IO (Localised MeetingTemplates)
-loadTestMeetingTemplates = loadMeetingTemplates "templates" defLocale emailSender
+loadTestMeetingTemplates =
+  templatesDir >>= \base -> loadMeetingTemplates base defLocale emailSender
 
 -- | Load all template sets consumed by the email subsystem interpreter.
 loadTestEmailTemplates :: IO EmailTemplates

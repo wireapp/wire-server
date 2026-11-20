@@ -96,7 +96,7 @@ spec = do
 
   -- Run duplicated IO tasks here to save some time
   emailTemplates :: EmailTemplates <- runIO loadTestEmailTemplates
-  newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
+  newCerts <- runIO $ X509.readCertificates =<< testCertsStorePath
 
   describe "SendSAMLIdPChanged" $ do
     describe "localized emails" $ forM_ testLocals $ \(userLocale :: Locale, textParts) -> do
@@ -296,7 +296,9 @@ patchStoredUser storedUser teamId userLocale uid =
     }
 
 readTextPartFile :: FilePath -> IO TL.Text
-readTextPartFile file = TL.stripEnd <$> TL.readFile ("test" </> "resources" </> "mails" </> file)
+readTextPartFile file = do
+  root <- testDataRoot
+  TL.stripEnd <$> TL.readFile (root </> "test/resources/mails" </> file)
 
 assertCommonMailAttributes :: Mail -> LText -> IO ()
 assertCommonMailAttributes mail expectedSubject = do
