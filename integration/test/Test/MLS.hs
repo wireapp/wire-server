@@ -22,6 +22,8 @@ module Test.MLS where
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
 import qualified API.GalleyInternal as I
+import Control.Monad.Codensity (Codensity (runCodensity))
+import Control.Monad.Reader (asks)
 import Data.Bits
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
@@ -31,12 +33,15 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Read as T
+import qualified Data.UUID as UUID
 import MLS.Util
 import Notifications
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Test.Version
+import Testlib.PG (execSql)
 import Testlib.Prelude
+import Testlib.ResourcePool (acquireResources)
 import Testlib.VersionedFed
 
 testSendMessageNoReturnToSender :: (HasCallStack) => App ()
@@ -1080,29 +1085,142 @@ testExternalCommitSameClient = do
   -- when it finds the same credential in GroupInfo. No separate removal is
   -- needed: that would test joining after removal rather than an atomic re-join.
   mp <- createExternalCommit convId alice1 Nothing
-  parsed <- showMessage def alice1 mp.message
-  proposals <- parsed %. "message.content.body.Commit.proposals" & asList
-  removes <- filterM (\p -> isJust <$> lookupField (p %. "Proposal") "Remove") proposals
-  removal <- assertOne removes
+  removal <- commitRemoveProposals alice1 mp >>= assertOne
   removal %. "Proposal.Remove.removed" `shouldMatchInt` 0
   void $ sendAndConsumeCommitBundle mp
 
   -- WPB-29648: the member row must have survived the re-join, exactly once,
   -- with the rejoiner's current leaf index.
-  gs <- getClientGroupState alice1
-  groupData <- assertJust "no MLS group state for alice1" (Map.lookup convId gs.groups)
-  members <- readGroupState groupData
-  idx <-
-    assertJust "rejoined client missing from group state"
-      $ listToMaybe [idx | (RegularClient c, idx) <- members, c == alice1]
-  rows <- I.getMLSMemberClients alice convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
-  idxs <- for rows $ \r -> do
+  assertMemberClientRowMatchesTree convId alice1
+
+-- | WPB-29949: a client whose member row was lost (see WPB-29648) keeps its
+-- leaf in the ratchet tree. Its re-join by external commit removes that leaf,
+-- which the backend does not know about; this must not be rejected.
+testExternalCommitAfterMemberRowLoss :: (HasCallStack) => App ()
+testExternalCommitAfterMemberRowLoss = withPostgresConvBackend $ \backend dom -> do
+  [alice, bob] <- createAndConnectUsers [dom, dom]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  deleteMemberClientRow backend bob1
+  memberClientLeafIndices convId bob1 `shouldMatch` ([] :: [Word32])
+
+  -- The CLI includes a Remove of bob1's old leaf, which the backend lost.
+  mp <- createExternalCommit convId bob1 Nothing
+  removal <- commitRemoveProposals bob1 mp >>= assertOne
+  removal %. "Proposal.Remove.removed" `shouldMatchInt` 1
+  void $ sendAndConsumeCommitBundle mp
+
+  assertMemberClientRowMatchesTree convId bob1
+
+-- | WPB-29949: another member can remove a client whose member row was lost,
+-- after which that client can re-join.
+testRemoveClientAfterMemberRowLoss :: (HasCallStack) => App ()
+testRemoveClientAfterMemberRowLoss = withPostgresConvBackend $ \backend dom -> do
+  [alice, bob] <- createAndConnectUsers [dom, dom]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  deleteMemberClientRow backend bob1
+  void $ createRemoveCommit alice1 convId [bob1] >>= sendAndConsumeCommitBundle
+
+  -- Removing a leaf without a member row does not change conversation
+  -- membership, so bob remains a member, and bob1 can re-join.
+  bindResponse (getConversation alice convId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    others <- resp.json %. "members.others" & asList
+    otherIds <- for others (%. "qualified_id")
+    bobId <- objQidObject bob
+    otherIds `shouldMatch` [bobId]
+
+  mp <- createExternalCommit convId bob1 Nothing
+  commitRemoveProposals bob1 mp `shouldMatch` ([] :: [Value])
+  void $ sendAndConsumeCommitBundle mp
+
+  assertMemberClientRowMatchesTree convId bob1
+
+-- | WPB-29949: a removed leaf without a member row is validated against the
+-- stored GroupInfo; without one, the removal is rejected.
+testRemoveClientAfterMemberRowLossWithoutGroupInfo :: (HasCallStack) => App ()
+testRemoveClientAfterMemberRowLossWithoutGroupInfo = withPostgresConvBackend $ \backend dom -> do
+  [alice, bob] <- createAndConnectUsers [dom, dom]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  deleteMemberClientRow backend bob1
+  conv <- assertJust ("invalid conversation id: " <> convId.id_) (UUID.fromString convId.id_)
+  execSql backend
+    $ T.pack
+    $ "UPDATE conversation SET public_group_state = NULL WHERE id = '"
+    <> UUID.toString conv
+    <> "'"
+
+  mp <- createRemoveCommit alice1 convId [bob1]
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
+
+-- | Run on a dynamic backend that stores conversations in Postgres, so that a
+-- test can tamper with galley's MLS member rows through 'execSql'.
+withPostgresConvBackend :: (HasCallStack) => (BackendResource -> String -> App a) -> App a
+withPostgresConvBackend k = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let overrides = def {galleyCfg = setField "postgresMigration.conversation" ("postgresql" :: String)}
+    runCodensity (startDynamicBackend backend overrides) $ \dom -> k backend dom
+
+-- | Simulate the member row loss of WPB-29648: drop all galley member rows of
+-- a client, leaving its leaf in the ratchet tree. Both ids are validated (a
+-- UUID and a hex client id) before being inlined as SQL literals.
+deleteMemberClientRow :: (HasCallStack) => BackendResource -> ClientIdentity -> App ()
+deleteMemberClientRow backend cid = do
+  user <- assertJust ("invalid user id: " <> cid.user) (UUID.fromString cid.user)
+  when (null cid.client || not (all isHexDigit cid.client))
+    $ assertFailure ("invalid client id: " <> cid.client)
+  execSql backend
+    $ T.pack
+    $ "DELETE FROM mls_group_member_client WHERE \"user\" = '"
+    <> UUID.toString user
+    <> "' AND client = '"
+    <> cid.client
+    <> "'"
+
+-- | The Remove proposals inlined in a commit, as decoded by the client.
+commitRemoveProposals :: (HasCallStack) => ClientIdentity -> MessagePackage -> App [Value]
+commitRemoveProposals cid mp = do
+  parsed <- showMessage def cid mp.message
+  proposals <- parsed %. "message.content.body.Commit.proposals" & asList
+  filterM (\p -> isJust <$> lookupField (p %. "Proposal") "Remove") proposals
+
+-- | Leaf indices of the member rows of a client in a conversation's group.
+memberClientLeafIndices :: (HasCallStack) => ConvId -> ClientIdentity -> App [Word32]
+memberClientLeafIndices convId cid = do
+  rows <- I.getMLSMemberClients cid convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
+  fmap catMaybes $ for rows $ \r -> do
     ci <- r %. "client"
     uid <- ci %. "user_id" & asString
     client <- ci %. "client_id" & asString
-    idx' <- r %. "leaf_index" & asIntegral @Word32
-    pure (uid, client, idx')
-  [idx' | (u, c, idx') <- idxs, u == alice1.user, c == alice1.client] `shouldMatch` [idx]
+    if uid == cid.user && client == cid.client
+      then Just <$> (r %. "leaf_index" & asIntegral @Word32)
+      else pure Nothing
+
+-- | The client has exactly one member row, at its leaf index in its own view
+-- of the ratchet tree.
+assertMemberClientRowMatchesTree :: (HasCallStack) => ConvId -> ClientIdentity -> App ()
+assertMemberClientRowMatchesTree convId cid = do
+  gs <- getClientGroupState cid
+  groupData <- assertJust "no MLS group state for client" (Map.lookup convId gs.groups)
+  members <- readGroupState groupData
+  idx <-
+    assertJust "client missing from its group state"
+      $ listToMaybe [idx | (RegularClient c, idx) <- members, c == cid]
+  memberClientLeafIndices convId cid `shouldMatch` [idx]
 
 testInternalCommitDuplicateClient :: (HasCallStack) => App ()
 testInternalCommitDuplicateClient = do

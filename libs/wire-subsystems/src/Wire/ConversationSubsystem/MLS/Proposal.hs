@@ -35,9 +35,11 @@ module Wire.ConversationSubsystem.MLS.Proposal
 where
 
 import Data.Id
+import Data.List.Extra (anySame)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
+import GHC.Generics (Generically (..))
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -77,20 +79,18 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 import Wire.Util
 
+-- | The effect of a list of proposals on the backend's view of the group.
+-- 'paRemoveUnknown' holds removed leaves without a member row; see
+-- 'applyProposal'.
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
     paRemove :: ClientMap LeafIndex,
     paHistoryClientAdd :: Set (HistoryClientId, LeafIndex),
-    paHistoryClientRemove :: Set (HistoryClientId, LeafIndex)
+    paHistoryClientRemove :: Set (HistoryClientId, LeafIndex),
+    paRemoveUnknown :: Set LeafIndex
   }
-  deriving (Show)
-
-instance Semigroup ProposalAction where
-  ProposalAction add1 rem1 hadd1 hrem1 <> ProposalAction add2 rem2 hadd2 hrem2 =
-    ProposalAction (add1 <> add2) (rem1 <> rem2) (hadd1 <> hadd2) (hrem1 <> hrem2)
-
-instance Monoid ProposalAction where
-  mempty = ProposalAction mempty mempty mempty mempty
+  deriving stock (Show, Generic)
+  deriving (Semigroup, Monoid) via Generically ProposalAction
 
 paAddClient :: GroupMember -> LeafIndex -> Maybe KeyPackage -> ProposalAction
 paAddClient (RegularClient cid) idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
@@ -159,9 +159,11 @@ derefOrCheckProposalFrom stored _ciphersuite (Ref ref) =
     (.proposal.value) <$> find ((== ref) . (.ref)) stored
 derefOrCheckProposalFrom _stored ciphersuite (Inline p) = do
   im <- get
-  checkProposal ciphersuite im p
+  void $ evalState im $ applyProposal ciphersuite p
   pure p
 
+-- | Check a standalone proposal. Unlike in a commit, a Remove proposal for a
+-- leaf without a member row is rejected.
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r
@@ -170,7 +172,10 @@ checkProposal ::
   IndexMap ->
   Proposal ->
   Sem r ()
-checkProposal ciphersuite im p = void $ evalState im $ applyProposal ciphersuite p
+checkProposal ciphersuite im p = do
+  action <- evalState im $ applyProposal ciphersuite p
+  unless (Set.null action.paRemoveUnknown) $
+    throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
 
 addProposedClient ::
   ( Member (State IndexMap) r,
@@ -197,11 +202,15 @@ applyProposals ::
   CipherSuiteTag ->
   [Proposal] ->
   Sem r ProposalAction
-applyProposals ciphersuite =
-  -- proposals are sorted before processing
-  foldMap (applyProposal ciphersuite)
-    . sortOn proposalProcessingStage
+applyProposals ciphersuite proposals = do
+  when (anySame [idx | RemoveProposal idx <- proposals]) $
+    throw (mlsProtocolError "A commit must not remove the same leaf more than once")
+  foldMap (applyProposal ciphersuite) (sortOn proposalProcessingStage proposals)
 
+-- | Apply a proposal to the backend's view of the group.  A Remove proposal for
+-- a leaf without a member row (lost, see WPB-29648) leaves that view unchanged
+-- and is recorded in 'paRemoveUnknown', for the caller to validate against the
+-- ratchet tree (see 'resolveUnknownLeaves').
 applyProposal ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
@@ -225,9 +234,11 @@ applyProposal ciphersuite (AddProposal kp) = do
   addProposedClient (Right kp.value)
 applyProposal _ciphersuite (RemoveProposal idx) = do
   im <- get
-  (cid, im') <- note ConversationSubsystemErrorMLSInvalidLeafNodeIndex $ imRemoveClient im idx
-  put im'
-  pure (paRemoveClient cid idx)
+  case imRemoveClient im idx of
+    Just (cid, im') -> do
+      put im'
+      pure (paRemoveClient cid idx)
+    Nothing -> pure mempty {paRemoveUnknown = Set.singleton idx}
 applyProposal _activeData _ = pure mempty
 
 processProposal ::

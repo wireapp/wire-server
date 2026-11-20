@@ -65,6 +65,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation
+import Wire.ConversationSubsystem.MLS.GroupInfoCheck (resolveUnknownLeaves)
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
 import Wire.ExternalAccess
@@ -102,6 +103,10 @@ type HasProposalActionEffects r =
     Member TeamCollaboratorsSubsystem r
   )
 
+-- | Apply the proposals of a commit to the backend's view of the group.
+-- Removed leaves without a member row are only validated (see
+-- 'resolveUnknownLeaves'): their removal neither changes conversation
+-- membership nor is subject to role checks.
 getCommitData ::
   (HasProposalEffects r) =>
   SenderIdentity ->
@@ -129,6 +134,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
           bundle.commit.value.proposals
       action <- applyProposals ciphersuite proposals
       pure (creatorAction <> action)
+  void $ resolveUnknownLeaves convOrSub combinedAction.paRemoveUnknown
   pure (newIndexMap, combinedAction, storedProposals)
 
 incrementEpoch ::
