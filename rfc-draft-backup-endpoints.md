@@ -137,6 +137,11 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
   - A failed upload (fewer bytes than `Content-Length` arrive, client
     disconnect, storage error, client removed meanwhile) removes the file and
     surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
+    Exception: a storage error after the file was stored and found current (while
+    deleting superseded files or stale epochs) leaves the file in place. Rolling it
+    back could leave the epoch without a full, as the previous one may already be
+    deleted. A retry then stores the file again; for an incremental, the epoch
+    holds it twice.
   - An empty file (`Content-Length: 0`) is rejected with 400 `invalid-length`.
   - **Size subtlety:** the server stores exactly the first `Content-Length` bytes
     and ignores any excess, because the HTTP layer hands the handler no more than

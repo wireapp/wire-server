@@ -94,10 +94,12 @@ interpretBackupSubsystem = interpret $ \case
 
 -- | Upload one backup file.
 --
--- A failed upload leaves nothing behind: everything from the PUT on is guarded and removes the
--- exact object (all versions, the 'VersionId' is unknown if the failure hits after S3 committed
--- but before it was returned) on any failure, including exceptions such as the cancellation of
--- the request when the client disconnects.
+-- An upload failing in the PUT or the re-checks leaves nothing behind: they are guarded and
+-- remove the object (all versions) on any failure, including exceptions such as the cancellation
+-- of the request when the client disconnects. A failure later (listing, pruning) leaves the file
+-- stored, possibly current. It is not rolled back: the prune may already have deleted the
+-- previous full file. A retry stores the file again: a full file supersedes the first one, an
+-- incremental file is stored twice under the same full file.
 --
 -- Ordering invariant: PUT the object first, /then/ ask brig whether the client still exists;
 -- if not, delete it and fail. Brig deletes the client before deleting its
