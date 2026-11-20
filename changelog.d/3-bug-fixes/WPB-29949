@@ -1,0 +1,2 @@
+Galley can now self-heal lost MLS member-client rows ("ghost clients").
+Independently of the repair setting, a client whose member-client row was lost can rejoin, and can be removed, instead of failing with 400 `mls-invalid-leaf-node-index`.

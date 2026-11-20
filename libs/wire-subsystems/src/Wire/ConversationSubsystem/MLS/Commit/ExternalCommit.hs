@@ -33,6 +33,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Resource (Resource)
 import Polysemy.State
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
@@ -50,6 +51,7 @@ import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
 import Wire.ConversationSubsystem.MLS.Removal
+import Wire.ConversationSubsystem.MLS.Repair (storedLeaves)
 import Wire.ConversationSubsystem.MLS.Util
 
 data ExternalCommitAction = ExternalCommitAction
@@ -60,7 +62,9 @@ data ExternalCommitAction = ExternalCommitAction
 getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member ConversationStore r,
+    Member TinyLog r
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
@@ -94,19 +98,22 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
-  runState convOrSub.indexMap $ do
+  let senderTracked = isJust (cmLookupIndex senderIdentity convOrSub.members)
+      notSelf = throw $ mlsProtocolError "Only the self client can be removed by an external commit"
+  (im, (action, untracked)) <- runState convOrSub.indexMap $ do
     -- process optional removal
-    propAction <- applyProposals activeData.ciphersuite proposals
-    removedIndex <- case cmAssocs (paRemove propAction) of
-      [(cid, idx)]
-        | cid /= senderIdentity ->
-            throw $ mlsProtocolError "Only the self client can be removed by an external commit"
-        | otherwise -> pure (Just idx)
-      [] -> do
-        -- no remove proposal, make sure the client is not already part of the conversation
-        when (isJust (cmLookupIndex senderIdentity convOrSub.members)) $
-          throw (mlsProtocolError "External commits for existing members must contain a Remove proposal")
-        pure Nothing
+    propAction <- applyProposals AllowUntrackedRemoval activeData.ciphersuite proposals
+    removedIndex <- case (cmAssocs propAction.paRemove, toList propAction.paRemoveUntracked) of
+      ([(cid, idx)], []) -> Just idx <$ when (cid /= senderIdentity) notSelf
+      -- A leaf without a member row can only be the sender's if the sender
+      -- has no row either.
+      ([], [idx]) -> Just idx <$ when senderTracked notSelf
+      -- no remove proposal, make sure the client is not already part of the conversation
+      ([], []) ->
+        Nothing
+          <$ when
+            senderTracked
+            (throw (mlsProtocolError "External commits for existing members must contain a Remove proposal"))
       _ -> throw (mlsProtocolError "External commits must contain at most one Remove proposal")
 
     -- add sender client
@@ -115,10 +122,15 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
     put im'
 
     pure
-      ExternalCommitAction
-        { add = addedIndex,
-          remove = removedIndex
-        }
+      ( ExternalCommitAction
+          { add = addedIndex,
+            remove = removedIndex
+          },
+        propAction.paRemoveUntracked
+      )
+  for_ untracked $ checkUntrackedSelfRemoval senderIdentity convOrSub epoch
+  logUntrackedLeafRemovals (cnvmlsGroupId convOrSub.mlsMeta) epoch untracked
+  pure (im, action)
   where
     allowedProposals = [ExternalInitProposalTag, RemoveProposalTag, PreSharedKeyProposalTag]
 
@@ -126,6 +138,32 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
     getInlineProposal (Ref _) =
       throw (mlsProtocolError "External commits cannot reference proposals")
     getInlineProposal (Inline p) = pure p
+
+-- | The server cannot tell whose a leaf without a member row is. If the
+-- stored GroupInfo describes the current epoch of this group, its tree must
+-- hold the sender at the removed leaf: an external joiner may only remove an
+-- old version of itself. Without such a GroupInfo, the receiving clients are
+-- left to enforce it (RFC 9420, section 12.4.3.2).
+checkUntrackedSelfRemoval ::
+  ( Member ConversationStore r,
+    Member (Error ConversationSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  ClientIdentity ->
+  ConvOrSubConv ->
+  Epoch ->
+  LeafIndex ->
+  Sem r ()
+checkUntrackedSelfRemoval senderIdentity convOrSub epoch idx = do
+  stored <-
+    storedLeaves
+      "skipping the identity check of an untracked self-removal"
+      convOrSub.id
+      (cnvmlsGroupId convOrSub.mlsMeta)
+      epoch
+  for_ stored $ \(_, leaves) ->
+    unless (imLookup leaves idx == Just (RegularClient senderIdentity)) $
+      throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
 
 processExternalCommit ::
   forall r.

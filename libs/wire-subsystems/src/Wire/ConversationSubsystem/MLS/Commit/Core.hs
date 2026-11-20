@@ -67,6 +67,7 @@ import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
+import Wire.ConversationSubsystem.MLS.Util (logUntrackedLeafRemovals)
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.LegalHoldStore (LegalHoldStore)
@@ -125,10 +126,11 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
           else mempty
       proposals <-
         traverse
-          (derefOrCheckProposalFrom storedProposals ciphersuite)
+          (derefOrCheckProposalFrom AllowUntrackedRemoval storedProposals ciphersuite)
           bundle.commit.value.proposals
-      action <- applyProposals ciphersuite proposals
+      action <- applyProposals AllowUntrackedRemoval ciphersuite proposals
       pure (creatorAction <> action)
+  logUntrackedLeafRemovals groupId epoch combinedAction.paRemoveUntracked
   pure (newIndexMap, combinedAction, storedProposals)
 
 incrementEpoch ::

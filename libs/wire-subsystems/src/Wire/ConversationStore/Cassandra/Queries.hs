@@ -196,8 +196,11 @@ markConvDeleted = {- `IF EXISTS`, but that requires benchmarking -} "update conv
 selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity (Maybe GroupInfoData))
 selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
-updateGroupInfo :: PrepQuery W (Maybe GroupInfoData, ConvId) ()
-updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
+updateGroupInfo :: PrepQuery W (Maybe GroupInfoData, Maybe Blob, ConvId) ()
+updateGroupInfo = "update conversation set public_group_state = ?, group_info_validated_hash = ? where conv = ?"
+
+selectGroupInfoValidatedHash :: PrepQuery R (Identity ConvId) (Identity (Maybe Blob))
+selectGroupInfoValidatedHash = "select group_info_validated_hash from conversation where conv = ?"
 
 updateChannelAddPermission :: PrepQuery W (AddPermission, ConvId) ()
 updateChannelAddPermission = "update conversation set channel_add_permission = ? where conv = ?"
@@ -317,11 +320,14 @@ selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id 
 insertSubConversation :: PrepQuery W (ConvId, SubConvId, Epoch, GroupId, Maybe GroupInfoData) ()
 insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?)"
 
-updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData) ()
-updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
+updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData, Maybe Blob) ()
+updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state, group_info_validated_hash) VALUES (?, ?, ?, ?)"
 
 selectSubConvGroupInfo :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe GroupInfoData))
 selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+selectSubConvGroupInfoValidatedHash :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Blob))
+selectSubConvGroupInfoValidatedHash = "SELECT group_info_validated_hash FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
 
 selectSubConvEpoch :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Epoch))
 selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
@@ -343,8 +349,20 @@ deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subco
 addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
 addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, false)"
 
-planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
-planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
+planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) Row
+planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ? if exists"
+
+-- Conditional writes for the ghost-client repair: removal planning does not
+-- take the commit lock, so the repair must never overwrite or delete a row
+-- that was concurrently marked as pending removal.
+insertMLSClientIfNotExists :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32, Bool) Row
+insertMLSClientIfNotExists = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, ?) if not exists"
+
+updateMLSClientLeafIfNotPending :: PrepQuery W (Int32, GroupId, Domain, UserId, ClientId) Row
+updateMLSClientLeafIfNotPending = "update mls_group_member_client set leaf_node_index = ? where group_id = ? and user_domain = ? and user = ? and client = ? if removal_pending = false"
+
+removeMLSClientIfNotPending :: PrepQuery W (GroupId, Domain, UserId, ClientId) Row
+removeMLSClientIfNotPending = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ? if removal_pending = false"
 
 removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"

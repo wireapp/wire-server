@@ -74,7 +74,7 @@ import Wire.CodeStore.Postgres (interpretCodeStoreToPostgres)
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
 import Wire.ConversationSubsystem (ConversationSubsystem)
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (..), interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), GroupInfoRepairEnabled (..), IntraListing (..), interpretConversationSubsystem)
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getAllTeamFeaturesForServer)
@@ -192,6 +192,7 @@ makeVerifiedRequestFreshManagerIO logger fpr url reqBuilder = do
 
 type BackgroundWorkerEffects =
   '[ ConversationSubsystem,
+     Input (Maybe GroupInfoRepairEnabled),
      MeetingNotifier,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -368,6 +369,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputSem getAllTeamFeaturesForServer
     . interpretTeamCollaboratorsSubsystem
     . discardMeetingNotifier
+    . runInputConst @(Maybe GroupInfoRepairEnabled) (GroupInfoRepairEnabled <$> env.mlsGroupInfoRepair)
     . interpretConversationSubsystem
   where
     interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of

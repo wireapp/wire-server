@@ -101,6 +101,7 @@ import Wire.ConversationSubsystem.MLS.One2One
 import Wire.ConversationSubsystem.MLS.OutOfSync
 import Wire.ConversationSubsystem.MLS.Propagate
 import Wire.ConversationSubsystem.MLS.Proposal
+import Wire.ConversationSubsystem.MLS.Repair (GroupInfoRepairEnabled, repairMLSMemberClients, validatedGroupInfoDigest)
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.MLS.Welcome (sendWelcomes)
 import Wire.ConversationSubsystem.Util
@@ -577,6 +578,7 @@ postMLSCommitBundle ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
@@ -610,6 +612,7 @@ postMLSCommitBundleFromLocalUser ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Random r,
     Member Resource r,
@@ -645,6 +648,7 @@ postMLSCommitBundleToLocalConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
@@ -664,7 +668,11 @@ postMLSCommitBundleToLocalConv ::
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
-  lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+  lConvOrSub0 <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+  -- Heal ghost clients from the authoritative ratchet tree before anything
+  -- consumes convOrSub.indexMap (WPB-29648 follow-up).
+  changed <- repairMLSMemberClients lConvOrSub0
+  lConvOrSub <- if changed then fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId else pure lConvOrSub0
   let convOrSub = tUnqualified lConvOrSub
 
   -- validate application message
@@ -719,7 +727,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
   (events, newClients, lConvOrSub') <- handleGroupInfoMismatch lConvOrSubId bundle $ lowerCodensity $ do
-    (events, newClients) <- case senderIdentity.index of
+    (newIndexMap, events, newClients) <- case senderIdentity.index of
       Just _ -> do
         -- extract added/removed clients from bundle
         (newIndexMap, action, storedProposals) <-
@@ -759,7 +767,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         -- the sender client is included in the Add action on the first commit,
         -- but it doesn't need to get a welcome message, so we filter it out here
         let newClients = cmRemoveClient senderIdentity.client (paAdd action)
-        pure (events, newClients)
+        pure (newIndexMap, events, newClients)
       Nothing -> do
         (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
         lift $ checkGroupState convOrSub newIndexMap bundle.groupInfo.value
@@ -772,9 +780,13 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value.path
-        pure ([], mempty)
+        pure (newIndexMap, [], mempty)
     lConvOrSub' <- lift $ do
-      storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
+      -- Only a group info whose tree matches the membership validated above
+      -- may later be used to repair member-client rows; its digest is stored
+      -- in the same write as the group info itself.
+      storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw) $
+        validatedGroupInfoDigest bundle.groupId (succ bundle.epoch) newIndexMap bundle.groupInfo
       -- reload conversation from db to make sure we have an up-to-date list of members
       lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
       -- Include members added by this commit when checking whether recovery
@@ -1129,10 +1141,12 @@ storeGroupInfo ::
   (Member ConversationStore r) =>
   ConvOrSubConvId ->
   GroupInfoData ->
+  -- | Validation digest of the group info, if any
+  Maybe ByteString ->
   Sem r ()
-storeGroupInfo convOrSub ginfo = case convOrSub of
-  Conv cid -> setGroupInfo cid (Just ginfo)
-  SubConv cid subconvid -> setSubConversationGroupInfo cid subconvid (Just ginfo)
+storeGroupInfo convOrSub ginfo mHash = case convOrSub of
+  Conv cid -> setGroupInfo cid (Just ginfo) mHash
+  SubConv cid subconvid -> setSubConversationGroupInfo cid subconvid (Just ginfo) mHash
 
 fetchConvOrSub ::
   forall r.

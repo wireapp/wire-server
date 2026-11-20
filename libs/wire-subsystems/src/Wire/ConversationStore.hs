@@ -39,6 +39,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 import Wire.API.Pagination
 import Wire.API.Provider.Service
+import Wire.ConversationStore.MLS.Reconcile (ReconcileResult (..))
 import Wire.ConversationStore.MLS.Types
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -114,7 +115,9 @@ data ConversationStore m a where
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
   ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
-  SetGroupInfo :: ConvId -> Maybe GroupInfoData -> ConversationStore m ()
+  -- | Store the GroupInfo together with its validation digest (see
+  -- 'GetGroupInfoValidatedHash') in a single write, so the two never diverge.
+  SetGroupInfo :: ConvId -> Maybe GroupInfoData -> Maybe ByteString -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
   UpdateToMLSProtocol :: ConvId -> ConversationStore m ()
@@ -152,13 +155,24 @@ data ConversationStore m a where
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
   LookupHistoryClients :: GroupId -> ConversationStore m [(HistoryClientId, Int32, Bool)]
+  -- | Reconcile the member-client and history-client rows of a group with
+  -- the authoritative ratchet-tree leaf map. Pending-removal rows are
+  -- untouched; missing rows whose leaf is in the given set of pending backend
+  -- removals are restored as pending. The deadline bounds row-by-row writes
+  -- (Cassandra): none is started after it, and the result reports whether
+  -- all planned writes were attempted. Batched writes (Postgres) ignore it.
+  ReconcileMLSClients :: GroupId -> IndexMap -> Set LeafIndex -> UTCTime -> ConversationStore m ReconcileResult
+  -- | SHA-256 digest of the last GroupInfo whose ratchet tree matched the
+  -- membership the server validated for its commit. Only a GroupInfo with a
+  -- matching digest may be used to repair member-client rows.
+  GetGroupInfoValidatedHash :: ConvOrSubConvId -> ConversationStore m (Maybe ByteString)
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
   -- SUB CONVERSATION OPERATIONS
   UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
   GetSubConversation :: ConvId -> SubConvId -> ConversationStore m (Maybe SubConversation)
   GetSubConversationGroupInfo :: ConvId -> SubConvId -> ConversationStore m (Maybe GroupInfoData)
   GetSubConversationEpoch :: ConvId -> SubConvId -> ConversationStore m (Maybe Epoch)
-  SetSubConversationGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> ConversationStore m ()
+  SetSubConversationGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> Maybe ByteString -> ConversationStore m ()
   SetSubConversationEpoch :: ConvId -> SubConvId -> Epoch -> ConversationStore m ()
   SetSubConversationCipherSuite :: ConvId -> SubConvId -> CipherSuiteTag -> ConversationStore m ()
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
@@ -184,6 +198,13 @@ upsertMember c u = fst <$> upsertMembers (tUnqualified c) (UserList [(tUnqualifi
 deleteBotMemberRow :: (Member ConversationStore r) => ConvId -> BotId -> Sem r ()
 deleteBotMemberRow cid bid =
   deleteMemberRowsOnly ProteusOnlyConversation cid (UserList [botUserId bid] [])
+
+getConvOrSubEpoch ::
+  (Member ConversationStore r) =>
+  ConvOrSubConvId ->
+  Sem r (Maybe Epoch)
+getConvOrSubEpoch (Conv c) = getConversationEpoch c
+getConvOrSubEpoch (SubConv c s) = getSubConversationEpoch c s
 
 getConvOrSubGroupInfo ::
   (Member ConversationStore r) =>

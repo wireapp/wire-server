@@ -1452,7 +1452,8 @@ CREATE TABLE public.conversation (
     team uuid,
     type integer NOT NULL,
     parent_conv uuid,
-    history_depth bigint
+    history_depth bigint,
+    group_info_validated_hash bytea
 );
 
 
@@ -1742,7 +1743,8 @@ CREATE TABLE public.subconversation (
     epoch bigint NOT NULL,
     epoch_timestamp timestamp with time zone NOT NULL,
     group_id bytea NOT NULL,
-    public_group_state bytea
+    public_group_state bytea,
+    group_info_validated_hash bytea
 );
 
 
