@@ -24,6 +24,7 @@ import Test.Wire.API.Call.Config qualified as Call.Config
 import Test.Wire.API.Conversation qualified as Conversation
 import Test.Wire.API.MLS qualified as MLS
 import Test.Wire.API.MLS.Group qualified as Group
+import Test.Wire.API.MLS.PostQuantum qualified as PostQuantum
 import Test.Wire.API.Meeting qualified as Meeting
 import Test.Wire.API.OAuth qualified as OAuth
 import Test.Wire.API.RawJson qualified as RawJson
@@ -70,6 +71,7 @@ main =
         Conversation.tests,
         Meeting.tests,
         MLS.tests,
+        PostQuantum.tests,
         Group.tests,
         Routes.Version.tests,
         unsafePerformIO Routes.Version.Wai.tests,

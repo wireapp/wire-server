@@ -54,3 +54,8 @@ getMLSRemovalKey ss = fmap hush . runError @() $ do
         SomeKeyPair
           (Proxy @Ecdsa_secp521r1_sha512)
           (mlsKeyPair_ecdsa_secp521r1_sha512 keys)
+    -- The backend has no ML-DSA removal key yet, so it cannot sign external
+    -- remove proposals in groups that use an ML-DSA cipher suite.
+    Mldsa44 -> throw ()
+    Mldsa65 -> throw ()
+    Mldsa87 -> throw ()

@@ -1,0 +1,1 @@
+Brig and galley accept the eleven post-quantum MLS cipher suites from draft-ietf-mls-pq-ciphersuites, under Wire's private-use codepoints 0xF001 to 0xF00B. They verify ML-DSA-44, ML-DSA-65 and ML-DSA-87 signatures on key packages and leaf nodes with crypton. The backend has no ML-DSA removal key yet, so it cannot remove clients from groups that use an ML-DSA cipher suite.
