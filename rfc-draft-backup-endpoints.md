@@ -611,8 +611,9 @@ Each operation writes first, then looks:
   never waits for Cargohold or S3, so a broken store cannot block removing a
   (possibly compromised) client.
 - **User deletion:** the same with a backend-internal event (`DeleteBackups`,
-  never fanned out), enqueued by Brig's `deleteAccount` before the user is marked
-  deleted. The consumer deletes all client rows, then the user prefix.
+  never fanned out), enqueued by Brig's `deleteAccount` as its last step, after
+  the user is marked deleted and its client rows are gone. The consumer deletes
+  all client rows again, then the user prefix.
 
 #### Why races are safe
 
@@ -883,7 +884,8 @@ RFC: "Backup deletion".
 
 - **Public endpoints:** the generic user deletion
 - **Internal:**
-  - Brig's `deleteAccount` enqueues `DeleteBackups` first
+  - Brig's `deleteAccount` enqueues `DeleteBackups` last; `DELETE /i/users/<UserId>` enqueues
+    it again for an already deleted user
   - the queue consumer deletes the user's client rows, then calls Cargohold
     `DELETE /i/backups/users/<UserId>`, retried until it succeeds
 - **S3:** deletes all versions under `backup/<h(uid)>/`

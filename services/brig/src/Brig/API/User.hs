@@ -1162,7 +1162,10 @@ ensureAccountDeleted luid@(tUnqualified -> uid) = do
         then do
           liftSem $ deleteAccount acc
           pure AccountDeleted
-        else pure AccountAlreadyDeleted
+        else do
+          -- The backups are not visible here; their deletion is idempotent.
+          liftSem $ enqueueBackupDeletion uid
+          pure AccountAlreadyDeleted
 
 -- | Internal deletion without validation.
 --
@@ -1198,9 +1201,6 @@ deleteAccount ::
 deleteAccount user = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
-  -- Enqueued first: if this fails, the user is not yet marked deleted and the deletion can be
-  -- retried. The consumer deletes the clients, then the backups (see 'onEvent').
-  enqueueBackupDeletion uid
   do
     -- Free unique keys
     for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
@@ -1224,6 +1224,10 @@ deleteAccount user = do
   --       they need to be notified.
   Data.deleteConnections uid
   Auth.revokeAllCookies uid
+  -- Last: the backups of an active user must not be deleted, and a deletion that failed before
+  -- this point leaves them for the retry. If only this enqueue fails, 'ensureAccountDeleted'
+  -- enqueues again.
+  enqueueBackupDeletion uid
 
 -------------------------------------------------------------------------------
 -- Lookups
