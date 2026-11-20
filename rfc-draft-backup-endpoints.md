@@ -139,13 +139,10 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
     disconnect, storage error, client removed meanwhile) surfaces the error; a
     short body or disconnect gives 400 `incomplete-body`.
   - An empty file (`Content-Length: 0`) is rejected with 400 `invalid-length`.
-  - **Size subtlety:** the server stores exactly the first `Content-Length` bytes
-    and ignores any excess, because the HTTP layer hands the handler no more than
-    that. Too many bytes can't be detected and give a successful upload of a
-    truncated file; too few give 400 `incomplete-body`. The response `size` is
-    the number of bytes stored, so clients should compare it with the number of
-    bytes they sent and, if it differs, upload a new full (for a full) or the
-    incremental again as a new file or a new full (for an incremental).
+  - **Size subtlety:** clients must send exactly `Content-Length` bytes. The
+    server stores the first `Content-Length` bytes and can't detect any excess
+    (the HTTP layer hands it no more), so too many bytes give a truncated file;
+    too few give 400 `incomplete-body`.
 
 ##### `/backups/clients/<ClientId>`
 
@@ -717,12 +714,14 @@ newest epoch_ in [Special cases](#special-cases)). (If this self deletion fails 
 These don't follow the pattern. Each leaves only a limited, temporary
 inconsistency that a later operation cleans up (i.e. they are "bounded"):
 
-- **Incremental vs epoch pruning.** An incremental doesn't list the epochs. It
-  can land in epoch N after a concurrent full upload of N+2 deleted N. Then
-  epoch N holds this incremental and no full. It is never listed (no current
-  full) and never attributed to another full. The next full upload of the client
-  deletes epoch N (not kept), as does any deletion of the client's backups.
-  These are the "epochs without a full" of `GET /backups`.
+- **Incremental vs epoch pruning.** Very rare: it needs two new epochs during
+  one incremental upload. An incremental doesn't list the epochs. It can land in
+  epoch N while a concurrent full upload of N+2 deletes N: after the deletion
+  listed N, but before it deleted the full. Then epoch N holds this incremental
+  and no full. It is never listed (no current full) and never attributed to
+  another full. The next full upload of the client deletes epoch N (not kept),
+  as does any deletion of the client's backups. These are the "epochs without a
+  full" of `GET /backups`.
 - **File count cap.** It is checked before the PUT, so concurrent incrementals
   can exceed it slightly. As the cap serves only to limit storage usage to a
   reasonable amount, this is acceptable.
@@ -918,7 +917,8 @@ RFC: "Backup deletion", "Device compromise". The user removes a device.
 - **S3:** deletes all versions under `backup/<h(uid)>/<h(cid)>/`, tombstones included
 
 Note: the RFC requires immediate deletion. Here it is asynchronous via the queue, but reads need
-a current client, so the backups are unreachable as soon as the client row is gone.
+a current client, so the backups are unreachable as soon as the client row is gone (download
+links issued before stay valid until the objects are deleted or `downloadLinkTTL` expires).
 
 ### 8. User deleted
 
