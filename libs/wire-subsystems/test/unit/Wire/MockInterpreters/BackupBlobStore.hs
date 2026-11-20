@@ -79,8 +79,9 @@ interpreter onChunk = interpret $ \case
   PutBlob l len src -> do
     let counted = awaitForever (\c -> liftIO (onChunk c) >> yield c)
     body <- BS.concat <$> embed (runConduitRes (src .| counted .| sinkList))
-    when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
+    -- Stored before the mismatch is reported: the S3 object may exist then.
     modify (Map.insert l body)
+    when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
   BlobExists l -> gets (Map.member l)
   SignedDownloadUrl l ->
     either (error . show) pure
