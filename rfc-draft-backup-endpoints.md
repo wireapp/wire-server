@@ -593,8 +593,9 @@ Each operation writes first, then looks:
   1. PUT the file.
   2. Look: read the client row (Brig); fail if it is gone.
   3. Look: list the tombstones; fail if one covers the file.
-  4. Look: list the epoch. If the file itself is superseded, delete only it and
-     fail. Else delete the superseded files.
+  4. Look: list the epoch. If the file is not current (superseded, or already
+     deleted by a newer full), delete only it and fail. Else delete the superseded
+     files.
   5. Full only. Look: list the epochs; delete all but the kept ones. Fail if that
      includes the file's epoch.
 

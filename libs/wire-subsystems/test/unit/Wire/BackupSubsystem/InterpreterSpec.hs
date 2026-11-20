@@ -79,7 +79,11 @@ data World = World
     newerEpochsDuringPut :: Bool,
     -- | 'PutBlob' first stores the full file 'newestLoc' in the same epoch, like an upload of a
     -- newer full that finishes meanwhile.
-    newerFullDuringPut :: Bool
+    newerFullDuringPut :: Bool,
+    -- | 'PutBlob' stores the object, then stores the full file 'newestLoc' in the same epoch and
+    -- deletes all other files of the epoch, like an upload of a newer full that finishes and
+    -- prunes meanwhile.
+    newerFullPrunesAfterPut :: Bool
   }
 
 -- | The location of a full file with an id greater than any generated one.
@@ -161,7 +165,8 @@ world0 =
       deleteDuringPut = False,
       sweepAfterPut = False,
       newerEpochsDuringPut = False,
-      newerFullDuringPut = False
+      newerFullDuringPut = False,
+      newerFullPrunesAfterPut = False
     }
 
 runBackup ::
@@ -224,6 +229,12 @@ failingStore = intercept $ \case
     whenM (gets (.newerFullDuringPut)) $
       putBlob (newestLoc l.user l.client l.epoch) 1 (yield "n")
     putBlob l n s
+    whenM (gets (.newerFullPrunesAfterPut)) $ do
+      let newest = newestLoc l.user l.client l.epoch
+      putBlob newest 1 (yield "n")
+      listBlobs l.user l.client l.epoch
+        >>= traverse_ (\b -> deleteBlob BackupLocation {user = l.user, client = l.client, epoch = l.epoch, file = b.file})
+          . filter ((/= newest.file) . (.file))
     whenM (gets (.sweepAfterPut)) $
       listTombstones l.user l.client
         >>= traverse_ (deleteClientBackupsBefore l.user l.client) . foldr (max . Just) Nothing
@@ -609,6 +620,14 @@ spec = describe "BackupSubsystem" $ do
       -- the old full file is left to the newer full file's upload (not run by the mock)
       Map.keys blobs `shouldMatchList` [fullLoc uA a1 1 old, newestLoc uA a1 (BackupEpoch 1)]
 
+    it "are rejected if a newer full file already deleted them during the upload" $ do
+      (blobs, res) <- runBackup world0 Nothing $ do
+        old <- uploadFull uA a1 a1 1 "old"
+        modify (\w -> w {newerFullPrunesAfterPut = True})
+        void <$> attempt (uploadInc old uA a1 a1 1 "inc")
+      res `shouldBe` Right (Left BackupErrFullMissing)
+      Map.keys blobs `shouldBe` [newestLoc uA a1 (BackupEpoch 1)]
+
     it "leave the full file to a newer one that is rolled back" $ do
       (blobs, res) <- runBackup world0 Nothing $ do
         old <- uploadFull uA a1 a1 1 "old"
@@ -679,6 +698,13 @@ spec = describe "BackupSubsystem" $ do
       older `shouldBe` Left BackupErrFullMissing
       fs `shouldBe` [newer]
       Map.keys blobs `shouldBe` [fullLoc uA a1 1 newer]
+
+    it "an older full already deleted by a newer full's prune is rejected" $ do
+      (blobs, res) <- runBackup world0 Nothing $ do
+        modify (\w -> w {newerFullPrunesAfterPut = True})
+        void <$> attempt (uploadFull uA a1 a1 1 "older")
+      res `shouldBe` Right (Left BackupErrFullMissing)
+      Map.keys blobs `shouldBe` [newestLoc uA a1 (BackupEpoch 1)]
 
     it "only the two newest epochs are kept" $ do
       (_, res) <- runBackup world0 Nothing $ do

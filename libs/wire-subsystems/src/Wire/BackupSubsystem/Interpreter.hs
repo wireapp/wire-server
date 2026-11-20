@@ -122,9 +122,9 @@ interpretBackupSubsystem = interpret $ \case
 -- cannot belong to a full file that is still uploading. After storing, an upload whose file is
 -- current deletes what the newest full file superseded: older full files, and incremental files
 -- under them, also orphans of an incremental upload that raced a newer full file. An upload whose
--- file is superseded deletes only its file and fails: the newer full file's upload prunes the
--- rest after its own checks, so a newer full file that is rolled back leaves the previous one
--- current. A full file also deletes all files of all but the two newest epochs (listed after the
+-- file is not current (superseded, or already deleted by a newer full file's prune) deletes only
+-- its file and fails: the newer full file's upload prunes the rest after its own checks, so a newer
+-- full file that is rolled back leaves the previous one current. A full file also deletes all files of all but the two newest epochs (listed after the
 -- upload, so epochs created meanwhile count). An upload whose own epoch prune deletes its file
 -- fails.
 uploadBackupImpl ::
@@ -158,12 +158,13 @@ uploadBackupImpl uid zcid cid e base len src = do
   fid <- newFileId
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
   store (location file)
-  superseded <- pruneTargets <$> listBlobs uid cid e
-  -- A newer full was stored during the upload: delete only this file and fail. The newer full's
-  -- upload prunes the rest after its own checks; if it is rolled back, the previous full stays.
-  if file `elem` map (.file) superseded
+  listed <- listBlobs uid cid e
+  -- A newer full was stored during the upload (this file is superseded, or already deleted by its
+  -- prune): delete only this file and fail. The newer full's upload prunes the rest after its own
+  -- checks; if it is rolled back, the previous full stays.
+  if file `notElem` map (.file) (currentBlobs listed)
     then deleteBlob (location file) *> throw BackupErrFullMissing
-    else traverse_ (deleteBlob . location . (.file)) superseded
+    else traverse_ (deleteBlob . location . (.file)) (pruneTargets listed)
   -- Epochs listed again: one may have appeared during the upload.
   when (isNothing base) $ do
     stale <- staleEpochs . Set.insert e . Set.fromList <$> listBlobEpochs uid cid
