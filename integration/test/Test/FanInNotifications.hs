@@ -131,8 +131,6 @@ testFanInWebSocketRoundTrip = do
   uid <- objId user
   client <- addClient user def >>= getJSON 201
   cid <- objId client
-  first <- notificationIdNow 0
-  second <- notificationIdNow 1
   let targets = [target "FanInTargetUser" (toJSON uid)]
       publish nid = do
         let request = push nid targets False
@@ -147,20 +145,24 @@ testFanInWebSocketRoundTrip = do
       ack socket tag = sendFanInMessage socket (object ["type" .= ("ack" :: String), "delivery_tag" .= tag, "multiple" .= False])
   -- The first connection establishes an empty-stream boundary. Leave its first delivery
   -- unacknowledged so a fresh socket must replay it.
-  withFanInWebSocket user (Just cid) $ \socket -> do
+  first <- withFanInWebSocket user (Just cid) $ \socket -> do
     receiveFanInMessage socket >>= (%. "type") >>= (`shouldMatch` ("synchronization" :: String))
+    -- UUIDv7 IDs define stream order. Allocate after initialization so the
+    -- event falls after the empty-stream starting cursor.
+    first <- notificationIdNow 0
     publish first
     _ <- receiveEvent socket first
-    pure ()
-  withFanInWebSocket user (Just cid) $ \socket -> do
+    pure first
+  second <- withFanInWebSocket user (Just cid) $ \socket -> do
     tag <- receiveEvent socket first
     receiveFanInMessage socket >>= (%. "type") >>= (`shouldMatch` ("synchronization" :: String))
     ack socket tag
-    -- A later delivery proves Cannon processed the preceding ack before this
-    -- socket closes. It also leaves another outstanding event for reconnect.
+    -- Leave another event outstanding for reconnect. The close handshake
+    -- ensures the preceding acknowledgement is committed before reopening.
+    second <- notificationIdNow 1
     publish second
     _ <- receiveEvent socket second
-    pure ()
+    pure second
   withFanInWebSocket user (Just cid) $ \socket -> do
     tag <- receiveEvent socket second
     receiveFanInMessage socket >>= (%. "type") >>= (`shouldMatch` ("synchronization" :: String))
