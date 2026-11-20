@@ -71,8 +71,10 @@ type DeleteClientBackupsDescription =
   "Deletes all backups of the client, which must be the calling client. The team feature is not \
   \checked, so a client can clean up while the feature is disabled. Succeeds if there is nothing to \
   \delete. Uploads still running \
-  \when this is called are rejected (403) and leave no file behind. Uploads started after the \
-  \response create backups again, so a client should stop scheduling uploads before calling this."
+  \when this is called are rejected (403) and leave no file behind; only an upload that finishes \
+  \or starts within milliseconds of the call may instead succeed (and be deleted anyway) or be \
+  \kept. Uploads started after the response create backups again, so a client should stop \
+  \scheduling uploads before calling this."
 
 type ListFilesDescription =
   "Lists the newest full backup of the epoch and the incremental files stored under it. Presigned \
