@@ -462,11 +462,11 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 void $ updateSSOId uid (Just (UserSSOId samlUserRef))
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
                 (,,mCaughtExc)
-                  <$> verifyUserPassword uid (toInputPassword oldPassword)
-                  <*> verifyUserPassword uid (toInputPassword newPassword)
+                  <$> catchExpectedError (verifyUserPassword uid (toInputPassword oldPassword))
+                  <*> catchExpectedError (verifyUserPassword uid (toInputPassword newPassword))
          in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
-              .&&. fst oldPasswordVerification === True
-              .&&. fst newPasswordVerification === False
+              .&&. oldPasswordVerification === Just AuthenticationSubsystemBadCredentials
+              .&&. newPasswordVerification === Just AuthenticationSubsystemBadCredentials
 
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $

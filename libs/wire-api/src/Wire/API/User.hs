@@ -1576,6 +1576,7 @@ data ChangePasswordError
   = InvalidCurrentPassword
   | ChangePasswordNoIdentity
   | ChangePasswordMustDiffer
+  | ChangePasswordSamlManaged
   deriving (Generic)
   deriving (AsUnion ChangePasswordErrorResponses) via GenericAsUnion ChangePasswordErrorResponses ChangePasswordError
 
@@ -1584,7 +1585,8 @@ instance GSOP.Generic ChangePasswordError
 type ChangePasswordErrorResponses =
   [ ErrorResponse 'E.BadCredentials,
     ErrorResponse 'E.NoIdentity,
-    ErrorResponse 'E.ChangePasswordMustDiffer
+    ErrorResponse 'E.ChangePasswordMustDiffer,
+    ErrorResponse 'E.ChangePasswordSamlManaged
   ]
 
 type ChangePasswordResponses =

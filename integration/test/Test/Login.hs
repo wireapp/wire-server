@@ -280,7 +280,9 @@ testLoginSamlAccountCannotSetPassword = do
   user <- createSamlScimUserForLoginTest owner token
   email <- user %. "email"
   let newPassword = "new-synthetic-password"
-  Brig.putPasswordWithBody user (object ["new_password" .= newPassword]) >>= assertStatus 403
+  Brig.putPasswordWithBody user (object ["new_password" .= newPassword]) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "saml-managed-user"
   login user email newPassword >>= assertStatus 403
 
 testLoginSamlAssignmentDisablesPasswordChange :: (HasCallStack) => App ()
@@ -291,8 +293,9 @@ testLoginSamlAssignmentDisablesPasswordChange = do
   login user email defPassword >>= assertStatus 200
   adoptSamlUserForLoginTest token user
   let newPassword = "new-synthetic-password"
-  Brig.putPassword user defPassword newPassword `bindResponse` \resp ->
-    resp.status `shouldMatchRange` (400, 499)
+  Brig.putPassword user defPassword newPassword `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "saml-managed-user"
   login user email newPassword >>= assertStatus 403
 
 -- | Freshly provisioned accounts are covered by Test.Spar.testNoPasswordResetForSAMLUser.
