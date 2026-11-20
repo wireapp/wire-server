@@ -187,9 +187,9 @@ The deletion removes every file whose full was created before the call, and keep
 whose full was created after it (see [Safe file management](#safe-file-management)). So uploads
 still running when this is called leave no file behind; they are rejected (403
 `backup-forbidden`). (One finishing at the very moment of the call may still answer 200; its
-file is removed all the same.) Fulls started after the call returned (204) are kept, together
-with their incrementals, so they create backups again. The client should therefore stop
-scheduling uploads before it calls this endpoint.
+file is removed all the same.) The deletion is no lasting opt-out: fulls uploaded after it
+returned (204) start new backups. The client should therefore stop scheduling uploads before it
+calls this endpoint.
 
 Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
 
