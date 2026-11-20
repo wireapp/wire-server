@@ -750,14 +750,16 @@ inconsistency that a later operation cleans up (i.e. they are "bounded"):
     in S3, only the API hides it.
   - a covering tombstone: the file stays listed until the client's next backup
     deletion.
-  - a failing look in step 2 or 3 for full uploads combined with failing
-    self-deletion (likely when S3 is the problem): the new full stays and becomes
-    current. It is complete (its PUT finished), only its id never reached the
-    client and cleanups didn't happen. The client's next incremental under the
-    previous full gets 409 `backup-full-missing`; the client then fetches the
-    current full's id to increment on it, or uploads a new full. The previous
-    full and its incrementals are no longer listed; the next upload to the epoch
-    deletes them.
+  - a failed look in step 2 or 3 of a full upload, when its self-deletion fails
+    too (likely when S3 is the problem): the upload fails, but its full stays.
+    Being the newest full, it is current. It is complete (its PUT finished);
+    only its id never reached the client, and it pruned nothing. The previous
+    full and its incrementals are superseded: no longer listed in API
+    responses, and deleted by the next successful upload to the epoch. Usually
+    that is the client's retry of the failed full. If the client instead
+    tries to upload an incremental under the previous full, it gets 409
+    `backup-full-missing`, then fetches the current full's id (`GET
+.../epochs/<BackupEpoch>`) and extends it, or uploads a new full.
 - **Rolled-back newest epoch.** A full F in epoch N+2 is visible from its PUT
   until its looks in steps 2 and 3 finish. A concurrent full of epoch N+1 that
   lists the epochs meanwhile deletes epoch N as not kept. If F is then deleted
