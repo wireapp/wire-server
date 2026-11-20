@@ -1393,6 +1393,19 @@ not released once the lease may have expired. A repair that hits that
 deadline fails the request with a retryable error (as for a concurrent
 commit), and the next commit continues the repair.
 
+Independently of this setting, a commit may remove a leaf that has no
+member-client row (a ghost client). This lets the affected client rejoin
+by external commit (with the self-remove of its old leaf), and lets other
+members remove it. For an external commit, the removed leaf must hold
+the committing client in the stored group info of the current epoch, if
+there is one. Once the ghost leaf is gone, the tree matches the rows
+again and the group obtains a validation digest with its next commit.
+
+The repair is still needed for the rest: before the ghost rejoins, it
+receives no messages, and a client added meanwhile may be recorded at
+the ghost's leaf index (Galley allocates the lowest index without a
+row, while clients skip the ghost's leaf).
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won’t be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.

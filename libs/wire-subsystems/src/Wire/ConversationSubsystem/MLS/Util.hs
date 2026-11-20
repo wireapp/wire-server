@@ -61,8 +61,27 @@ logMLSClientMismatch proposalType target proposedClients heldClients gid epoch =
       . Log.field "targetUser" (toByteString' (show target))
       . Log.field "proposedClients" (toByteString' (show proposedClients))
       . Log.field "heldClients" (toByteString' (show heldClients))
-      . Log.field "groupId" ("0x" <> hex (unGroupId gid))
-      . Log.field "epoch" (epochNumber epoch)
+      . groupFields gid epoch
+
+-- | Report Remove proposals for leaves that had no member row (ghost clients,
+-- WPB-29949), so that their occurrence can be monitored.
+logUntrackedLeafRemovals ::
+  (Member TinyLog r) =>
+  GroupId ->
+  Epoch ->
+  Set.Set LeafIndex ->
+  Sem r ()
+logUntrackedLeafRemovals gid epoch indices =
+  unless (Set.null indices) $
+    TinyLog.warn $
+      Log.msg ("removing MLS leaves without a member row" :: ByteString)
+        . Log.field "leafIndices" (toByteString' (show (Set.toList indices)))
+        . groupFields gid epoch
+
+groupFields :: GroupId -> Epoch -> Log.Msg -> Log.Msg
+groupFields gid epoch =
+  Log.field "groupId" ("0x" <> hex (unGroupId gid))
+    . Log.field "epoch" (epochNumber epoch)
 
 getLocalConvForUser ::
   ( Member (Error ConversationSubsystemError) r,

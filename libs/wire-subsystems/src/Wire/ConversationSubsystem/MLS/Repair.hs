@@ -45,6 +45,7 @@ module Wire.ConversationSubsystem.MLS.Repair
     leaseStillHeld,
     rowsMatchTree,
     validatedGroupInfoDigest,
+    storedLeaves,
   )
 where
 
@@ -178,7 +179,7 @@ trustedDivergingLeaves ::
   Epoch ->
   Sem r (Maybe IndexMap)
 trustedDivergingLeaves convOrSub gid epoch =
-  storedLeaves convOrSub.id gid epoch >>= \case
+  storedLeaves repairSkipped convOrSub.id gid epoch >>= \case
     Just (raw, leaves)
       | not (rowsMatchTree convOrSub.indexMap convOrSub.members leaves) -> do
           validatedHash <- getGroupInfoValidatedHash convOrSub.id
@@ -217,16 +218,18 @@ rowsMatchTree indexMap activeMembers leaves =
     historyEntries im = [(idx, h) | (idx, HistoryClient h) <- imAssocs im]
 
 -- | The raw stored GroupInfo and its leaves, if it is decodable, belongs to
--- the group and is at the expected epoch.
+-- the group and is at the expected epoch. Otherwise, a warning is logged with
+-- the given message, saying what is skipped.
 storedLeaves ::
   ( Member ConversationStore r,
     Member TinyLog r
   ) =>
+  ByteString ->
   ConvOrSubConvId ->
   GroupId ->
   Epoch ->
   Sem r (Maybe (ByteString, IndexMap))
-storedLeaves convOrSubId gid epoch =
+storedLeaves skipped convOrSubId gid epoch =
   getConvOrSubGroupInfo convOrSubId >>= \case
     Nothing -> pure Nothing
     Just (GroupInfoData raw) ->
@@ -249,7 +252,7 @@ storedLeaves convOrSubId gid epoch =
                 Left e -> warnSkip "cannot extract leaves from stored groupinfo" (Log.field "detail" e)
                 Right leaves -> pure (Just (raw, leaves))
   where
-    warnSkip reason extra = TinyLog.warn (skipMsg gid reason extra) $> Nothing
+    warnSkip reason extra = TinyLog.warn (skipMsgWith skipped gid reason extra) $> Nothing
 
 -- | Release the commit lock unless the lease may have expired, in which case
 -- it is left to expire: a successor may hold it by now.
@@ -321,8 +324,14 @@ repairUnderLock convOrSub gid epoch deadline = do
           pure result.complete
 
 skipMsg :: GroupId -> ByteString -> (Log.Msg -> Log.Msg) -> Log.Msg -> Log.Msg
-skipMsg gid reason extra =
-  Log.msg ("skipping MLS member-client repair" :: ByteString)
+skipMsg = skipMsgWith repairSkipped
+
+repairSkipped :: ByteString
+repairSkipped = "skipping MLS member-client repair"
+
+skipMsgWith :: ByteString -> GroupId -> ByteString -> (Log.Msg -> Log.Msg) -> Log.Msg -> Log.Msg
+skipMsgWith skipped gid reason extra =
+  Log.msg skipped
     . groupIdField gid
     . Log.field "reason" reason
     . extra
