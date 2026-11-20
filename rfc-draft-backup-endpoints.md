@@ -18,28 +18,28 @@ later) prefix in their path: `/v19/backups/...`.
 This table describes the `<type>` placeholders used in described HTTP routes
 (paths) and payloads.
 
-| Type               | JSON / URL form                                                                                          | Example                                |
-| ------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                      | `4b2f7a9c1d3e5f60`                     |
-| `<UserId>`         | as in the rest of the Wire API (UUID)                                                                    | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
-| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                     | `2`                                    |
-| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                          | `01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07` |
-| `<FullId>`         | `<BackupFileId>`. The id of a full file is its `<FullId>`: the `id` of a finished full upload            | `01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07` |
-| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                    | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
-| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                           | `2026-11-12T10:15:30.123Z`             |
-| `<ByteCount>`      | number of bytes, non-negative integer                                                                    | `1048576`                              |
-| `<BackupFile>`     | `{"id": <BackupFileId>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}`                              | see below                              |
-| `<BackupFiles>`    | `{"full": <BackupFile>, "incrementals": [<BackupFile>]}`                                                 | see `GET …/epochs/<BackupEpoch>`       |
-| `<EpochSummary>`   | `{"epoch": <BackupEpoch>, "createdAt": <UTCTimeMillis>, "fileCount": <Word32>, "size": <ByteCount>}`     | see `GET /backups`                     |
-| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochSummary>]}`                                                     | see `GET /backups`                     |
-| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                           | `weekly`                               |
-| `<FeatureStatus>`  | `enabled` or `disabled`                                                                                  | `enabled`                              |
-| `<LockStatus>`     | `locked` or `unlocked`                                                                                   | `unlocked`                             |
-| `<Bool>`           | `true` or `false`                                                                                        | `false`                                |
-| `<Word32>`         | integer 0…4294967295                                                                                     | `12`                                   |
-| `<Url>`            | absolute URL                                                                                             | `https://s3.example.com/backup/…`      |
-| `<AccessToken>`    | as in the rest of the Wire API (bearer access token)                                                     | `eyJ…`                                 |
-| `<FeatureTTL>`     | as in the rest of the Wire API: `"unlimited"` or a number of seconds                                     | `"unlimited"`                          |
+| Type               | JSON / URL form                                                                                      | Example                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `<ClientId>`       | as in the rest of the Wire API (64-bit hex numeral)                                                  | `4b2f7a9c1d3e5f60`                     |
+| `<UserId>`         | as in the rest of the Wire API (UUID)                                                                | `9c1e7a52-3d84-4b6f-8e0a-71f2c5d9b3a4` |
+| `<BackupEpoch>`    | integer 1…4294967295 (0 is rejected with a 400 from the path parser)                                 | `2`                                    |
+| `<BackupFileId>`   | UUID (v7, assigned by the server; its time part is `createdAt`)                                      | `01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07` |
+| `<FullId>`         | `<BackupFileId>`. The id of a full file is its `<FullId>`: the `id` of a finished full upload        | `01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07` |
+| `<TeamId>`         | as in the rest of the Wire API (UUID)                                                                | `3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90` |
+| `<UTCTimeMillis>`  | ISO 8601 UTC with milliseconds                                                                       | `2026-11-12T10:15:30.123Z`             |
+| `<ByteCount>`      | number of bytes, non-negative integer                                                                | `1048576`                              |
+| `<BackupFile>`     | `{"id": <BackupFileId>, "size": <ByteCount>, "createdAt": <UTCTimeMillis>}`                          | see below                              |
+| `<BackupFiles>`    | `{"full": <BackupFile>, "incrementals": [<BackupFile>]}`                                             | see `GET …/epochs/<BackupEpoch>`       |
+| `<EpochSummary>`   | `{"epoch": <BackupEpoch>, "createdAt": <UTCTimeMillis>, "fileCount": <Word32>, "size": <ByteCount>}` | see `GET /backups`                     |
+| `<ClientBackups>`  | `{"client": <ClientId>, "epochs": [<EpochSummary>]}`                                                 | see `GET /backups`                     |
+| `<BackupSchedule>` | `daily`, `weekly` or `monthly`                                                                       | `weekly`                               |
+| `<FeatureStatus>`  | `enabled` or `disabled`                                                                              | `enabled`                              |
+| `<LockStatus>`     | `locked` or `unlocked`                                                                               | `unlocked`                             |
+| `<Bool>`           | `true` or `false`                                                                                    | `false`                                |
+| `<Word32>`         | integer 0…4294967295                                                                                 | `12`                                   |
+| `<Url>`            | absolute URL                                                                                         | `https://s3.example.com/backup/…`      |
+| `<AccessToken>`    | as in the rest of the Wire API (bearer access token)                                                 | `eyJ…`                                 |
+| `<FeatureTTL>`     | as in the rest of the Wire API: `"unlimited"` or a number of seconds                                 | `"unlimited"`                          |
 
 ---
 
@@ -128,22 +128,22 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
   - A client may read the backups of any client of the same user.
 - Write routes (POST):
   - `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`). I.e.
-  clients can only write for their own, never for others!
+    clients can only write for their own, never for others!
   - A stored file is always complete: the object only becomes visible once its
-  upload finished. A failed upload leaves no file.
+    upload finished. A failed upload leaves no file.
   - Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed;
-  otherwise only the newest stored epoch `N` or `N+1` (violations raise HTTP 409
-  `backup-epoch-not-allowed`).
+    otherwise only the newest stored epoch `N` or `N+1` (violations raise HTTP 409
+    `backup-epoch-not-allowed`).
   - A failed upload (fewer bytes than `Content-Length` arrive, client
-  disconnect, storage error, client removed meanwhile) removes the file and
-  surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
+    disconnect, storage error, client removed meanwhile) removes the file and
+    surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
   - **Size subtlety:** the server stores exactly the first `Content-Length` bytes
-  and ignores any excess, because the HTTP layer hands the handler no more than
-  that. Too many bytes can't be detected and give a successful upload of a
-  truncated file; too few give 400 `incomplete-body`. The response `size` is
-  the number of bytes stored, so clients should compare it with the number of
-  bytes they sent and, if it differs, upload a new full (for a full) or the
-  incremental again as a new file or a new full (for an incremental).
+    and ignores any excess, because the HTTP layer hands the handler no more than
+    that. Too many bytes can't be detected and give a successful upload of a
+    truncated file; too few give 400 `incomplete-body`. The response `size` is
+    the number of bytes stored, so clients should compare it with the number of
+    bytes they sent and, if it differs, upload a new full (for a full) or the
+    incremental again as a new file or a new full (for an incremental).
 
 ##### `/backups/clients/<ClientId>`
 
@@ -411,8 +411,8 @@ Example: `PUT /v19/teams/3f0c6d1a-9b7e-4c25-a1d8-6e2b5f4a7c90/features/automatic
 | 403    | `operation-denied`, `no-team-member` | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                         |
 | 404    | `backup-not-found`                   | `GET /backups` (`Z-Client` is not a client of the caller);<br>`GET /backups/clients/<ClientId>`, `GET …/epochs/<BackupEpoch>`,<br>`GET …/full/<FullId>[/incremental/<BackupFileId>]` (`Z-Client` or `<ClientId>` is not a client<br>of the caller; for the last two also no such epoch or file);<br>`POST`s, `DELETE /backups/clients/<ClientId>` (`<ClientId>` is not a client of the caller) |
 | 404    | `no-team`                            | `GET`, `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                         |
-| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental` (epoch rule);<br>`POST …/full` (two newer epochs were stored during the upload)                                                                                                                                                                                                                                                                             |
-| 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)<br>`POST …/full` and `…/incremental` (a newer full was stored during the upload)                                                                                                                                                                                                                                                                                                             |
+| 409    | `backup-epoch-not-allowed`           | `POST …/full`, `POST …/incremental` (epoch rule);<br>`POST …/full` (two newer epochs were stored during the upload)                                                                                                                                                                                                                                                                            |
+| 409    | `backup-full-missing`                | `POST …/full/<FullId>/incremental` (no full `<FullId>`, or not the current one)<br>`POST …/full` and `…/incremental` (a newer full was stored during the upload)                                                                                                                                                                                                                               |
 | 409    | `backup-too-many-files`              | `POST …/incremental`                                                                                                                                                                                                                                                                                                                                                                           |
 | 409    | `feature-locked`                     | `PUT /teams/<TeamId>/features/automaticBackups`                                                                                                                                                                                                                                                                                                                                                |
 | 413    | `backup-too-large`                   | `POST …/full`, `POST …/incremental` (declared `Content-Length` over the cap;<br>checked on the declared value, before any byte is read)                                                                                                                                                                                                                                                        |
@@ -442,8 +442,8 @@ The key layout is:
   backup deletion (see [Safe file management](#safe-file-management)). It is not
   an epoch, so listings ignore it.
 
-`uid` and `cid` are userId and clientId respectively. `h()` obfuscates them with
-an HMAC (see [Obfuscated ids (HMAC)](#obfuscated-ids-hmac)).
+`uid` and `cid` are userId and clientId respectively. `h()` obfuscates them by
+applying HMAC (see [Obfuscated ids (HMAC)](#obfuscated-ids-hmac)).
 
 Epochs and ids have the same form as in the API (see [Types](#types)). The
 server generates the ids per upload; the UUIDv7 time part gives `createdAt`, so
@@ -473,7 +473,6 @@ key, size and `LastModified`, but never user metadata or tags):
 | `id`, `fullId`, kind (full / incremental) | key segments                                          |
 | `size`                                    | listing `Size`                                        |
 | `createdAt`                               | UUIDv7 timestamp                                      |
-
 
 S3 has no notion of directories, only flat keys. A listing with a `Prefix` and
 the `Delimiter` `/` cuts every key after the prefix at the next `/` and returns
@@ -531,7 +530,7 @@ undeletable via the API.
 Presigned download URLs reveal `h(uid)` and `h(cid)` only: they link
 downloads of the same client, nothing more.
 
-Key rotation is left to be planned and implemented in the future, if required. This
+Key rotation is left to be planned and implemented in future, if required. This
 could involve a two-step process, first using the old key to then re-encode
 paths with the new one. For now, as this is about obfuscation of relationships
 and not encryption, we consider sticking with one HMAC secret as good enough.
@@ -541,36 +540,35 @@ and not encryption, we consider sticking with one HMAC secret as good enough.
 Constraints on epochs and files are:
 
 - A current epoch has exactly one current full and N incrementals under it.
-- Epoch rule: epochs are ≥ 1. With highest existing epoch N, uploads go to N or N+1.
+- Epoch rule: epochs are ≥ 1. With highest existing epoch N, uploads are allowed to N or N+1.
 - Only the two newest epochs of a client are kept (pruned after each full upload).
 - At most `maxFilesPerEpoch` current files per epoch including the full
   (concurrent incrementals can exceed it slightly). Size
-  caps: `maxFullBytes` (a full, default 1 GiB) and `maxIncrementalBytes` (an
+  caps: `maxFullBytes` (of a full backup, default 1 GiB) and `maxIncrementalBytes` (of an
   incremental, default 10 MiB). All three are Cargohold settings
-  (`settings.backupLimits`).
+  at `settings.backupLimits`.
 
 ### Safe file management
 
-This section argues, on the level of S3 keys, that backups are managed without
-locks, that no race leaves a file that should be gone, and that no race deletes a
-current file. What clients see (status codes) is described with the [API
+This section argues on the level of S3 keys that
+
+- backups can be managed without locks
+- no race leaves a file that should be gone
+- no race deletes a current file.
+
+This is very technical. The observed outcomes for clients are described with the [API
 endpoints](#api-endpoints).
 
 #### Assumptions
 
-- An S3 object becomes visible only when its upload completed (uploads are S3
-  multipart uploads, completed at the end). A visible file is always complete.
-- The store has strong list-after-write consistency: a listing shows every
-  object whose PUT completed before the listing started.
+- An S3 object becomes visible only when its upload completed.
+  - The AWS S3 store provides strong read-after-write consistency: a listing shows only
+    objects whose PUT completed before the listing started.
 - Deletes remove all versions (see [Deletion and versioned
   buckets](#deletion-and-versioned-buckets)) and are idempotent.
-- Brig's reads of client rows see its own completed writes.
-- Cargohold clocks are roughly synchronized (NTP), because ids are UUIDv7 (time
-  first). Within the clock skew, the order of ids can differ from the real order:
-  of two fulls started within the skew the earlier one may win, a full started
-  just before a deletion may get an id greater than its tombstone and survive it,
-  and an upload on a lagging instance just after a deletion may be rejected. The
-  skew never changes which full an incremental belongs to: that is in its key.
+- Brig's reads of client rows see its own completed writes. I.e. a client deletion is immediately visible afterwards.
+- Cargohold clocks are roughly synchronized (NTP), because they create UUIDv7
+  ids with encoded time which are later compared to others.
 
 #### State
 
@@ -584,6 +582,8 @@ There is no state besides the keys. Everything follows from a listing:
   < `t`.
 
 Every reader and every pruner computes the same result from the same listing.
+I.e. both are pure functions considering the given state as input and
+transformed state as output.
 
 #### Operations
 
@@ -598,7 +598,9 @@ Each operation writes first, then looks:
   5. Full only. Look: list the epochs; delete all but the kept ones. Fail if that
      includes the file's epoch.
 
-  A failure in 2 or 3 deletes the file. In 4 and 5 the file is already deleted.
+  A failure in 2 or 3 deletes the file. In 4 and 5 the failure means that step's
+  own cleanup already deleted the file (as superseded, or with its pruned epoch).
+
 - **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
   and delete everything `t` covers.
 - **Client removal:** Brig enqueues an event, then deletes the client row. The
@@ -625,13 +627,13 @@ Of the two looks, the later one starts after both writes have completed, so it
 sees both markers. Hence at least one side sees the other and cleans up. Both may
 do so; deletes are idempotent.
 
-| Race                                         | A writes, then looks at                | B writes, then looks at                      | Ends up deleted             | Deleted by                                      |
-| -------------------------------------------- | -------------------------------------- | -------------------------------------------- | --------------------------- | ----------------------------------------------- |
-| full F1 vs newer full F2, same epoch          | F1; epoch listing                      | F2; epoch listing                            | F1 and its incrementals     | F1 if it sees F2, else F2                       |
-| incremental I under F1 vs newer full F2       | I; epoch listing                       | F2; epoch listing                            | I (and F1)                  | I if it sees F2, else F2                        |
-| full of epoch N vs full of epoch N+2          | full in N; epoch list                  | full in N+2; epoch list                      | epoch N                     | N's upload if it sees N+2, else N+2's upload    |
-| upload vs client or user removal             | file; client row                       | row deletion; client prefix listing          | the file                    | upload if the row is gone, else the removal     |
-| upload vs client deleting its backups (`t`)  | file; tombstones                       | tombstone `t`; client prefix listing         | the file, if `t` covers it  | upload if it sees `t`, else the deletion        |
+| Race                                        | A writes, then looks at | B writes, then looks at              | Ends up deleted            | Deleted by                                   |
+| ------------------------------------------- | ----------------------- | ------------------------------------ | -------------------------- | -------------------------------------------- |
+| full F1 vs newer full F2, same epoch        | F1; epoch listing       | F2; epoch listing                    | F1 and its incrementals    | F1 if it sees F2, else F2                    |
+| incremental I under F1 vs newer full F2     | I; epoch listing        | F2; epoch listing                    | I (and F1)                 | I if it sees F2, else F2                     |
+| full of epoch N vs full of epoch N+2        | full in N; epoch list   | full in N+2; epoch list              | epoch N                    | N's upload if it sees N+2, else N+2's upload |
+| upload vs client or user removal            | file; client row        | row deletion; client prefix listing  | the file                   | upload if the row is gone, else the removal  |
+| upload vs client deleting its backups (`t`) | file; tombstones        | tombstone `t`; client prefix listing | the file, if `t` covers it | upload if it sees `t`, else the deletion     |
 
 Notes on the rows:
 
@@ -642,27 +644,33 @@ Notes on the rows:
   incremental of F2.
 - Epochs: a full of N+2 implies one of N+1 (epoch rule), so the later epoch
   listing sees three epochs and N is not kept.
-- Removal: the client row is the removal's marker. It is deleted before the
-  prefix is listed, so an upload that still sees the row completed its PUT
-  before the removal lists the prefix.
-- Client deletion: a file is covered or not by its `<FullId>`, i.e. by when its
-  full started, not by when it finished. Incrementals follow their full. Files of
-  fulls started after `t` are newer than `t` and kept by both sides.
+- Client or user removal: the removal first deletes the client row (its marker),
+  then lists the client prefix. The upload first PUTs its file, then reads the
+  row. If the upload sees the row gone, it deletes its own file. If it still sees
+  the row, the row deletion hasn't happened yet, so the removal's listing comes
+  later and finds the file.
+- Client backup deletion: the deletion PUTs tombstone `t`, then lists and deletes
+  covered files. The upload PUTs its file, then lists tombstones and deletes its
+  file if `t` covers it. Both sides use the same test: the file's `<FullId>`
+  (when its full started; incrementals inherit it) is less than `t`. Files of
+  fulls started after `t` are kept by both.
 
-Two concurrent deletions need no pattern: each deletes only what its own
-tombstone covers, so the newer tombstone survives the older sweep and keeps
+Two concurrent deletions need no special treatment: each deletes only what its
+own tombstone covers, so the newer tombstone survives the older sweep and keeps
 rejecting older uploads.
 
 The converse holds too: no current file is deleted. A file is only deleted when
 it is superseded (a full with a greater id is visible), not kept (two greater
 epochs are visible), covered by a tombstone, or its client is gone. None of these
 can be undone: a full that superseded a file is itself only deleted by a greater
-full, a covering tombstone or an epoch prune, and each of those removes the
-superseded file as well. The one exception is below (rolled-back full).
+full, a covering tombstone, an epoch prune or the removal of its client, and
+each of those removes the superseded file as well. A removed client stays
+removed. The one exception is below (rolled-back full).
 
 #### Special cases
 
-These don't follow the pattern. They are bounded:
+These don't follow the pattern. Each leaves only a limited, temporary
+inconsistency that a later operation cleans up (i.e. they are "bounded"):
 
 - **Incremental vs epoch pruning.** An incremental doesn't list the epochs. It
   can land in epoch N after a full of N+2 listed epoch N for deletion. Then
@@ -671,22 +679,28 @@ These don't follow the pattern. They are bounded:
   deletes epoch N (not kept), as does any deletion of the client's backups.
   These are the "epochs without a full" of `GET /backups`.
 - **File count cap.** It is checked before the PUT, so concurrent incrementals
-  can exceed it slightly.
+  can exceed it slightly. As the cap serves only to limit storage usage to a
+  reasonable amount, this is acceptable.
 - **Failed deletes.** Every delete above is retried by a later operation:
   superseded files by the next upload to the epoch, stale epochs by the next
-  full, covered files by the next deletion. The exception: if an upload's own
-  cleanup fails after it saw the client gone or a covering tombstone, the file
-  stays (and may be listed) until that client's next removal or deletion. For a
-  removed client that is the deletion of the user (by user prefix); until then the
-  file is unreachable (reads need a current client).
-- **Rolled-back full.** A full F2 is visible from its PUT until its looks in steps
-  2 and 3 finished. If a look fails for a transient reason (Brig or S3 error,
-  request cancelled), F2 is deleted again. A concurrent upload to the same epoch
-  that listed it meanwhile has already deleted the previous full F1 and its
+  full, files a tombstone covers by the client's next backup deletion (its
+  newer tombstone covers them too). The exception needs a race and a failing
+  delete at once, so it is very rare: an upload's own cleanup fails after it saw
+  - the client gone: only this one file stays in S3. No operation of the removed
+    client follows, so it stays until the user is deleted (by user prefix). It is
+    not listed or downloadable for the user's other clients: reads require the
+    backed-up client to be a current (non-deleted) client. This is decision is
+    made in the API layer, though.
+  - a covering tombstone: the file stays listed until the client's next backup
+    deletion.
+- **Rolled-back full.** A full F2 is visible from its PUT until its looks in
+  steps 2 and 3 finished. If a look fails for a transient reason (Brig or S3
+  error, request cancelled), F2 is deleted again. A concurrent upload to the same
+  epoch that listed it meanwhile has already deleted the previous full F1 and its
   incrementals as superseded. The epoch then has no full until the client uploads
-  a new one, which it does after the failed upload anyway. The other kept epoch is
-  untouched. (If the look fails because the client is gone or a tombstone covers
-  F2, F1 had to go as well.)
+  a new one, which it does after getting the response about the failed upload
+  anyway. The other kept epoch is untouched. (If the look fails because the
+  client is gone or a tombstone covers F2, F1 had to go as well.)
 
 #### No locks
 
@@ -865,4 +879,3 @@ flowchart LR
     CU --> S3[(S3)]
     CC --> S3
 ```
-
