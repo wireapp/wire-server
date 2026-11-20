@@ -181,14 +181,13 @@ Delete all backups of the client. `<ClientId>` must equal `Z-Client` (403
 `backup-forbidden` otherwise). The team flag `automaticBackups` is not checked, so
 a client can clean up while the feature is disabled. It succeeds if there is nothing to delete.
 
-Uploads that are still running when this is called are rejected (403 `backup-forbidden`) and
-leave no file behind. The same goes for incrementals under a full from before the call. Only
-an upload that finishes or starts within milliseconds of the call may instead answer 200 (and
-be deleted anyway) or be kept; either way the result is consistent (see [Safe file
-management](#safe-file-management)).
-
-Fulls that start uploading after the call returned (204) are kept, together with their incrementals, so they
-create backups again. The client should therefore stop scheduling uploads before it calls this.
+The deletion removes every file whose full was created before the call, and keeps every file
+whose full was created after it (see [Safe file management](#safe-file-management)). So uploads
+still running when this is called leave no file behind; they are rejected (403
+`backup-forbidden`). (One finishing at the very moment of the call may still answer 200; its
+file is removed all the same.) Fulls started after the call returned (204) are kept, together
+with their incrementals, so they create backups again. The client should therefore stop
+scheduling uploads before it calls this endpoint.
 
 Example: `DELETE /v19/backups/clients/4b2f7a9c1d3e5f60` → `204`
 
