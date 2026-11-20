@@ -77,10 +77,10 @@ import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.Cassandra.Queries qualified as Queries
-import Wire.ConversationStore.MLS.Reconcile (MlsReconcileOps (..), mlsReconcileOps)
+import Wire.ConversationStore.MLS.Reconcile (MlsReconcileOps (..), ReconcileResult (..), mlsReconcileOps)
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
-import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres, reconcileHistoryClientsImpl)
 import Wire.MigrationLock
 import Wire.Postgres
 import Wire.PostgresMigrationOpts (StorageLocation (..))
@@ -250,9 +250,9 @@ resetConversation cid groupId =
       Cql.resetConversation
       (params LocalQuorum (groupId, cid))
 
-setGroupInfo :: ConvId -> Maybe GroupInfoData -> Client ()
-setGroupInfo conv mGid =
-  write Cql.updateGroupInfo (params LocalQuorum (mGid, conv))
+setGroupInfo :: ConvId -> Maybe GroupInfoData -> Maybe ByteString -> Client ()
+setGroupInfo conv mGid mHash =
+  write Cql.updateGroupInfo (params LocalQuorum (mGid, toBlob <$> mHash, conv))
 
 getConversation :: ConvId -> Client (Maybe StoredConversation)
 getConversation conv = do
@@ -780,36 +780,70 @@ lookupMLSClientRows groupId =
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 
--- | Reconcile member-client rows with the tree leaves. History clients live
--- exclusively in Postgres in the dual-write era, so the diff covers member
--- rows only here.
+-- | Reconcile the rows of a Cassandra-resident group with the tree leaves.
+-- History clients live exclusively in Postgres in the dual-write era, so
+-- their rows are reconciled there; member rows are reconciled in Cassandra.
+reconcileCassandraResidentClients ::
+  (PGConstraints r) =>
+  ClientState ->
+  GroupId ->
+  IndexMap ->
+  Set.Set LeafIndex ->
+  UTCTime ->
+  Sem r ReconcileResult
+reconcileCassandraResidentClients client gid leaves pendingLeaves deadline = do
+  currentTime <- liftIO getCurrentTime
+  if currentTime >= deadline
+    then pure mempty {complete = False}
+    else do
+      historyResult <- reconcileHistoryClientsImpl gid leaves pendingLeaves
+      memberResult <- embedClient client $ reconcileMemberClients gid leaves pendingLeaves deadline
+      pure (historyResult <> memberResult)
+
+-- | Reconcile member-client rows with the tree leaves.
 --
 -- Removal planning ('planClientRemoval') does not take the commit lock, so a
 -- row may be marked pending after the rows were read. Every write is therefore
 -- a lightweight transaction that is a no-op on an existing row (insert) or on
--- a pending row (leaf update, delete), and never touches @removal_pending@.
--- Returns the number of applied (insert, update, delete) writes.
-reconcileMLSClients :: GroupId -> IndexMap -> Client (Int, Int, Int)
-reconcileMLSClients groupId leaves = do
+-- a pending row (leaf update, delete); only inserts set @removal_pending@.
+--
+-- The writes run serially, so no write is started after the deadline: the
+-- caller holds the commit lock only for a bounded lease.
+reconcileMemberClients :: GroupId -> IndexMap -> Set.Set LeafIndex -> UTCTime -> Client ReconcileResult
+reconcileMemberClients groupId leaves pendingLeaves deadline = do
   memberRows <- lookupMLSClientRows groupId
-  let ops = mlsReconcileOps memberRows [] leaves
-  ins <- for ops.roMemberInsert $ \(dom, usr, c, idx) ->
-    lwt Cql.insertMLSClientIfNotExists (groupId, dom, usr, c, idx)
-  upd <- for ops.roMemberUpdateLeaf $ \(dom, usr, c, idx) ->
-    lwt Cql.updateMLSClientLeafIfNotPending (idx, groupId, dom, usr, c)
-  del <- for ops.roMemberDelete $ \(dom, usr, c) ->
-    lwt Cql.removeMLSClientIfNotPending (groupId, dom, usr, c)
-  pure (applied ins, applied upd, applied del)
+  let ops = mlsReconcileOps memberRows [] pendingLeaves leaves
+      writes =
+        [ (mempty {inserted = 1}, lwt Cql.insertMLSClientIfNotExists (groupId, dom, usr, c, idx, pending))
+        | (dom, usr, c, idx, pending) <- ops.roMemberInsert
+        ]
+          <> [ (mempty {updated = 1}, lwt Cql.updateMLSClientLeafIfNotPending (idx, groupId, dom, usr, c))
+             | (dom, usr, c, idx) <- ops.roMemberUpdateLeaf
+             ]
+          <> [ (mempty {deleted = 1}, lwt Cql.removeMLSClientIfNotPending (groupId, dom, usr, c))
+             | (dom, usr, c) <- ops.roMemberDelete
+             ]
+  foldlM step mempty writes
   where
+    step :: ReconcileResult -> (ReconcileResult, Client Bool) -> Client ReconcileResult
+    step acc (delta, runWrite)
+      | not acc.complete = pure acc
+      | otherwise = do
+          currentTime <- liftIO getCurrentTime
+          if currentTime >= deadline
+            then pure acc {complete = False}
+            else runWrite <&> \applied -> if applied then acc <> delta else acc
+
+    -- A single retry, unlike the usual x5: it bounds how long a write
+    -- started just before the deadline can still run (two attempts of at most
+    -- the request timeout each, within the remaining half of the lease). A
+    -- failed write is picked up by the next repair.
     lwt :: (Tuple p) => PrepQuery W p Row -> p -> Client Bool
     lwt q p =
       checkTransSuccess
         <$> retry
-          x5
+          x1
           (trans q (params LocalQuorum p) {serialConsistency = Just LocalSerialConsistency})
-
-    applied :: [Bool] -> Int
-    applied = length . filter id
 
 getGroupInfoValidatedHash :: ConvOrSubConvId -> Client (Maybe ByteString)
 getGroupInfoValidatedHash convOrSub =
@@ -819,15 +853,8 @@ getGroupInfoValidatedHash convOrSub =
     SubConv cid sub ->
       retry x5 (query1 Cql.selectSubConvGroupInfoValidatedHash (params LocalQuorum (cid, sub)))
 
-setGroupInfoValidatedHash :: ConvOrSubConvId -> Maybe ByteString -> Client ()
-setGroupInfoValidatedHash convOrSub mHash =
-  retry x5 $ case convOrSub of
-    Conv cid ->
-      write Cql.updateGroupInfoValidatedHash (params LocalQuorum (blob, cid))
-    SubConv cid sub ->
-      write Cql.updateSubConvGroupInfoValidatedHash (params LocalQuorum (blob, cid, sub))
-  where
-    blob = Blob . LBS.fromStrict <$> mHash
+toBlob :: ByteString -> Blob
+toBlob = Blob . LBS.fromStrict
 
 -----------------------------------------------------------------------------------------
 -- SUB CONVERSATION STORE
@@ -879,9 +906,9 @@ insertSubConversation convId subConvId groupId = do
     )
   pure (newSubConversation convId subConvId groupId)
 
-updateSubConvGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> Client ()
-updateSubConvGroupInfo convId subConvId mGroupInfo =
-  retry x5 (write Cql.updateSubConvGroupInfo (params LocalQuorum (convId, subConvId, mGroupInfo)))
+updateSubConvGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> Maybe ByteString -> Client ()
+updateSubConvGroupInfo convId subConvId mGroupInfo mHash =
+  retry x5 (write Cql.updateSubConvGroupInfo (params LocalQuorum (convId, subConvId, mGroupInfo, toBlob <$> mHash)))
 
 selectSubConvGroupInfo :: ConvId -> SubConvId -> Client (Maybe GroupInfoData)
 selectSubConvGroupInfo convId subConvId =
@@ -1019,9 +1046,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   DeleteConversation cid -> do
     logEffect "ConversationStore.DeleteConversation"
     embedClient client $ deleteConversation cid
-  SetGroupInfo cid gib -> do
+  SetGroupInfo cid gib mHash -> do
     logEffect "ConversationStore.SetGroupInfo"
-    embedClient client $ setGroupInfo cid gib
+    embedClient client $ setGroupInfo cid gib mHash
   UpdateToMixedProtocol cid groupId epoch -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
     updateToMixedProtocol client cid groupId epoch
@@ -1090,15 +1117,12 @@ interpretConversationStoreToCassandra client = interpret $ \case
   UpsertMLSClient gid ci idx -> do
     logEffect "ConversationStore.UpsertMLSClient"
     embedClient client $ addMLSClients gid (cidQualifiedUser ci) (Set.singleton (ciClient ci, idx))
-  ReconcileMLSClients gid leaves -> do
+  ReconcileMLSClients gid leaves pendingLeaves deadline -> do
     logEffect "ConversationStore.ReconcileMLSClients"
-    embedClient client $ reconcileMLSClients gid leaves
+    reconcileCassandraResidentClients client gid leaves pendingLeaves deadline
   GetGroupInfoValidatedHash convOrSub -> do
     logEffect "ConversationStore.GetGroupInfoValidatedHash"
     embedClient client $ getGroupInfoValidatedHash convOrSub
-  SetGroupInfoValidatedHash convOrSub mHash -> do
-    logEffect "ConversationStore.SetGroupInfoValidatedHash"
-    embedClient client $ setGroupInfoValidatedHash convOrSub mHash
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
@@ -1140,9 +1164,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetSubConversationEpoch convId subConvId -> do
     logEffect "ConversationStore.GetSubConversationEpoch"
     embedClient client $ selectSubConvEpoch convId subConvId
-  SetSubConversationGroupInfo convId subConvId mPgs -> do
+  SetSubConversationGroupInfo convId subConvId mPgs mHash -> do
     logEffect "ConversationStore.SetSubConversationGroupInfo"
-    embedClient client $ updateSubConvGroupInfo convId subConvId mPgs
+    embedClient client $ updateSubConvGroupInfo convId subConvId mPgs mHash
   SetSubConversationEpoch cid sconv epoch -> do
     logEffect "ConversationStore.SetSubConversationEpoch"
     embedClient client $ setEpochForSubConversation cid sconv epoch
@@ -1360,12 +1384,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     withMigrationLockAndCleanup client LockShared (Left cid) $ do
       embedClient client $ deleteConversation cid
       interpretConversationStoreToPostgres (ConvStore.deleteConversation cid)
-  SetGroupInfo cid gib -> do
+  SetGroupInfo cid gib mHash -> do
     logEffect "ConversationStore.SetGroupInfo"
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
-        False -> embedClient client $ setGroupInfo cid gib
-        True -> interpretConversationStoreToPostgres (ConvStore.setGroupInfo cid gib)
+        False -> embedClient client $ setGroupInfo cid gib mHash
+        True -> interpretConversationStoreToPostgres (ConvStore.setGroupInfo cid gib mHash)
   UpdateToMixedProtocol cid groupId epoch -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
     withMigrationLockAndCleanup client LockShared (Left cid) $
@@ -1515,25 +1539,19 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ addMLSClients gid (cidQualifiedUser ci) (Set.singleton (ciClient ci, idx))
         True -> interpretConversationStoreToPostgres (ConvStore.upsertMLSClient gid ci idx)
-  ReconcileMLSClients gid leaves -> do
+  ReconcileMLSClients gid leaves pendingLeaves deadline -> do
     logEffect "ConversationStore.ReconcileMLSClients"
     cid <- groupIdToConvId gid
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
-        False -> embedClient client $ reconcileMLSClients gid leaves
-        True -> interpretConversationStoreToPostgres (ConvStore.reconcileMLSClients gid leaves)
+        False -> reconcileCassandraResidentClients client gid leaves pendingLeaves deadline
+        True -> interpretConversationStoreToPostgres (ConvStore.reconcileMLSClients gid leaves pendingLeaves deadline)
   GetGroupInfoValidatedHash convOrSub -> do
     logEffect "ConversationStore.GetGroupInfoValidatedHash"
     withMigrationLockAndCleanup client LockShared (Left convOrSub.conv) $
       isConvInPostgres convOrSub.conv >>= \case
         False -> embedClient client $ getGroupInfoValidatedHash convOrSub
         True -> interpretConversationStoreToPostgres $ ConvStore.getGroupInfoValidatedHash convOrSub
-  SetGroupInfoValidatedHash convOrSub mHash -> do
-    logEffect "ConversationStore.SetGroupInfoValidatedHash"
-    withMigrationLockAndCleanup client LockShared (Left convOrSub.conv) $
-      isConvInPostgres convOrSub.conv >>= \case
-        False -> embedClient client $ setGroupInfoValidatedHash convOrSub mHash
-        True -> interpretConversationStoreToPostgres $ ConvStore.setGroupInfoValidatedHash convOrSub mHash
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
     interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
@@ -1606,12 +1624,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres convId >>= \case
         False -> embedClient client $ selectSubConvEpoch convId subConvId
         True -> interpretConversationStoreToPostgres $ ConvStore.getSubConversationEpoch convId subConvId
-  SetSubConversationGroupInfo convId subConvId mPgs -> do
+  SetSubConversationGroupInfo convId subConvId mPgs mHash -> do
     logEffect "ConversationStore.SetSubConversationGroupInfo"
     withMigrationLockAndCleanup client LockShared (Left convId) $
       isConvInPostgres convId >>= \case
-        False -> embedClient client $ updateSubConvGroupInfo convId subConvId mPgs
-        True -> interpretConversationStoreToPostgres $ ConvStore.setSubConversationGroupInfo convId subConvId mPgs
+        False -> embedClient client $ updateSubConvGroupInfo convId subConvId mPgs mHash
+        True -> interpretConversationStoreToPostgres $ ConvStore.setSubConversationGroupInfo convId subConvId mPgs mHash
   SetSubConversationEpoch cid sconv epoch -> do
     logEffect "ConversationStore.SetSubConversationEpoch"
     withMigrationLockAndCleanup client LockShared (Left cid) $

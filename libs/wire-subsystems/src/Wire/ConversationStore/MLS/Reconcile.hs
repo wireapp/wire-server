@@ -26,6 +26,7 @@
 module Wire.ConversationStore.MLS.Reconcile
   ( MlsReconcileOps (..),
     mlsReconcileOps,
+    ReconcileResult (..),
   )
 where
 
@@ -33,22 +34,49 @@ import Data.Domain (Domain)
 import Data.Id (ClientId, HistoryClientId, UserId)
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Imports
 import Wire.API.MLS.Credential (ClientIdentity (..), GroupMember (..))
+import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.ConversationStore.MLS.Types (IndexMap, unIndexMap)
 
 -- | The writes needed to bring the member-client rows in line with the
 -- ratchet-tree leaves.
 data MlsReconcileOps = MlsReconcileOps
-  { -- | leaf, removal_pending = false
-    roMemberInsert :: [(Domain, UserId, ClientId, Int32)],
+  { -- | leaf, removal_pending
+    roMemberInsert :: [(Domain, UserId, ClientId, Int32, Bool)],
     roMemberUpdateLeaf :: [(Domain, UserId, ClientId, Int32)],
     roMemberDelete :: [(Domain, UserId, ClientId)],
-    roHistoryInsert :: [(HistoryClientId, Int32)],
+    -- | leaf, removal_pending
+    roHistoryInsert :: [(HistoryClientId, Int32, Bool)],
     roHistoryUpdateLeaf :: [(HistoryClientId, Int32)],
     roHistoryDelete :: [HistoryClientId]
   }
   deriving stock (Eq, Show)
+
+-- | Outcome of applying a reconcile: the number of rows actually written
+-- (guarded writes may be no-ops) and whether every planned write was
+-- attempted. An incomplete reconcile stopped at its deadline; the writes are
+-- idempotent, so a later attempt picks up the remaining diff.
+data ReconcileResult = ReconcileResult
+  { inserted :: Int,
+    updated :: Int,
+    deleted :: Int,
+    complete :: Bool
+  }
+  deriving stock (Eq, Show)
+
+instance Semigroup ReconcileResult where
+  a <> b =
+    ReconcileResult
+      { inserted = a.inserted + b.inserted,
+        updated = a.updated + b.updated,
+        deleted = a.deleted + b.deleted,
+        complete = a.complete && b.complete
+      }
+
+instance Monoid ReconcileResult where
+  mempty = ReconcileResult {inserted = 0, updated = 0, deleted = 0, complete = True}
 
 -- | Compute the diff between the current rows and the tree leaves.
 --
@@ -57,7 +85,9 @@ data MlsReconcileOps = MlsReconcileOps
 --   * Rows with @removal_pending == True@ are ignored entirely: their leaf is
 --     still occupied in the clients' trees and pending remove proposals must
 --     stay resolvable.
---   * A tree leaf with no row is inserted (pending = false).
+--   * A tree leaf with no row is inserted. It is inserted as pending if a
+--     backend remove proposal for its leaf is still outstanding (the row was
+--     lost after the removal was planned), else as active.
 --   * A row whose leaf differs from the tree leaf is updated.
 --   * A non-pending row whose client is absent from the tree is deleted (the
 --     row-write of a previous commit was lost).
@@ -66,10 +96,12 @@ mlsReconcileOps ::
   [(Domain, UserId, ClientId, Int32, Bool)] ->
   -- | Current @mls_history_client@ rows
   [(HistoryClientId, Int32, Bool)] ->
+  -- | Leaves targeted by pending backend remove proposals
+  Set LeafIndex ->
   -- | Tree leaves (as extracted from the stored GroupInfo)
   IndexMap ->
   MlsReconcileOps
-mlsReconcileOps members history leaves =
+mlsReconcileOps members history pendingLeaves leaves =
   let (mIns, mUpd, mDel) =
         diffRows
           ( Map.fromList
@@ -83,18 +115,18 @@ mlsReconcileOps members history leaves =
           (Map.fromList [(h, fromIntegral i) | (i, HistoryClient h) <- IntMap.assocs treeMembers])
           (Map.fromList [(k, (leafIdx, pending)) | (k, leafIdx, pending) <- history])
    in MlsReconcileOps
-        { roMemberInsert = [withKey k l | (k, l) <- mIns],
-          roMemberUpdateLeaf = [withKey k l | (k, l) <- mUpd],
+        { roMemberInsert = [(dom, usr, cid, l, isPending l) | ((dom, usr, cid), l) <- mIns],
+          roMemberUpdateLeaf = [(dom, usr, cid, l) | ((dom, usr, cid), l) <- mUpd],
           roMemberDelete = mDel,
-          roHistoryInsert = hIns,
+          roHistoryInsert = [(h, l, isPending l) | (h, l) <- hIns],
           roHistoryUpdateLeaf = hUpd,
           roHistoryDelete = hDel
         }
   where
     treeMembers = unIndexMap leaves
 
-    withKey :: (Domain, UserId, ClientId) -> Int32 -> (Domain, UserId, ClientId, Int32)
-    withKey (dom, usr, cid) l = (dom, usr, cid, l)
+    isPending :: Int32 -> Bool
+    isPending l = Set.member (fromIntegral l) pendingLeaves
 
     -- The three reconcile rules for one row kind. Pending rows block inserts
     -- (any row, incl. pending) but are never updated or deleted.

@@ -17,7 +17,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres) where
+module Wire.ConversationStore.Postgres
+  ( interpretConversationStoreToPostgres,
+    reconcileHistoryClientsImpl,
+  )
+where
 
 import Control.Monad.Trans.Maybe
 import Data.Domain
@@ -58,7 +62,7 @@ import Wire.API.Pagination
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
 import Wire.ConversationStore
-import Wire.ConversationStore.MLS.Reconcile (MlsReconcileOps (..), mlsReconcileOps)
+import Wire.ConversationStore.MLS.Reconcile (MlsReconcileOps (..), ReconcileResult (..), mlsReconcileOps)
 import Wire.ConversationStore.MLS.Types
 import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
@@ -89,7 +93,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetConversationCellsState cid ps -> setConversationCellsStateImpl cid ps
   ResetConversation cid groupId -> resetConversationImpl cid groupId
   DeleteConversation cid -> deleteConversationImpl cid
-  SetGroupInfo cid gib -> setGroupInfoImpl cid gib
+  SetGroupInfo cid gib mHash -> setGroupInfoImpl cid gib mHash
   UpdateToMixedProtocol cid gid epoch -> updateToMixedProtocolImpl cid gid epoch
   UpdateToMLSProtocol cid -> updateToMLSProtocolImpl cid
   UpdateChannelAddPermissions cid cap -> updateChannelAddPermissionsImpl cid cap
@@ -120,15 +124,19 @@ interpretConversationStoreToPostgres = interpret $ \case
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
   LookupHistoryClients gid -> lookupHistoryClientsImpl gid
-  ReconcileMLSClients gid leaves -> reconcileMLSClientsImpl gid leaves
+  -- One pipeline per row kind, without a per-write deadline check: the
+  -- writes are batched, so they do not scale with the number of rows.
+  ReconcileMLSClients gid leaves pendingLeaves _deadline ->
+    (<>)
+      <$> reconcileMemberClientsImpl gid leaves pendingLeaves
+      <*> reconcileHistoryClientsImpl gid leaves pendingLeaves
   GetGroupInfoValidatedHash convOrSub -> getGroupInfoValidatedHashImpl convOrSub
-  SetGroupInfoValidatedHash convOrSub mHash -> setGroupInfoValidatedHashImpl convOrSub mHash
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
   UpsertSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
   GetSubConversationGroupInfo convId subConvId -> getSubConversationGroupInfoImpl convId subConvId
   GetSubConversationEpoch convId subConvId -> getSubConversationEpochImpl convId subConvId
-  SetSubConversationGroupInfo convId subConvId mPgs -> setSubConversationGroupInfoImpl convId subConvId mPgs
+  SetSubConversationGroupInfo convId subConvId mPgs mHash -> setSubConversationGroupInfoImpl convId subConvId mPgs mHash
   SetSubConversationEpoch cid sconv epoch -> setSubConversationEpochImpl cid sconv epoch
   SetSubConversationCipherSuite cid sconv cs -> setSubConversationCipherSuiteImpl cid sconv cs
   ListSubConversations cid -> listSubConversationsImpl cid
@@ -547,15 +555,16 @@ resetConversationImpl convId groupId =
                              public_group_state = NULL
                              WHERE id = ($1 :: uuid)|]
 
-setGroupInfoImpl :: (PGConstraints r) => ConvId -> Maybe GroupInfoData -> Sem r ()
-setGroupInfoImpl convId groupInfo =
-  runStatement (convId, groupInfo) update
+setGroupInfoImpl :: (PGConstraints r) => ConvId -> Maybe GroupInfoData -> Maybe ByteString -> Sem r ()
+setGroupInfoImpl convId groupInfo mHash =
+  runStatement (convId, groupInfo, mHash) update
   where
-    update :: Hasql.Statement (ConvId, Maybe GroupInfoData) ()
+    update :: Hasql.Statement (ConvId, Maybe GroupInfoData, Maybe ByteString) ()
     update =
       lmapPG
         [resultlessStatement|UPDATE conversation
-                             SET public_group_state = ($2 :: bytea?)
+                             SET public_group_state = ($2 :: bytea?),
+                                 group_info_validated_hash = ($3 :: bytea?)
                              WHERE id = ($1 :: uuid)|]
 
 updateChannelAddPermissionsImpl :: (PGConstraints r) => ConvId -> AddPermission -> Sem r ()
@@ -1142,38 +1151,39 @@ selectHistoryClients =
 lookupHistoryClientsImpl :: (PGConstraints r) => GroupId -> Sem r [(HistoryClientId, Int32, Bool)]
 lookupHistoryClientsImpl gid = runStatement gid selectHistoryClients
 
-reconcileMLSClientsImpl :: (PGConstraints r) => GroupId -> IndexMap -> Sem r (Int, Int, Int)
-reconcileMLSClientsImpl gid leaves = do
+-- | A completed reconcile from the (insert, update, delete) row counts.
+countsResult :: (Int64, Int64, Int64) -> ReconcileResult
+countsResult (ins, upd, del) =
+  ReconcileResult
+    { inserted = fromIntegral ins,
+      updated = fromIntegral upd,
+      deleted = fromIntegral del,
+      complete = True
+    }
+
+-- | Reconcile the member-client rows of a Postgres-resident group.
+reconcileMemberClientsImpl :: (PGConstraints r) => GroupId -> IndexMap -> Set LeafIndex -> Sem r ReconcileResult
+reconcileMemberClientsImpl gid leaves pendingLeaves = do
   memberRows <- runStatement gid selectMLSClients
-  historyRows <- runStatement gid selectHistoryClients
-  let ops = mlsReconcileOps memberRows historyRows leaves
-      (insDomains, insUsers, insClients, insLeaves) = unzip4 ops.roMemberInsert
+  let ops = mlsReconcileOps memberRows [] pendingLeaves leaves
+      (insDomains, insUsers, insClients, insLeaves, insPending) = unzip5 ops.roMemberInsert
       (updDomains, updUsers, updClients, updLeaves) = unzip4 ops.roMemberUpdateLeaf
       (delDomains, delUsers, delClients) = unzip3 ops.roMemberDelete
-      (insHistoryIds, insHistoryLeaves) = unzip ops.roHistoryInsert
-      (updHistoryIds, updHistoryLeaves) = unzip ops.roHistoryUpdateLeaf
-  (insMembers, updMembers, delMembers, insHistory, updHistory, delHistory) <-
-    runPipeline $
-      (,,,,,)
-        <$> Pipeline.statement (gid, insDomains, insUsers, insClients, insLeaves) insertMembers
-        <*> Pipeline.statement (gid, updDomains, updUsers, updClients, updLeaves) updateMemberLeaves
-        <*> Pipeline.statement (gid, delDomains, delUsers, delClients) deleteStaleMembers
-        <*> Pipeline.statement (gid, insHistoryIds, insHistoryLeaves) insertHistoryClients
-        <*> Pipeline.statement (gid, updHistoryIds, updHistoryLeaves) updateHistoryLeaves
-        <*> Pipeline.statement (gid, ops.roHistoryDelete) deleteHistoryClients
-  pure
-    ( fromIntegral (insMembers + insHistory),
-      fromIntegral (updMembers + updHistory),
-      fromIntegral (delMembers + delHistory)
-    )
+  countsResult
+    <$> runPipeline
+      ( (,,)
+          <$> Pipeline.statement (gid, insDomains, insUsers, insClients, insLeaves, insPending) insertMembers
+          <*> Pipeline.statement (gid, updDomains, updUsers, updClients, updLeaves) updateMemberLeaves
+          <*> Pipeline.statement (gid, delDomains, delUsers, delClients) deleteStaleMembers
+      )
   where
-    insertMembers :: Hasql.Statement (GroupId, [Domain], [UserId], [ClientId], [Int32]) Int64
+    insertMembers :: Hasql.Statement (GroupId, [Domain], [UserId], [ClientId], [Int32], [Bool]) Int64
     insertMembers =
-      lmapPG @(ByteString, Vector Text, Vector UUID, Vector Text, Vector Int32) @(GroupId, [Domain], [UserId], [ClientId], [Int32])
+      lmapPG @(ByteString, Vector Text, Vector UUID, Vector Text, Vector Int32, Vector Bool) @(GroupId, [Domain], [UserId], [ClientId], [Int32], [Bool])
         [rowsAffectedStatement|INSERT INTO mls_group_member_client
                              (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
-                             SELECT g.group_id, t.domain, t.usr, t.client, t.idx, false
-                             FROM UNNEST($2 :: text[], $3 :: uuid[], $4 :: text[], $5 :: integer[]) AS t(domain, usr, client, idx)
+                             SELECT g.group_id, t.domain, t.usr, t.client, t.idx, t.pending
+                             FROM UNNEST($2 :: text[], $3 :: uuid[], $4 :: text[], $5 :: integer[], $6 :: boolean[]) AS t(domain, usr, client, idx, pending)
                              CROSS JOIN (SELECT ($1 :: bytea) AS group_id) g
                              ON CONFLICT (group_id, user_domain, "user", client) DO NOTHING
                             |]
@@ -1203,13 +1213,29 @@ reconcileMLSClientsImpl gid leaves = do
                              AND NOT removal_pending
                             |]
 
-    insertHistoryClients :: Hasql.Statement (GroupId, [HistoryClientId], [Int32]) Int64
+-- | Reconcile the history-client rows of a group. History clients are stored
+-- in Postgres only, whichever store holds the rest of the group.
+reconcileHistoryClientsImpl :: (PGConstraints r) => GroupId -> IndexMap -> Set LeafIndex -> Sem r ReconcileResult
+reconcileHistoryClientsImpl gid leaves pendingLeaves = do
+  historyRows <- runStatement gid selectHistoryClients
+  let ops = mlsReconcileOps [] historyRows pendingLeaves leaves
+      (insIds, insLeaves, insPending) = unzip3 ops.roHistoryInsert
+      (updIds, updLeaves) = unzip ops.roHistoryUpdateLeaf
+  countsResult
+    <$> runPipeline
+      ( (,,)
+          <$> Pipeline.statement (gid, insIds, insLeaves, insPending) insertHistoryClients
+          <*> Pipeline.statement (gid, updIds, updLeaves) updateHistoryLeaves
+          <*> Pipeline.statement (gid, ops.roHistoryDelete) deleteHistoryClients
+      )
+  where
+    insertHistoryClients :: Hasql.Statement (GroupId, [HistoryClientId], [Int32], [Bool]) Int64
     insertHistoryClients =
-      lmapPG @(ByteString, Vector UUID, Vector Int32) @(GroupId, [HistoryClientId], [Int32])
+      lmapPG @(ByteString, Vector UUID, Vector Int32, Vector Bool) @(GroupId, [HistoryClientId], [Int32], [Bool])
         [rowsAffectedStatement|INSERT INTO mls_history_client
                              (group_id, id, leaf_node_index, removal_pending)
-                             SELECT g.group_id, t.id, t.idx, false
-                             FROM UNNEST($2 :: uuid[], $3 :: integer[]) AS t(id, idx)
+                             SELECT g.group_id, t.id, t.idx, t.pending
+                             FROM UNNEST($2 :: uuid[], $3 :: integer[], $4 :: boolean[]) AS t(id, idx, pending)
                              CROSS JOIN (SELECT ($1 :: bytea) AS group_id) g
                              ON CONFLICT (group_id, id) DO NOTHING
                             |]
@@ -1255,28 +1281,6 @@ getGroupInfoValidatedHashImpl = \case
                         WHERE conv_id = ($1 :: uuid)
                         AND subconv_id = ($2 :: text)
                        |]
-
-setGroupInfoValidatedHashImpl :: (PGConstraints r) => ConvOrSubConvId -> Maybe ByteString -> Sem r ()
-setGroupInfoValidatedHashImpl convOrSub mHash = case convOrSub of
-  Conv cid -> runStatement (cid, mHash) updateConv
-  SubConv cid sub -> runStatement (cid, sub, mHash) updateSubConv
-  where
-    updateConv :: Hasql.Statement (ConvId, Maybe ByteString) ()
-    updateConv =
-      lmapPG
-        [resultlessStatement|UPDATE conversation
-                             SET group_info_validated_hash = ($2 :: bytea?)
-                             WHERE id = ($1 :: uuid)
-                            |]
-
-    updateSubConv :: Hasql.Statement (ConvId, SubConvId, Maybe ByteString) ()
-    updateSubConv =
-      lmapPG
-        [resultlessStatement|UPDATE subconversation
-                             SET group_info_validated_hash = ($3 :: bytea?)
-                             WHERE conv_id = ($1 :: uuid)
-                             AND subconv_id = ($2 :: text)
-                            |]
 
 lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl gid = do
@@ -1368,15 +1372,16 @@ getSubConversationEpochImpl cid subConvId =
                         AND subconv_id = ($2 :: text)
                        |]
 
-setSubConversationGroupInfoImpl :: (PGConstraints r) => ConvId -> SubConvId -> Maybe GroupInfoData -> Sem r ()
-setSubConversationGroupInfoImpl cid subConvId mGroupInfo =
-  runStatement (cid, subConvId, mGroupInfo) update
+setSubConversationGroupInfoImpl :: (PGConstraints r) => ConvId -> SubConvId -> Maybe GroupInfoData -> Maybe ByteString -> Sem r ()
+setSubConversationGroupInfoImpl cid subConvId mGroupInfo mHash =
+  runStatement (cid, subConvId, mGroupInfo, mHash) update
   where
-    update :: Hasql.Statement (ConvId, SubConvId, Maybe GroupInfoData) ()
+    update :: Hasql.Statement (ConvId, SubConvId, Maybe GroupInfoData, Maybe ByteString) ()
     update =
       lmapPG
         [resultlessStatement|UPDATE subconversation
-                             SET public_group_state = ($3 :: bytea?)
+                             SET public_group_state = ($3 :: bytea?),
+                                 group_info_validated_hash = ($4 :: bytea?)
                              WHERE conv_id = ($1 :: uuid)
                              AND subconv_id = ($2 :: text)
                             |]

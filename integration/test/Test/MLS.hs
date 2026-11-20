@@ -1069,8 +1069,9 @@ testExternalCommitDuplicateClient = do
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
 -- | A ghost client (lost member-client row) is healed from the stored ratchet
--- tree on the next commit bundle. Remove/re-add then works again
--- (no 400 mls-invalid-leaf-node-index).
+-- tree on the next commit bundle, here a first join of another client.
+-- Remove/re-add then works again (no 400 mls-invalid-leaf-node-index). The
+-- affected client's own rejoin is covered by 'testGhostClientRejoin'.
 testGhostMemberRowRepair :: (HasCallStack) => App ()
 testGhostMemberRowRepair = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
@@ -1188,6 +1189,132 @@ testGhostRepairIgnoresUnvalidatedTree = do
   -- deleted and charlie1's inserted.
   rows <- getMemberClientRows alice convId
   sort rows `shouldMatch` sort [(alice1.user, alice1.client, 0 :: Word32), (bob1.user, bob1.client, 1)]
+
+-- | WPB-29949: the affected client itself rejoins by external commit (with a
+-- self-remove of its old leaf) after its member-client row was lost. The row
+-- is restored before the rejoin is validated, so the rejoin succeeds and the
+-- row ends up on the rejoined leaf.
+testGhostClientRejoin :: (HasCallStack) => App ()
+testGhostClientRejoin = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1]
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- Inject the damage: delete bob1's member-client row.
+  void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
+
+  void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  gs <- getClientGroupState bob1
+  groupData <- assertJust "no MLS group state for bob1" (Map.lookup convId gs.groups)
+  members <- readGroupState groupData
+  idx <-
+    assertJust "rejoined client missing from group state"
+      $ listToMaybe [idx | (RegularClient c, idx) <- members, c == bob1]
+  rows <- getMemberClientRows alice convId
+  [idx' | (u, c, idx') <- rows, u == bob1.user, c == bob1.client] `shouldMatch` [idx]
+
+-- | WPB-29949: with the repair disabled, the affected client's rejoin is
+-- rejected: its self-remove references a leaf the server has no row for.
+testGhostClientRejoinWithoutRepair :: (HasCallStack) => App ()
+testGhostClientRejoinWithoutRepair = do
+  withModifiedBackend
+    (def {galleyCfg = setField "settings.mlsGroupInfoRepair" (False :: Bool)})
+    $ \domain -> do
+      [alice, bob] <- createAndConnectUsers [domain, domain]
+      [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+      traverse_ (uploadNewKeyPackage def) [bob1]
+      convId <- createNewGroup def alice1
+      void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+      void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
+
+      mp <- createExternalCommit convId bob1 Nothing
+      err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 400
+      err %. "label" `shouldMatch` "mls-invalid-leaf-node-index"
+
+-- | A row lost after its removal was planned is restored as pending: the
+-- leaf stays in the tree until the remove proposal is committed, and an
+-- external commit requeues rather than applies the proposal. A restored
+-- active row would make the client a message recipient again.
+testGhostRepairRestoresPendingRemoval :: (HasCallStack) => App ()
+testGhostRepairRestoresPendingRemoval = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice2, bob1]
+  conv <- createNewGroup def alice1
+  void $ createAddCommit alice1 conv [alice, bob] >>= sendAndConsumeCommitBundle
+
+  createSubConv def conv alice1 "conference"
+  subConvId <- getSubConvId alice conv "conference"
+  void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- bob1 leaves: its row is marked pending and a backend remove proposal is
+  -- sent.
+  withWebSockets [alice1] \[ws] -> do
+    leaveConv subConvId bob1
+    msg <- consumeMessage subConvId def alice1 Nothing ws
+    msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  -- Inject the damage: delete bob1's (pending) row.
+  void $ I.deleteMLSMemberClient alice subConvId bob bob1.client >>= assertSuccess
+
+  withWebSockets [alice1, alice2] \[ws1, ws2] -> do
+    -- The external commit triggers the repair and requeues the removal.
+    void $ createExternalCommit subConvId alice2 Nothing >>= sendCommitBundle
+    commitMsg <- consumeMessage subConvId def alice1 Nothing ws1
+    commitMsg %. "message.content.sender" `shouldMatch` "NewMemberCommit"
+    for_ [(alice1, ws1), (alice2, ws2)] \(c, ws) -> do
+      msg <- consumeMessage subConvId def c Nothing ws
+      msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  -- bob1 is not an active member client: its row is either pending or
+  -- missing (the endpoint hides pending rows). Restored as active, it would
+  -- show up here.
+  rows <- getMemberClientRows alice subConvId
+  [c | (u, c, _) <- rows, u == bob1.user] `shouldMatch` ([] :: [String])
+
+  -- The requeued removal resolves only if bob1's pending row was restored:
+  -- this commit is what proves the row is back, keep it.
+  void $ createPendingProposalCommit subConvId alice1 >>= sendAndConsumeCommitBundle
+  sub <- getSubConversation alice1 conv "conference" >>= getJSON 200
+  sub
+    %. "members"
+    `shouldMatchSet` [ object ["client_id" .= c.client, "user_id" .= c.user, "domain" .= c.domain]
+                     | c <- [alice1, alice2]
+                     ]
+
+-- | A group whose stored GroupInfo has no validation digest is not repaired.
+-- This is the state of groups whose rows were lost before the upgrade: as
+-- long as a row is missing, no new commit gets a digest either, because the
+-- uploaded tree does not match the membership the server validates.
+testGhostRepairSkipsGroupWithoutDigest :: (HasCallStack) => App ()
+testGhostRepairSkipsGroupWithoutDigest = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  -- Store a GroupInfo without a digest: the add-bob commit is uploaded with
+  -- the GroupInfo of an alternative add-charlie commit from the same epoch.
+  gs0 <- getClientGroupState alice1
+  mpCharlie <- createAddCommit alice1 convId [charlie]
+  setClientGroupState alice1 gs0
+  mpBob <- createAddCommit alice1 convId [bob]
+  void $ sendAndConsumeCommitBundle mpBob {groupInfo = mpCharlie.groupInfo}
+
+  -- Inject the damage: delete bob1's member-client row.
+  void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
+
+  -- Two commits: the first finds no digest, the second finds no digest
+  -- either, as the first one's tree (with bob1) did not match the rows.
+  -- Sent without waiting for fan-out: bob1 has no row, so it receives none.
+  replicateM_ 2 $ createPendingProposalCommit convId alice1 >>= sendCommitBundle
+
+  rows <- getMemberClientRows alice convId
+  [c | (u, c, _) <- rows, u == bob1.user] `shouldMatch` ([] :: [String])
 
 -- | The (user id, client id, leaf index) member-client rows of the MLS group
 -- of a conversation.

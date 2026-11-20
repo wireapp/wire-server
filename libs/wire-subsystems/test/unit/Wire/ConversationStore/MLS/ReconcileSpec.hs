@@ -20,6 +20,7 @@ module Wire.ConversationStore.MLS.ReconcileSpec (spec) where
 import Data.Bifunctor (first)
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Imports
 import Test.Hspec
@@ -59,9 +60,9 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
     it "inserts a row for a tree leaf with no row (ghost client)" do
       let leaves = tree [leaf 0 (regular dom user1 cid1)]
           rows = []
-      mlsReconcileOps rows [] leaves
+      mlsReconcileOps rows [] mempty leaves
         `shouldBe` MlsReconcileOps
-          { roMemberInsert = [(dom, user1, cid1, 0)],
+          { roMemberInsert = [(dom, user1, cid1, 0, False)],
             roMemberUpdateLeaf = [],
             roMemberDelete = [],
             roHistoryInsert = [],
@@ -72,7 +73,7 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
     it "updates the leaf when a row points at a different leaf" do
       let leaves = tree [leaf 3 (regular dom user1 cid1)]
           rows = [(dom, user1, cid1, 0, False)]
-          ops = mlsReconcileOps rows [] leaves
+          ops = mlsReconcileOps rows [] mempty leaves
       ops.roMemberUpdateLeaf `shouldBe` [(dom, user1, cid1, 3)]
       ops.roMemberInsert `shouldBe` []
       ops.roMemberDelete `shouldBe` []
@@ -87,7 +88,7 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
             [ (dom, user1, cid1, 0, False),
               (dom2, user2, cid2, 1, False)
             ]
-      mlsReconcileOps rows [] leaves
+      mlsReconcileOps rows [] mempty leaves
         `shouldBe` emptyOps
 
     it "deletes a non-pending row absent from the tree" do
@@ -96,7 +97,7 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
             [ (dom, user1, cid1, 0, False),
               (dom, user2, cid2, 1, False)
             ]
-      mlsReconcileOps rows [] leaves
+      mlsReconcileOps rows [] mempty leaves
         `shouldBe` emptyOps {roMemberDelete = [(dom, user2, cid2)]}
 
     it "ignores pending rows entirely" do
@@ -107,7 +108,7 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
             [ (dom, user1, cid1, 0, False),
               (dom, user2, cid2, 1, True)
             ]
-      mlsReconcileOps rows [] leaves
+      mlsReconcileOps rows [] mempty leaves
         `shouldBe` emptyOps
 
     it "does not update a pending row even if its leaf differs" do
@@ -115,7 +116,7 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
           rows =
             [ (dom, user1, cid1, 0, True)
             ]
-      mlsReconcileOps rows [] leaves
+      mlsReconcileOps rows [] mempty leaves
         `shouldBe` emptyOps
 
     it "updates leaf of matching identity at a new index and keeps other rows" do
@@ -129,35 +130,56 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
               (dom2, user3, cid1, 4, False),
               (dom, user2, cid2, 1, True)
             ]
-          ops = mlsReconcileOps rows [] leaves
+          ops = mlsReconcileOps rows [] mempty leaves
       ops.roMemberUpdateLeaf `shouldBe` [(dom, user1, cid1, 2)]
       ops.roMemberInsert `shouldBe` []
       ops.roMemberDelete `shouldBe` []
+
+    it "restores a ghost row as pending if its leaf has a pending backend removal" do
+      let leaves =
+            tree
+              [ leaf 0 (regular dom user1 cid1),
+                leaf 1 (regular dom user2 cid2)
+              ]
+          rows = [(dom, user1, cid1, 0, False)]
+      mlsReconcileOps rows [] (Set.fromList [1]) leaves
+        `shouldBe` emptyOps {roMemberInsert = [(dom, user2, cid2, 1, True)]}
+
+    it "only marks inserts pending, never existing rows" do
+      let leaves = tree [leaf 0 (regular dom user1 cid1), leaf 2 (regular dom user2 cid2)]
+          rows = [(dom, user1, cid1, 0, False), (dom, user2, cid2, 1, False)]
+      mlsReconcileOps rows [] (Set.fromList [0, 2]) leaves
+        `shouldBe` emptyOps {roMemberUpdateLeaf = [(dom, user2, cid2, 2)]}
 
   describe "history client rows" do
     it "inserts a row for a tree history-client leaf with no row" do
       let leaves = tree [leaf 0 (HistoryClient hist1)]
           rows = []
-      mlsReconcileOps [] rows leaves
-        `shouldBe` emptyOps {roHistoryInsert = [(hist1, 0)]}
+      mlsReconcileOps [] rows mempty leaves
+        `shouldBe` emptyOps {roHistoryInsert = [(hist1, 0, False)]}
 
     it "updates the leaf when a history row points at a different leaf" do
       let leaves = tree [leaf 2 (HistoryClient hist1)]
           rows = [(hist1, 0, False)]
-      mlsReconcileOps [] rows leaves
+      mlsReconcileOps [] rows mempty leaves
         `shouldBe` emptyOps {roHistoryUpdateLeaf = [(hist1, 2)]}
 
     it "deletes a non-pending history row absent from the tree" do
       let leaves = tree [leaf 0 (HistoryClient hist1)]
           rows = [(hist1, 0, False), (hist2, 1, False)]
-      mlsReconcileOps [] rows leaves
+      mlsReconcileOps [] rows mempty leaves
         `shouldBe` emptyOps {roHistoryDelete = [hist2]}
 
     it "ignores pending history rows entirely" do
       let leaves = tree [leaf 0 (HistoryClient hist1)]
           rows = [(hist1, 0, False), (hist2, 1, True)]
-      mlsReconcileOps [] rows leaves
+      mlsReconcileOps [] rows mempty leaves
         `shouldBe` emptyOps
+
+    it "restores a ghost history row as pending if its leaf has a pending backend removal" do
+      let leaves = tree [leaf 3 (HistoryClient hist1)]
+      mlsReconcileOps [] [] (Set.fromList [3]) leaves
+        `shouldBe` emptyOps {roHistoryInsert = [(hist1, 3, True)]}
 
   describe "combined" do
     it "handles regular and history leaves in one diff" do
@@ -181,7 +203,7 @@ spec = describe "Wire.ConversationStore.MLS.Reconcile" do
               -- stale leaf
               (hist2, 6, True)
             ]
-          ops = mlsReconcileOps memberRows historyRows leaves
+          ops = mlsReconcileOps memberRows historyRows mempty leaves
       ops.roMemberInsert `shouldBe` []
       ops.roMemberUpdateLeaf `shouldBe` [(dom2, user2, cid2, 2)]
       ops.roMemberDelete `shouldBe` [(dom, user3, cid2)]

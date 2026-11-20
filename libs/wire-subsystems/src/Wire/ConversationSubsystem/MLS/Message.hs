@@ -782,10 +782,10 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.commit.value.path
         pure (newIndexMap, [], mempty)
     lConvOrSub' <- lift $ do
-      storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
       -- Only a group info whose tree matches the membership validated above
-      -- may later be used to repair member-client rows.
-      setGroupInfoValidatedHash convOrSub.id $
+      -- may later be used to repair member-client rows; its digest is stored
+      -- in the same write as the group info itself.
+      storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw) $
         validatedGroupInfoDigest bundle.groupId (succ bundle.epoch) newIndexMap bundle.groupInfo
       -- reload conversation from db to make sure we have an up-to-date list of members
       lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
@@ -1141,10 +1141,12 @@ storeGroupInfo ::
   (Member ConversationStore r) =>
   ConvOrSubConvId ->
   GroupInfoData ->
+  -- | Validation digest of the group info, if any
+  Maybe ByteString ->
   Sem r ()
-storeGroupInfo convOrSub ginfo = case convOrSub of
-  Conv cid -> setGroupInfo cid (Just ginfo)
-  SubConv cid subconvid -> setSubConversationGroupInfo cid subconvid (Just ginfo)
+storeGroupInfo convOrSub ginfo mHash = case convOrSub of
+  Conv cid -> setGroupInfo cid (Just ginfo) mHash
+  SubConv cid subconvid -> setSubConversationGroupInfo cid subconvid (Just ginfo) mHash
 
 fetchConvOrSub ::
   forall r.

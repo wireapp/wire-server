@@ -21,6 +21,7 @@ import Data.ByteString qualified as BS
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Text qualified as Text
+import Data.Time (UTCTime (..), addUTCTime, fromGregorian)
 import Data.UUID qualified as UUID
 import Imports
 import Test.Hspec
@@ -70,6 +71,18 @@ spec = describe "Wire.ConversationSubsystem.MLS.Repair" do
       gid = GroupId "foo"
       epoch = Epoch 1
       leaves = tree [(0, alice), (1, bob)]
+
+  describe "lease" do
+    let t0 = UTCTime (fromGregorian 2026 1 1) 0
+        secondsLater :: Int -> UTCTime
+        secondsLater secs = addUTCTime (fromIntegral secs) t0
+    it "stops writes at half the lease" do
+      repairDeadline t0 `shouldBe` secondsLater 30
+    it "releases the lock while the lease is safely held" do
+      leaseStillHeld t0 (secondsLater 30) `shouldBe` True
+    it "does not release the lock close to or after lease expiry" do
+      leaseStillHeld t0 (secondsLater 50) `shouldBe` False
+      leaseStillHeld t0 (secondsLater 61) `shouldBe` False
 
   describe "validatedGroupInfoDigest" do
     it "records a digest for the group's tree at the post-commit epoch" do

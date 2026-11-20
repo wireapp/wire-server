@@ -29,9 +29,20 @@
 -- lock is held, as commits do) and only when the live epoch and the stored
 -- GroupInfo epoch both match the locked epoch, so a concurrent or
 -- partially-failed commit cannot be rolled back by a stale tree.
+--
+-- The commit lock is a lease ('repairTTL'). The reconcile starts no write
+-- after 'repairDeadline' (half the lease), and the lock is released only
+-- while the lease is still safely held ('leaseStillHeld'); otherwise it is
+-- left to expire, so a late repair cannot delete a successor's lock. The
+-- remaining exposure is a single write in flight at the deadline, which has
+-- the other half of the lease to complete. An incomplete repair fails the
+-- request with a retryable error; the writes are idempotent, so the next
+-- attempt continues where it stopped.
 module Wire.ConversationSubsystem.MLS.Repair
   ( GroupInfoRepairEnabled (..),
     repairMLSMemberClients,
+    repairDeadline,
+    leaseStillHeld,
     rowsMatchTree,
     validatedGroupInfoDigest,
   )
@@ -42,7 +53,7 @@ import Data.ByteArray qualified as BA
 import Data.Hex (hex)
 import Data.Qualified (Local, tUnqualified)
 import Data.Set qualified as Set
-import Data.Time (NominalDiffTime)
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 import Imports
 import Polysemy (Member, Sem)
 import Polysemy.Error (Error, throw)
@@ -60,15 +71,36 @@ import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.Serialisation (RawMLS (..), decodeMLS')
 import Wire.API.MLS.SubConversation (ConvOrSubConvId)
 import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Reconcile (ReconcileResult (..))
 import Wire.ConversationStore.MLS.Types (ClientMap, ConvOrSubConv, IndexMap, cmAssocs, cmIdentities, imAssocs, imLookup)
 import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (groupInfoLeaves)
+import Wire.ConversationSubsystem.MLS.Util (getPendingBackendRemoveProposals)
+import Wire.ProposalStore (ProposalStore)
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 newtype GroupInfoRepairEnabled = GroupInfoRepairEnabled Bool
   deriving stock (Eq, Ord, Show)
 
+-- | Lease of the commit lock taken by the repair.
 repairTTL :: NominalDiffTime
-repairTTL = fromIntegral (60 :: Int)
+repairTTL = 60
+
+-- | Time before the lease expires after which the lock is no longer released.
+releaseMargin :: NominalDiffTime
+releaseMargin = 10
+
+-- | No reconcile write is started after this time: half the lease, leaving
+-- the other half for a write in flight (with its retries) to complete.
+repairDeadline :: UTCTime -> UTCTime
+repairDeadline acquiredAt = addUTCTime (repairTTL / 2) acquiredAt
+
+-- | Whether a lease taken at the first time is still safely held at the
+-- second one. Only then may the lock be released: once the lease expired, a
+-- successor may hold the same (group, epoch) lock.
+leaseStillHeld :: UTCTime -> UTCTime -> Bool
+leaseStillHeld acquiredAt now = diffUTCTime now acquiredAt < repairTTL - releaseMargin
 
 -- | SHA-256 digest of a raw GroupInfo.
 groupInfoDigest :: ByteString -> ByteString
@@ -93,11 +125,14 @@ validatedGroupInfoDigest gid postCommitEpoch newIndexMap groupInfo =
 -- disagree with a trusted stored tree. This holds even if this request wrote
 -- nothing, because a concurrent request may already have healed the rows.
 -- Throws 'ConversationSubsystemErrorMLSStaleMessage' if a repair is needed but
--- the commit lock is held: the rows may still be (partly) damaged.
+-- the commit lock is held, or if the repair ran out of time: the rows may
+-- still be (partly) damaged.
 repairMLSMemberClients ::
   ( Member ConversationStore r,
     Member (Error ConversationSubsystemError) r,
     Member MLSCommitLockStore r,
+    Member Now r,
+    Member ProposalStore r,
     Member Resource r,
     Member TinyLog r,
     Member (Input (Maybe GroupInfoRepairEnabled)) r
@@ -113,10 +148,17 @@ repairMLSMemberClients lConvOrSub = do
       -- Cheap read-only precheck: the healthy case (no diff) never reads the
       -- validation digest nor takes the per-group commit lock.
       suspected <- isJust <$> trustedDivergingLeaves convOrSub gid epoch
-      when suspected $
+      when suspected $ do
+        -- Taken before acquiring, so the lease cannot have started earlier.
+        acquiredAt <- Now.get
         acquireCommitLock gid epoch repairTTL >>= \case
-          Acquired ->
-            repairUnderLock convOrSub gid epoch `finally` releaseCommitLock gid epoch
+          Acquired -> do
+            complete <-
+              repairUnderLock convOrSub gid epoch (repairDeadline acquiredAt)
+                `finally` releaseIfLeaseHeld gid epoch acquiredAt
+            unless complete $ do
+              TinyLog.warn $ skipMsg gid "repair deadline reached before all rows were written" id
+              throw ConversationSubsystemErrorMLSStaleMessage
           NotAcquired -> do
             TinyLog.info $ skipMsg gid "commit lock held by a concurrent commit or repair" id
             throw ConversationSubsystemErrorMLSStaleMessage
@@ -209,22 +251,45 @@ storedLeaves convOrSubId gid epoch =
   where
     warnSkip reason extra = TinyLog.warn (skipMsg gid reason extra) $> Nothing
 
+-- | Release the commit lock unless the lease may have expired, in which case
+-- it is left to expire: a successor may hold it by now.
+releaseIfLeaseHeld ::
+  ( Member MLSCommitLockStore r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  GroupId ->
+  Epoch ->
+  UTCTime ->
+  Sem r ()
+releaseIfLeaseHeld gid epoch acquiredAt = do
+  now <- Now.get
+  if leaseStillHeld acquiredAt now
+    then releaseCommitLock gid epoch
+    else
+      TinyLog.warn $
+        Log.msg ("not releasing MLS commit lock of the member-client repair: lease may have expired" :: ByteString)
+          . groupIdField gid
+          . Log.field "epoch" (epochNumber epoch)
+
 -- | Re-check everything under the commit lock against live data, then write
--- the diff.
+-- the diff. Returns False if the deadline stopped the writes early.
 repairUnderLock ::
   ( Member ConversationStore r,
+    Member ProposalStore r,
     Member TinyLog r
   ) =>
   ConvOrSubConv ->
   GroupId ->
   Epoch ->
-  Sem r ()
-repairUnderLock convOrSub gid epoch = do
+  UTCTime ->
+  Sem r Bool
+repairUnderLock convOrSub gid epoch deadline = do
   -- The epoch in the snapshot was read before the lock was acquired; a
   -- commit may have advanced the group meanwhile.
   liveEpoch <- getConvOrSubEpoch convOrSub.id
   if liveEpoch /= Just epoch
-    then
+    then do
       TinyLog.warn $
         skipMsg
           gid
@@ -232,20 +297,28 @@ repairUnderLock convOrSub gid epoch = do
           ( Log.field "lockedEpoch" (epochNumber epoch)
               . Log.field "liveEpoch" (maybe "none" (show . epochNumber) liveEpoch)
           )
+      pure True
     else
       -- Re-read the stored groupinfo and its digest: either may have changed
       -- before the lock was acquired. The diff itself is computed against the
       -- current rows, so a concurrent heal results in no writes.
-      trustedDivergingLeaves convOrSub gid epoch >>= traverse_ \leaves -> do
-        (ins, upd, del) <- reconcileMLSClients gid leaves
-        let logAt = if ins + upd + del > 0 then TinyLog.warn else TinyLog.debug
-        logAt $
-          Log.msg ("repaired MLS member-client rows from ratchet tree" :: ByteString)
-            . groupIdField gid
-            . Log.field "epoch" (epochNumber epoch)
-            . Log.field "inserted" ins
-            . Log.field "updated" upd
-            . Log.field "deleted" del
+      trustedDivergingLeaves convOrSub gid epoch >>= \case
+        Nothing -> pure True
+        Just leaves -> do
+          -- A row lost after its removal was planned is restored as pending,
+          -- so the outstanding remove proposal still resolves to it.
+          pendingLeaves <- getPendingBackendRemoveProposals gid epoch
+          result <- reconcileMLSClients gid leaves pendingLeaves deadline
+          let logAt = if result.inserted + result.updated + result.deleted > 0 then TinyLog.warn else TinyLog.debug
+          logAt $
+            Log.msg ("repaired MLS member-client rows from ratchet tree" :: ByteString)
+              . groupIdField gid
+              . Log.field "epoch" (epochNumber epoch)
+              . Log.field "inserted" result.inserted
+              . Log.field "updated" result.updated
+              . Log.field "deleted" result.deleted
+              . Log.field "complete" (show result.complete)
+          pure result.complete
 
 skipMsg :: GroupId -> ByteString -> (Log.Msg -> Log.Msg) -> Log.Msg -> Log.Msg
 skipMsg gid reason extra =
