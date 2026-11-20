@@ -131,6 +131,19 @@ spec = do
     it "rejects different prefix" $
       parseEpochPrefix cp ("other/7/") `shouldBe` Nothing
 
+  describe "parseClientFileKey" $ do
+    prop "round-trips renderKey" $ forAll genLoc $ \loc ->
+      parseClientFileKey
+        (renderPrefix testKey (ClientPrefix loc.user loc.client))
+        (renderKey testKey loc)
+        === Just (loc.epoch, loc.file)
+    let cp = renderPrefix testKey (ClientPrefix uid1 cid1)
+    it "rejects tombstones" $
+      parseClientFileKey cp (renderTombstoneKey testKey uid1 cid1 fid1) `shouldBe` Nothing
+    it "rejects non-canonical epochs" $
+      forM_ ["0/", "07/", "+7/", "x/"] $ \s ->
+        (s, parseClientFileKey cp (cp <> s <> fidText <> "/full")) `shouldBe` (s, Nothing)
+
   describe "parseClientKeyId" $ do
     prop "is the full file id of renderKey" $ forAll genLoc $ \loc ->
       parseClientKeyId

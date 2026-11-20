@@ -141,6 +141,10 @@ interpretBackupBlobStoreToS3 env k = interpret $ \case
         blob (key, size) = (\file -> BackupBlob {file, size}) <$> parseFileKey p key
     objects <- runHandlerSem (S3.listObjects p)
     pure (mapMaybe blob objects)
+  ListClientBlobs u c -> do
+    let p = renderPrefix k (ClientPrefix u c)
+        blob (key, size) = fmap (\file -> BackupBlob {file, size}) <$> parseClientFileKey p key
+    mapMaybe blob <$> runHandlerSem (S3.listObjects p)
   DeleteBlob l -> let key = renderKey k l in runHandlerSem (S3.deleteAllVersions key (== key))
   DeleteEpochFiles u c e fs ->
     let keys = Set.fromList [renderKey k BackupLocation {user = u, client = c, epoch = e, file} | file <- fs]

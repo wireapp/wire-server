@@ -240,6 +240,7 @@ failingStore = intercept $ \case
         >>= traverse_ (deleteClientBackupsBefore l.user l.client) . foldr (max . Just) Nothing
     whenM (gets (.failAfterPut)) $ throw StoreDown
   ListBlobs u c e -> listBlobs u c e
+  ListClientBlobs u c -> listClientBlobs u c
   BlobExists l -> blobExists l
   SignedDownloadUrl l -> signedDownloadUrl l
   ListBlobEpochs u c -> listBlobEpochs u c

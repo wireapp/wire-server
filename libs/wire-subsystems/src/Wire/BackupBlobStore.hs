@@ -56,6 +56,8 @@ data BackupBlobStore m a where
   ListBlobEpochs :: UserId -> ClientId -> BackupBlobStore m [BackupEpoch]
   -- | Files of an epoch, any order.
   ListBlobs :: UserId -> ClientId -> BackupEpoch -> BackupBlobStore m [BackupBlob]
+  -- | Files of all epochs of the device with their epoch, any order.
+  ListClientBlobs :: UserId -> ClientId -> BackupBlobStore m [(BackupEpoch, BackupBlob)]
   -- | Deletes all versions of the key (see above why all). Idempotent.
   DeleteBlob :: BackupLocation -> BackupBlobStore m ()
   -- | Deletes all versions of the files of an epoch (see above why all), in batches. Idempotent.

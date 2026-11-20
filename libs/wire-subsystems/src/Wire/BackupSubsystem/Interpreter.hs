@@ -202,9 +202,8 @@ rejectionError = \case
 -- | The restorable epochs of a client, ascending. Epochs without a full file are left out.
 clientBackups :: (Member BackupBlobStore r) => UserId -> ClientId -> Sem r ClientBackups
 clientBackups uid cid = do
-  epochs <- Set.toAscList . Set.fromList <$> listBlobEpochs uid cid
-  summaries <- forM epochs $ \e -> epochSummary e <$> listBlobs uid cid e
-  pure ClientBackups {client = cid, epochs = catMaybes summaries}
+  byEpoch <- Map.fromListWith (<>) . map (fmap pure) <$> listClientBlobs uid cid
+  pure ClientBackups {client = cid, epochs = mapMaybe (uncurry epochSummary) (Map.toAscList byEpoch)}
 
 -- | Creation time of the newest file of a client's backups.
 newestBackup :: ClientBackups -> Maybe UTCTimeMillis

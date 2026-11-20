@@ -101,6 +101,11 @@ interpreter onChunk = interpret $ \case
         . map (\(l, b) -> BackupBlob {file = l.file, size = fromIntegral (BS.length b)})
         . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
         . Map.toList
+  ListClientBlobs u c ->
+    gets $
+      map (\(l, b) -> (l.epoch, BackupBlob {file = l.file, size = fromIntegral (BS.length b)}))
+        . filter (\(l, _) -> l.user == u && l.client == c)
+        . Map.toList
   DeleteBlob l -> modify (Map.delete l)
   DeleteEpochFiles u c e fs ->
     modify (\m -> foldr (\f -> Map.delete BackupLocation {user = u, client = c, epoch = e, file = f}) m fs)

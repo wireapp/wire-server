@@ -33,6 +33,7 @@ module Wire.BackupBlobStore.Key
     renderTombstoneKey,
     parseTombstoneKey,
     parseClientKeyId,
+    parseClientFileKey,
     parseEpochPrefix,
     parseFileKey,
   )
@@ -135,11 +136,16 @@ parseTombstoneKey prefix key = T.stripPrefix prefix key >>= parseCanonicalId
 -- backup deletion: the id of a tombstone, the full file id ('fullFileId') of a file.
 parseClientKeyId :: Text -> Text -> Maybe BackupFileId
 parseClientKeyId clientPrefix key =
-  parseTombstoneKey (clientPrefix <> ".tombstones/") key <|> do
-    rest <- T.stripPrefix clientPrefix key
-    let seg = fst (T.breakOn "/" rest)
-    _ <- parseCanonicalEpoch seg
-    fullFileId <$> parseFileKey (clientPrefix <> seg <> "/") key
+  parseTombstoneKey (clientPrefix <> ".tombstones/") key
+    <|> fmap (fullFileId . snd) (parseClientFileKey clientPrefix key)
+
+-- | Parses a file key returned for a 'ClientPrefix' listing into its epoch and file.
+parseClientFileKey :: Text -> Text -> Maybe (BackupEpoch, BackupFileRef)
+parseClientFileKey clientPrefix key = do
+  rest <- T.stripPrefix clientPrefix key
+  let seg = fst (T.breakOn "/" rest)
+  e <- parseCanonicalEpoch seg
+  (e,) <$> parseFileKey (clientPrefix <> seg <> "/") key
 
 -- | Parses a CommonPrefix returned for a 'ClientPrefix' listing, e.g. "<clientPrefix>7/".
 parseEpochPrefix :: Text -> Text -> Maybe BackupEpoch
