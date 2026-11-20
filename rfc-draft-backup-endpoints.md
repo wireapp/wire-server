@@ -584,7 +584,9 @@ endpoints](#api-endpoints).
 - An S3 object becomes visible only when its upload completed.
   - The store has strong list-after-write and list-after-delete consistency: a listing shows
     every object whose PUT completed before the listing started, and no object whose delete
-    completed before then.
+    completed before then. AWS S3 guarantees this ([S3 data consistency
+    model](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html#ConsistencyModel));
+    for other S3-compatible stores the operator must ensure it.
 - Deletes remove all versions (see [Deletion and versioned
   buckets](#deletion-and-versioned-buckets)) and are idempotent.
 - Brig's reads of clients see its own completed writes. I.e. a client deletion is immediately visible afterwards.
