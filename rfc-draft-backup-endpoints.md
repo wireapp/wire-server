@@ -629,16 +629,20 @@ Each operation writes first, then looks:
 
 - **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
   and delete everything `t` covers.
-- **Client removal:** Brig enqueues an event, then deletes the client. The
-  consumer deletes the client again (idempotent), then enqueues a second event
-  (`DeleteClientBackups`). Its consumer lists the client prefix and deletes
-  everything, tombstones included. On failure the queue redelivers this event,
-  without repeating the client removal and its notification, until the broker's
-  dead-letter limit (STOMP) or the redrive policy or retention period (SQS) ends
-  it. Operators must monitor the dead-letter queue and replay failed deletions.
-  Removal never waits for
-  Cargohold or S3, so a broken store cannot block removing a (possibly
-  compromised) client.
+- **Client removal:**
+  1. Brig enqueues an event (`DeleteClient`), then deletes the client.
+  2. Its consumer deletes the client again (idempotent), then enqueues a second
+     event (`DeleteClientBackups`).
+  3. Its consumer lists the client prefix and deletes everything, tombstones
+     included.
+
+  Removal never waits for Cargohold or S3, so a broken store cannot block
+  removing a (possibly compromised) client.
+
+  If step 3 fails, the queue redelivers only the second event, until the
+  broker's dead-letter limit (STOMP) or the redrive policy or retention period
+  (SQS) ends it. Operators must monitor the dead-letter queue and replay failed
+  deletions.
 - **User deletion:** the same with a backend-internal event (`DeleteBackups`,
   never fanned out), enqueued by Brig's `deleteAccount` as its last step, after
   the user is marked deleted and its clients are gone. The consumer deletes
