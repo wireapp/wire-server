@@ -28,5 +28,6 @@ data DeleteQueue m a where
   EnqueueClientDeletion :: ClientId -> UserId -> Maybe ConnId -> DeleteQueue m ()
   EnqueueServiceDeletion :: ProviderId -> ServiceId -> DeleteQueue m ()
   EnqueueBackupDeletion :: UserId -> DeleteQueue m ()
+  EnqueueClientBackupDeletion :: UserId -> ClientId -> DeleteQueue m ()
 
 makeSem ''DeleteQueue
