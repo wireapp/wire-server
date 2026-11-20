@@ -1,14 +1,15 @@
-cabal-version: 3.0
-name:          gundeck
-version:       1.45.0
-synopsis:      Push Notification Hub
-category:      Network
-author:        Wire Swiss GmbH
-maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3.0-only
-license-file:  LICENSE
-build-type:    Simple
+cabal-version:      3.0
+name:               gundeck
+version:            1.45.0
+synopsis:           Push Notification Hub
+category:           Network
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2017 Wire Swiss GmbH
+license:            AGPL-3.0-only
+license-file:       LICENSE
+build-type:         Simple
+extra-source-files: postgres-migrations/*.sql
 
 flag static
   description: Enable static linking
@@ -30,6 +31,7 @@ library
     Gundeck.Notification
     Gundeck.Notification.Data
     Gundeck.Notification.Metrics
+    Gundeck.NotificationFanIn.Migrations
     Gundeck.Options
     Gundeck.Presence
     Gundeck.Presence.Data
@@ -134,7 +136,13 @@ library
     , exceptions                            >=0.4
     , extended
     , extra                                 >=1.1
+    , file-embed
     , foldl
+    , hasql
+    , hasql-migration
+    , hasql-resource-pool
+    , hasql-th
+    , hasql-transaction
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -172,6 +180,7 @@ library
     , wai-utilities                         >=0.16
     , wire-api
     , wire-otel
+    , wire-subsystems
     , yaml                                  >=0.8
 
   default-language:   GHC2021
