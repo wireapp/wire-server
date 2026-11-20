@@ -102,6 +102,8 @@ interpreter onChunk = interpret $ \case
         . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
         . Map.toList
   DeleteBlob l -> modify (Map.delete l)
+  DeleteEpochFiles u c e fs ->
+    modify (\m -> foldr (\f -> Map.delete BackupLocation {user = u, client = c, epoch = e, file = f}) m fs)
   DeleteBlobs p -> do
     modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
     modify (Set.filter (\(u, c, _) -> not (tombstoneInPrefix p u c)))

@@ -166,7 +166,7 @@ uploadBackupImpl uid zcid cid e base len src = do
   -- checks; if it is rolled back, the previous full stays.
   if file `notElem` map (.file) (currentBlobs listed)
     then deleteBlob (location file) *> throw BackupErrFullMissing
-    else traverse_ (deleteBlob . location . (.file)) (pruneTargets listed)
+    else deleteEpochFiles uid cid e (map (.file) (pruneTargets listed))
   -- Epochs listed again: one may have appeared during the upload.
   when (isNothing base) $ do
     stale <- staleEpochs . Set.insert e . Set.fromList <$> listBlobEpochs uid cid

@@ -213,6 +213,7 @@ countingBlobStore received stored = interpret $ \case
     map (\(l, body) -> BackupBlob {file = l.file, size = fromIntegral (BS.length body)}) . maybeToList
       <$> readIORef stored
   DeleteBlob _ -> writeIORef stored Nothing
+  DeleteEpochFiles _ _ _ fs -> modifyIORef stored (mfilter ((`notElem` fs) . (.file) . fst))
   DeleteBlobs _ -> writeIORef stored Nothing
   ListTombstones _ _ -> pure []
   _ -> error "countingBlobStore: unexpected call"

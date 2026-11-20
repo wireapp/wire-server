@@ -64,7 +64,7 @@ data World = World
     lookups :: Int,
     -- | 'LookupClients' calls from this one on (1-based) throw 'BrigDown'.
     failLookupFrom :: Maybe Int,
-    -- | 'DeleteBlob' throws 'StoreDown'.
+    -- | 'DeleteBlob' and 'DeleteEpochFiles' throw 'StoreDown'.
     failDelete :: Bool,
     -- | 'PutBlob' stores the object, then throws 'StoreDown'.
     failAfterPut :: Bool,
@@ -246,6 +246,9 @@ failingStore = intercept $ \case
   DeleteBlob l -> do
     whenM (gets (.failDelete)) $ throw StoreDown
     deleteBlob l
+  DeleteEpochFiles u c e fs -> do
+    whenM (gets (.failDelete)) $ throw StoreDown
+    deleteEpochFiles u c e fs
   DeleteBlobs p -> deleteBlobs p
   PutTombstone u c i -> putTombstone u c i
   ListTombstones u c -> listTombstones u c

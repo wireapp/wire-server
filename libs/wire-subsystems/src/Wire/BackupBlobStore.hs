@@ -58,6 +58,8 @@ data BackupBlobStore m a where
   ListBlobs :: UserId -> ClientId -> BackupEpoch -> BackupBlobStore m [BackupBlob]
   -- | Deletes all versions of the key (see above why all). Idempotent.
   DeleteBlob :: BackupLocation -> BackupBlobStore m ()
+  -- | Deletes all versions of the files of an epoch (see above why all), in batches. Idempotent.
+  DeleteEpochFiles :: UserId -> ClientId -> BackupEpoch -> [BackupFileRef] -> BackupBlobStore m ()
   -- | Deletes all versions of all keys under the prefix (see above why all). Idempotent.
   DeleteBlobs :: BackupPrefix -> BackupBlobStore m ()
   -- | Stores an empty tombstone object for the client (see 'Wire.BackupSubsystem').

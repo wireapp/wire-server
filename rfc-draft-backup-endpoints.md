@@ -756,7 +756,8 @@ epochs remove **all versions** of the affected keys. On a versioned bucket a
 plain delete only adds a delete marker and the encrypted data would stay
 restorable. To deal with this, Cargohold lists all versions and delete markers
 under the key prefix (`ListObjectVersions`) and deletes each `VersionId`
-explicitly via `DeleteObjects` (batches of at most 1000). Unversioned buckets
+explicitly via `DeleteObjects` (batches of at most 1000). Superseded files are
+deleted together: one listing of their epoch, then the batches. Unversioned buckets
 report version id `null` and take the same path. If the store answers
 `NotImplemented` for `ListObjectVersions`, Cargohold falls back to
 `ListObjectsV2` plus plain deletes. Bucket versioning may therefore be on or

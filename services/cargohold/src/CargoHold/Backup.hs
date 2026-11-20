@@ -27,6 +27,7 @@ import CargoHold.App
 import CargoHold.Options (Opts (..), Settings (..))
 import qualified CargoHold.S3 as S3
 import Control.Error (runExceptT, throwE)
+import qualified Data.Set as Set
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
@@ -141,6 +142,10 @@ interpretBackupBlobStoreToS3 env k = interpret $ \case
     objects <- runHandlerSem (S3.listObjects p)
     pure (mapMaybe blob objects)
   DeleteBlob l -> let key = renderKey k l in runHandlerSem (S3.deleteAllVersions key (== key))
+  DeleteEpochFiles u c e fs ->
+    let keys = Set.fromList [renderKey k BackupLocation {user = u, client = c, epoch = e, file} | file <- fs]
+     in unless (null fs) $
+          runHandlerSem (S3.deleteAllVersions (renderPrefix k (EpochPrefix u c e)) (`Set.member` keys))
   DeleteBlobs p -> runHandlerSem (S3.deleteAllVersions (renderPrefix k p) (const True))
   PutTombstone u c i ->
     runHandlerSem (S3.putEmptyObject (S3.S3AssetKey (renderTombstoneKey k u c i)))
