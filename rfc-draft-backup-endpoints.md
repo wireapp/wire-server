@@ -700,7 +700,7 @@ one of these reasons:
 - it is superseded: a full with a greater id is visible
 - its epoch is not kept: two greater epochs are visible
 - a tombstone covers it
-- its client is gone.
+- its client is gone
 
 Each reason stays true once it was seen, so a deleted file never becomes current
 again:
@@ -727,7 +727,8 @@ These don't follow the pattern. Each leaves only a limited, temporary
 inconsistency that a later operation cleans up (i.e. they are "bounded"):
 
 - **Incremental vs epoch pruning.** Very rare: it needs two new epochs during
-  one incremental upload. An incremental doesn't list the epochs. It can land in
+  one incremental upload. An incremental doesn't list the epochs (a full does,
+  in step 5, and so deletes itself in this race). It can land in
   epoch N while a concurrent full upload of N+2 deletes N: after the deletion
   listed N, but before it deleted the full. Then epoch N holds this incremental
   and no full. It is never listed (no current full) and never attributed to
