@@ -574,6 +574,8 @@ This section argues on the level of S3 keys that
 - no race leaves a file that should be gone
 - no race deletes a current file.
 
+The few exceptions are rare and bounded; see [Special cases](#special-cases).
+
 This is very technical. The observed outcomes for clients are described with the [API
 endpoints](#api-endpoints).
 
