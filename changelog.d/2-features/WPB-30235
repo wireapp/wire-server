@@ -1,0 +1,1 @@
+The backoffice chart has a new setting `config.ibisPort` for the port stern uses to reach ibis. It defaults to 8080, so existing installations are not affected. Set it to 8081 to call ibis on its admin port.
