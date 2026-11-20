@@ -66,7 +66,8 @@ hself: hsuper: {
   sandwich = hlib.dontCheck hsuper.sandwich;
 
   # Tests require a running redis
-  hedis = hlib.dontCheck hsuper.hedis;
+  # hedis caps tls <2.5, which https://github.com/informatikr/hedis/pull/278 changes to <2.6
+  hedis = hlib.doJailbreak (hlib.dontCheck hsuper.hedis);
 
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
 
@@ -143,24 +144,26 @@ hself: hsuper: {
   http-semantics = hsuper.http-semantics_0_4_0;
   network-run = hsuper.network-run_0_5_0;
   http2 = hsuper.http2_5_4_0;
-  crypton = hsuper.crypton_1_1_2;
-  crypton-x509 = hsuper.crypton-x509_1_9_0;
-  crypton-x509-validation = hsuper.crypton-x509-validation_1_9_0;
-  crypton-x509-store = hsuper.crypton-x509-store_1_9_0;
-  crypton-x509-system = hsuper.crypton-x509-system_1_9_0;
-  crypto-token = hsuper.crypto-token_0_2_0;
-  tls = hsuper.tls_2_4_1;
-  hpke = hsuper.hpke_0_1_0;
   mlkem = hlib.dontCheck (hlib.markUnbroken hsuper.mlkem);
-  crypton-connection = hsuper.crypton-connection_0_4_6;
-  tls-session-manager = hsuper.tls-session-manager_0_1_0;
+  # crypton 2.x and its dependent packages use Hackage pins in nix/haskell-pins.nix
+  # because nixos-26.05 provides no crypton 2.x.
+  # The pinned amazonka-core rev caps crypton <1.2, a bound that main replaces with
+  # ^>=2.0 || ^>=2.1.
+  amazonka-core = hlib.doJailbreak hsuper.amazonka-core;
+  # Jailbreak keeps warp-tls 3.4.14, whose tls <2.5 bound excludes tls 2.5, because 3.4.19
+  # requires warp >=3.4.18 and network >=3.2.12 despite allowing tls <2.7.
+  warp-tls = hlib.doJailbreak hsuper.warp-tls;
+  # Revision 3 of crypton-connection 0.4.6 permits tls <2.6 and crypton-x509-* <1.11,
+  # which aren't permitted by nixpkgs revision 1.
+  crypton-connection = hlib.doJailbreak hsuper.crypton-connection_0_4_6;
   wreq = hlib.dontCheck hsuper.wreq_0_5_4_5;
 
   # -----------------
   # flags and patches
   # (these are fine)
   # -----------------
-  cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags hsuper.cryptostore [ "-fuse_crypton" ]))
+  # crypton 2.x: ChaChaPoly1305.initialize takes a checked Key and cannot fail
+  cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags (hlib.appendPatch hsuper.cryptostore ./patches/cryptostore-crypton-2-chachapoly-key.patch) [ "-fuse_crypton" ]))
     [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation hself.crypton-asn1-encoding hself.crypton-asn1-types hself.crypton-pem hself.time-hourglass ];
   # doJailbreak because upstreams requires a specific crypton-connection version we don't have
   hoogle = hlib.justStaticExecutables (hlib.dontCheck (hsuper.hoogle));

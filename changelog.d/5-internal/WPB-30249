@@ -1,0 +1,1 @@
+Bump crypton to 2.2.7 for ML-DSA. Update crypton-x509 to 1.10 and tls to 2.5 because they require crypton 2.x.

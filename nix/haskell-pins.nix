@@ -187,10 +187,6 @@ let
       src = inputs.hasql-resource-pool;
     };
 
-    cryptostore = {
-      src = inputs.cryptostore;
-    };
-
     hsaml2 = {
       src = inputs.hsaml2;
     };
@@ -332,6 +328,52 @@ let
     resource-pool = {
       version = "0.5.1.0";
       sha256 = "sha256-JWewFLz73E9YqMDbuxhi/YqeK7C9oYFD9tGzU1hWgs8=";
+    };
+
+    # crypton 2.x (ML-DSA) and packages that require it
+    crypton = {
+      version = "2.2.7";
+      sha256 = "sha256-KgqN9LgqiJ6CvPTOf4g3OHDnicb/L/WIvok2TguAgL4=";
+    };
+    crypton-x509 = {
+      version = "1.10.3";
+      sha256 = "sha256-fgbpNqjalvmaeueSz9GUmga1A8KxS6Mts1NqieEulwE=";
+    };
+    crypton-x509-validation = {
+      version = "1.10.3";
+      sha256 = "sha256-iEFN1IT7SMI5Hc+0y41ovDe7Vt9rf32ENarkH4z1fpw=";
+    };
+    crypton-x509-store = {
+      version = "1.10.1";
+      sha256 = "sha256-Oo7I3gwtCyw+RFdyvi94ypSRmxMoE41fo1b97QQXgpk=";
+    };
+    crypton-x509-system = {
+      version = "1.10.1";
+      sha256 = "sha256-cLbT4UavafT9EIxlJrSvd68OcSm0W7/YvY1ql8ArNBw=";
+    };
+    tls = {
+      version = "2.5.3";
+      sha256 = "sha256-D0lh8MT+0rFTehYpFE2DstLZrCKWlETzFh0TBMt86oE=";
+    };
+    hpke = {
+      version = "0.4.0";
+      sha256 = "sha256-jIYXGVaSSM4DCiG3Sdu7U6x8+0JsoAcIff0A08FJb7U=";
+    };
+    ech-config = {
+      version = "0.0.2";
+      sha256 = "sha256-RQmvE/LDL003DAI473kZEIRd3B0WyGETzgsYPUldEpU=";
+    };
+    crypto-token = {
+      version = "0.2.1";
+      sha256 = "sha256-rXuzLI5RChOvbdoayNm0FbvbKj9uWQnCh7m0AaQAlpo=";
+    };
+    tls-session-manager = {
+      version = "0.1.2";
+      sha256 = "sha256-y+pbpM06ve5rWIiMDUNo3te6UpeuRuj80MdcsjfvBQI=";
+    };
+    cryptostore = {
+      version = "0.6.0.0";
+      sha256 = "sha256-oXjsb7zyZY2kajcQAJ+RdVnoYlL3IIpkLaNQNiA28dQ=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
