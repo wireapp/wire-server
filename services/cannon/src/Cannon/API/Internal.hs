@@ -22,7 +22,6 @@ module Cannon.API.Internal (internalServer) where
 
 import Cannon.App
 import Cannon.Dict qualified as D
-import Cannon.NotificationFanIn
 import Cannon.Types
 import Cannon.WS
 import Control.Monad.Catch
@@ -36,7 +35,6 @@ import System.Logger.Class (msg, val)
 import System.Logger.Class qualified as LC
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
-import Wire.API.Notification.FanIn qualified
 import Wire.API.RawJson
 import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Named
@@ -46,7 +44,8 @@ internalServer =
   Named @"get-status" (pure ())
     :<|> Named @"push-notification" pushHandler
     :<|> Named @"bulk-push-notifications" bulkPushHandler
-    :<|> Named @"fan-in-notifications" notifyFanInH
+    -- TODO: Implement fan-in wake-up and transient delivery handling.
+    :<|> Named @"fan-in-notifications" (const undefined)
     :<|> Named @"check-presence" checkPresenceHandler
 
 pushHandler :: UserId -> ConnId -> RawJson -> Cannon (Maybe ())
@@ -61,11 +60,8 @@ singlePush n (PushTarget usrid conid) = do
   let k = mkKey usrid conid
   d <- clients
   LC.debug $ client (key2bytes k) . msg (val "push")
-  (_, runtime, _) <- fanInEnvironment
-  fanIn <- liftIO $ isFanInConnection runtime usrid conid
   c <- D.lookup k d
   case c of
-    Nothing | fanIn -> pure PushStatusOk
     Nothing -> do
       LC.debug $ client (key2bytes k) . msg (val "push: client gone")
       pure PushStatusGone
@@ -92,14 +88,7 @@ bulkPushHandler (BulkPushRequest ns) =
 checkPresenceHandler :: UserId -> ConnId -> Cannon (Maybe ())
 checkPresenceHandler u c = do
   e <- wsenv
-  (_, runtime, _) <- fanInEnvironment
-  registered <- if isFanInConnId c then liftIO (isFanInConnection runtime u c) else runWS e $ isRemoteRegistered u c
+  registered <- runWS e $ isRemoteRegistered u c
   if registered
     then pure $ Just ()
     else pure Nothing
-
-notifyFanInH :: Wire.API.Notification.FanIn.FanInCannonRequest -> Cannon NoContent
-notifyFanInH request = do
-  (options, runtime, environment) <- fanInEnvironment
-  liftIO $ notifyFanIn options environment runtime request
-  pure NoContent

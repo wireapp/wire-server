@@ -19,16 +19,11 @@ module Main where
 
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
-import Data.Metrics.Types (treeLookup)
 import Imports
 import Test.Cannon.Dict qualified as D
-import Test.Cannon.FanInAuthorization qualified as FanInAuthorization
-import Test.Cannon.Options qualified as Options
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Internal.Cannon qualified as Internal
-import Wire.API.Routes.Public.Cannon (CannonAPI)
-import Wire.API.Routes.Version (SpecialiseToVersion, Version (V18, V19))
 
 main :: IO ()
 main =
@@ -40,15 +35,5 @@ main =
             "inconcistent sitemap"
             mempty
             (pathsConsistencyCheck $ routesToPaths @Internal.API),
-        testCase "legacy and fan-in routes coexist in V18" $ do
-          let paths = routesToPaths @(SpecialiseToVersion 'V18 CannonAPI)
-          treeLookup paths ["events"] @?= Just "/events"
-          treeLookup paths ["events", "fan-in"] @?= Just "/events/fan-in",
-        testCase "legacy and fan-in routes coexist in V19" $ do
-          let paths = routesToPaths @(SpecialiseToVersion 'V19 CannonAPI)
-          treeLookup paths ["events"] @?= Just "/events"
-          treeLookup paths ["events", "fan-in"] @?= Just "/events/fan-in",
-        Options.tests,
-        FanInAuthorization.tests,
         D.tests
       ]

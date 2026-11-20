@@ -43,23 +43,3 @@ disabledAPIVersions: []
 
 logLevel: Warn
 logNetStrings: false
-
-brig:
-  host: 127.0.0.1
-  port: 8082
-galley:
-  host: 127.0.0.1
-  port: 8085
-federationDomain: example.com
-
-notificationFanInPostgres:
-  connection:
-    host: 127.0.0.1
-    port: "55432"
-    user: wire-server
-    dbname: wire_fan_in
-    password: posty-the-gres
-  pool:
-    size: 5
-    acquisitionTimeout: 10s
-    idlenessTimeout: 10m

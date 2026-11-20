@@ -25,7 +25,6 @@ import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
 import Cannon.API.Internal
 import Cannon.API.Public
 import Cannon.Dict qualified as D
-import Cannon.NotificationFanIn (FanInRuntime, drainFanIn)
 import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.Types hiding (Env)
@@ -121,14 +120,14 @@ run o = lowerCodensity $ do
     inSpan tracer "cannon" defaultSpanArguments {kind = Otel.Server} (k ())
   lift $
     E.handle uncaughtExceptionHandler $ do
-      let handler = signalHandler e.fanInRuntime (env e) (o ^. drainOpts) tid
+      let handler = signalHandler (env e) (o ^. drainOpts) tid
       void $ installHandler sigTERM handler Nothing
       void $ installHandler sigINT handler Nothing
       -- FUTUREWORK(@akshaymankar, @fisx): we may want to call `runSettingsWithShutdown` here,
       -- but it's a sensitive change, and it looks like this is closing all the websockets at
       -- the same time and then calling the drain script. I suspect this might be due to some
       -- cleanup in wai.  this needs to be tested very carefully when touched.
-      runSettings s app `E.finally` drainFanIn e.fanInRuntime
+      runSettings s app
   where
     -- Each cannon instance advertises its own location (ip or dns name) to gundeck.
     -- Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
@@ -139,9 +138,8 @@ run o = lowerCodensity $ do
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
 
-signalHandler :: FanInRuntime -> Env -> DrainOpts -> ThreadId -> Signals.Handler
-signalHandler runtime e opts mainThread = CatchOnce $ do
-  drainFanIn runtime
+signalHandler :: Env -> DrainOpts -> ThreadId -> Signals.Handler
+signalHandler e opts mainThread = CatchOnce $ do
   runWS e drain
   drainRabbitMqPool e.pool opts
   throwTo mainThread SignalledToExit

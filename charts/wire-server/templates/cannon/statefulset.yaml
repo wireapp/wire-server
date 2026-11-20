@@ -116,11 +116,6 @@ spec:
             mountPath: /etc/wire/cannon/externalHost
           - name: cannon-config
             mountPath: /etc/wire/cannon/conf
-        {{- if hasKey .Values.gundeck.secrets "notificationFanInPostgresPassword" }}
-          - name: fan-in-secrets
-            mountPath: /etc/wire/cannon/fan-in-secrets
-            readOnly: true
-        {{- end }}
         {{- if .Values.cannon.config.rabbitmq.tlsCaSecretRef }}
           - name: rabbitmq-ca
             mountPath: "/etc/wire/cannon/rabbitmq-ca/"
@@ -167,14 +162,6 @@ spec:
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       volumes:
-      {{- if hasKey .Values.gundeck.secrets "notificationFanInPostgresPassword" }}
-      - name: fan-in-secrets
-        secret:
-          secretName: gundeck
-          items:
-          - key: notificationFanInPostgresPassword
-            path: notificationFanInPostgresPassword
-      {{- end }}
       - name: cannon-config
         configMap:
           name: cannon

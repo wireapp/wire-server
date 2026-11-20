@@ -22,7 +22,6 @@
 , extended
 , extra
 , hashable
-, hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , http-types
@@ -32,7 +31,6 @@
 , lib
 , metrics-wai
 , mwc-random
-, polysemy
 , prometheus-client
 , QuickCheck
 , random
@@ -40,7 +38,6 @@
 , safe-exceptions
 , servant-conduit
 , servant-server
-, stm
 , strict
 , tasty
 , tasty-hunit
@@ -60,8 +57,6 @@
 , websockets
 , wire-api
 , wire-otel
-, wire-subsystems
-, yaml
 }:
 mkDerivation {
   pname = "cannon";
@@ -88,7 +83,6 @@ mkDerivation {
     extended
     extra
     hashable
-    hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     http-types
@@ -97,13 +91,11 @@ mkDerivation {
     lens
     metrics-wai
     mwc-random
-    polysemy
     prometheus-client
     retry
     safe-exceptions
     servant-conduit
     servant-server
-    stm
     strict
     text
     tinylog
@@ -111,7 +103,6 @@ mkDerivation {
     types-common
     unix
     unliftio
-    uuid
     vector
     wai
     wai-extra
@@ -120,11 +111,9 @@ mkDerivation {
     websockets
     wire-api
     wire-otel
-    wire-subsystems
   ];
   executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [
-    aeson
     async
     base
     bytestring
@@ -135,10 +124,8 @@ mkDerivation {
     tasty
     tasty-hunit
     tasty-quickcheck
-    types-common
     uuid
     wire-api
-    yaml
   ];
   benchmarkHaskellDepends = [ async base criterion imports uuid ];
   description = "Push Notification API";
