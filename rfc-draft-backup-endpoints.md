@@ -606,10 +606,12 @@ Each operation writes first, then looks:
 - **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
   and delete everything `t` covers.
 - **Client removal:** Brig enqueues an event, then deletes the client row. The
-  consumer deletes the row again (idempotent), then lists the client prefix and
-  deletes everything, tombstones included. It retries until that succeeds. Removal
-  never waits for Cargohold or S3, so a broken store cannot block removing a
-  (possibly compromised) client.
+  consumer deletes the row again (idempotent), then enqueues a second event
+  (`DeleteClientBackups`). Its consumer lists the client prefix and deletes
+  everything, tombstones included. It retries until that succeeds, without
+  repeating the client removal and its notification. Removal never waits for
+  Cargohold or S3, so a broken store cannot block removing a (possibly
+  compromised) client.
 - **User deletion:** the same with a backend-internal event (`DeleteBackups`,
   never fanned out), enqueued by Brig's `deleteAccount` as its last step, after
   the user is marked deleted and its client rows are gone. The consumer deletes
@@ -871,8 +873,9 @@ RFC: "Backup deletion", "Device compromise". The user removes a device.
 - **Public endpoints:** the existing client removal, `DELETE /clients/<ClientId>`
 - **Internal:**
   - Brig enqueues `DeleteClient`, then deletes the client row
-  - the queue consumer deletes the row again, then calls Cargohold
-    `DELETE /i/backups/users/<UserId>/clients/<ClientId>`, retried until it succeeds
+  - the queue consumer deletes the row again, then enqueues `DeleteClientBackups`
+  - its consumer calls Cargohold `DELETE /i/backups/users/<UserId>/clients/<ClientId>`, retried
+    until it succeeds
 - **S3:** deletes all versions under `backup/<h(uid)>/<h(cid)>/`, tombstones included
 
 Note: the RFC requires immediate deletion. Here it is asynchronous via the queue, but reads need
@@ -901,7 +904,8 @@ flowchart LR
     UD --> DB[DeleteBackups event]
     DB --> CU[Cargohold: delete user prefix]
     CR[Client removal] --> DC[DeleteClient event]
-    DC --> CC[Cargohold: delete client prefix]
+    DC --> DCB[DeleteClientBackups event]
+    DCB --> CC[Cargohold: delete client prefix]
     CU --> S3[(S3)]
     CC --> S3
 ```
