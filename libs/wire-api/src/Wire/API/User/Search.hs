@@ -56,11 +56,13 @@ import Data.Proxy
 import Data.Qualified
 import Data.Schema
 import Data.Text qualified as T
+import Data.Text qualified as Text
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Data.Text.Encoding qualified as TE
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
+import Wire.API.PostgresMarshall
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy, UserType (..))
 import Wire.API.User.Identity (EmailAddress)
@@ -381,6 +383,27 @@ instance C.Cql FederatedUserSearchPolicy where
   fromCql (C.CqlInt 1) = pure ExactHandleSearch
   fromCql (C.CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+instance PostgresMarshall Int32 FederatedUserSearchPolicy where
+  postgresMarshall = searchPolicyToInt32
+
+instance PostgresUnmarshall Int32 FederatedUserSearchPolicy where
+  postgresUnmarshall = searchPolicyFromInt32
+
+searchPolicyFromInt32 :: Int32 -> Either Text FederatedUserSearchPolicy
+searchPolicyFromInt32 =
+  \case
+    0 -> Right NoSearch
+    1 -> Right ExactHandleSearch
+    2 -> Right FullSearch
+    n -> Left $ "unexpected search policy-type: " <> Text.pack (show n)
+
+searchPolicyToInt32 :: FederatedUserSearchPolicy -> Int32
+searchPolicyToInt32 =
+  \case
+    NoSearch -> 0
+    ExactHandleSearch -> 1
+    FullSearch -> 2
 
 data EmailVerificationFilter
   = EmailUnverified

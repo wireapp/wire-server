@@ -2467,6 +2467,7 @@ cover multiple Cassandra tables, depending on the store.
 
 The current settings and their background-worker flags are:
 
+- `federationDomainConfig` -> `migrateFederationDomainConfig`
 - `conversation` -> `migrateConversations`
 - `conversationCodes` -> `migrateConversationCodes`
 - `teamFeatures` -> `migrateTeamFeatures`
@@ -2515,6 +2516,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateFederationDomainConfig: false
    ```
 
    This change should restart the affected pods, and new writes will follow the
@@ -2534,6 +2536,7 @@ The current settings and their background-worker flags are:
        migratePasswordReset: true
        migrateCustomBackend: true
        migrateConnections: true
+       migrateFederationDomainConfig: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -2596,6 +2599,7 @@ The current settings and their background-worker flags are:
        migrateCustomBackend: false
        migrateNonce: false
        migrateConnections: false
+       migrateFederationDomainConfig: false
    ```
 
 **How to run migrations independently or in batches**
@@ -2689,6 +2693,7 @@ migratePasswordReset: false
 migrateCustomBackend: false
 migrateNonce: false
 migrateConnections: false
+migrateFederationDomainConfig: false
 
 # migration settings
 migrationOptions:
