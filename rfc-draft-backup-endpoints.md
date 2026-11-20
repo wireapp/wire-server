@@ -593,13 +593,14 @@ Each operation writes first, then looks:
   1. PUT the file.
   2. Look: read the client row (Brig); fail if it is gone.
   3. Look: list the tombstones; fail if one covers the file.
-  4. Look: list the epoch; delete superseded files. Fail if that includes the
-     file itself.
+  4. Look: list the epoch. If the file itself is superseded, delete only it and
+     fail. Else delete the superseded files.
   5. Full only. Look: list the epochs; delete all but the kept ones. Fail if that
      includes the file's epoch.
 
-  A failure in 2 or 3 deletes the file. In 4 and 5 the failure means that step's
-  own cleanup already deleted the file (as superseded, or with its pruned epoch).
+  A failure in 2 or 3 deletes the file. 4 and 5 fail only due to a concurrent
+  upload (a newer full, or two newer epochs). The failing upload deletes
+  its own file: in 4 as superseded, in 5 with its pruned epoch.
 
 - **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
   and delete everything `t` covers.
@@ -638,7 +639,9 @@ do so; deletes are idempotent.
 Notes on the rows:
 
 - Fulls: whichever of F1 and F2 lists the epoch later sees both. F2 has the
-  greater id, so the listing makes F2 current and F1 superseded.
+  greater id, so the listing makes F2 current and F1 superseded. A superseded
+  upload deletes only its own file, never others: only the upload of the current
+  full prunes, after its own looks in steps 2 and 3 passed.
 - Incremental vs full: I extends F1, so its key is under F1's prefix. Once F2 is
   visible, I is superseded wherever it is listed. It cannot become an
   incremental of F2.
@@ -659,13 +662,27 @@ Two concurrent deletions need no special treatment: each deletes only what its
 own tombstone covers, so the newer tombstone survives the older sweep and keeps
 rejecting older uploads.
 
-The converse holds too: no current file is deleted. A file is only deleted when
-it is superseded (a full with a greater id is visible), not kept (two greater
-epochs are visible), covered by a tombstone, or its client is gone. None of these
-can be undone: a full that superseded a file is itself only deleted by a greater
-full, a covering tombstone, an epoch prune or the removal of its client, and
-each of those removes the superseded file as well. A removed client stays
-removed. The one exception is below (rolled-back full).
+The converse holds too: no current file is deleted. A file is only deleted for
+one of these reasons:
+
+- it is superseded: a full with a greater id is visible
+- its epoch is not kept: two greater epochs are visible
+- a tombstone covers it
+- its client is gone.
+
+Each reason stays true once it was seen, so a deleted file never becomes current
+again:
+
+- A newer full is only deleted by an even newer full, a covering tombstone, an
+  epoch prune or the removal of its client. Each of those deletes the older
+  file as well.
+- Epochs, tombstones and client removals are never undone.
+
+One exception: if a look of a new full fails in step 2 or 3 (e.g. a Brig or S3
+error), the upload deletes its own full again, after others may have seen it.
+That is harmless: it has not pruned anything yet, and concurrent uploads that
+saw it deleted only their own file. So the previous full stays current. (If
+this self deletion fails too, see [Special cases](#special-cases).)
 
 #### Special cases
 
@@ -673,7 +690,7 @@ These don't follow the pattern. Each leaves only a limited, temporary
 inconsistency that a later operation cleans up (i.e. they are "bounded"):
 
 - **Incremental vs epoch pruning.** An incremental doesn't list the epochs. It
-  can land in epoch N after a full of N+2 listed epoch N for deletion. Then
+  can land in epoch N after a concurrent full upload of N+2 deleted N. Then
   epoch N holds this incremental and no full. It is never listed (no current
   full) and never attributed to another full. The next full upload of the client
   deletes epoch N (not kept), as does any deletion of the client's backups.
@@ -688,26 +705,32 @@ inconsistency that a later operation cleans up (i.e. they are "bounded"):
   delete at once, so it is very rare: an upload's own cleanup fails after it saw
   - the client gone: only this one file stays in S3. No operation of the removed
     client follows, so it stays until the user is deleted (by user prefix). It is
-    not listed or downloadable for the user's other clients: reads require the
-    backed-up client to be a current (non-deleted) client. This is decision is
+    neither listed nor downloadable for the user's other clients: reads require the
+    backed-up client to be a current (non-deleted) client. This decision is
     made in the API layer, though.
   - a covering tombstone: the file stays listed until the client's next backup
     deletion.
-- **Rolled-back full.** A full F2 is visible from its PUT until its looks in
-  steps 2 and 3 finished. If a look fails for a transient reason (Brig or S3
-  error, request cancelled), F2 is deleted again. A concurrent upload to the same
-  epoch that listed it meanwhile has already deleted the previous full F1 and its
-  incrementals as superseded. The epoch then has no full until the client uploads
-  a new one, which it does after getting the response about the failed upload
-  anyway. The other kept epoch is untouched. (If the look fails because the
-  client is gone or a tombstone covers F2, F1 had to go as well.)
+  - a failing look in step 2 or 3 for full uploads combined with failing
+    self-deletion (likely when S3 is the problem): the new full stays and becomes
+    current. It is complete (its PUT finished), only its id never reached the
+    client and cleanups didn't happen. The client's next incremental under the
+    previous full gets 409 `backup-full-missing`; the client then fetches the
+    current full's id to increment on it, or uploads a new full. The previous
+    full and its incrementals are no longer listed; the next upload to the epoch
+    deletes them.
+- **Rolled-back newest epoch.** A full F in epoch N+2 is visible from its PUT
+  until its looks in steps 2 and 3 finish. A concurrent full of epoch N+1 that
+  lists the epochs meanwhile deletes epoch N as not kept. If F is then deleted
+  because a look failed transiently (Brig or S3 error, request cancelled), only
+  epoch N+1 is left. N+1 stays restorable, containing the latest available backups.
 
 #### No locks
 
 Nothing above needs a lock, a readiness flag or a TTL. A visible file is
 complete, the current state is a pure function of the keys, and every race ends
-with the right set of keys. A client that is unsure whether a full upload
-succeeded can simply upload it again: the newest full wins.
+with the sound set of keys. A client that is unsure whether a full upload
+succeeded can simply query or upload it again (though a re-upload of a full
+requires re-uploads of its incrementals).
 
 ### Deletion and versioned buckets
 
@@ -733,7 +756,7 @@ off.
 The backend-related use cases of the RFC "Secure Automatic Backups" and how they map to this
 design. Each use case lists:
 
-- **Public endpoints:** the routes the client calls (or the generic Wire flow that triggers it)
+- **Public endpoints:** the routes the client calls or the generic Wire flow that triggers it
 - **Internal:** calls between services and queue events
 - **S3:** objects that are created, deleted or read (see [Key layout](#key-layout))
 
@@ -785,10 +808,10 @@ with the BEK that B shared via MLS.
   - `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>`
   - `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>/full/<FullId>` and
     `GET /backups/clients/<ClientId>/epochs/<BackupEpoch>/full/<FullId>/incremental/<BackupFileId>`:
-    302 to a presigned URL
+    302 redirects to presigned S3 URLs
 - **Internal:** Cargohold → Brig: A and B are clients of the caller
 - **S3:** read only. Lists `backup/<h(uid)>/<h(cid)>/` (epochs) and
-  `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/`, presigned GET of
+  `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/`, prepare presigned redirect URLs of
   `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/full` and
   `backup/<h(uid)>/<h(cid)>/<BackupEpoch>/<FullId>/incremental/<BackupFileId>`
 
@@ -797,7 +820,7 @@ Note: the team flag is not checked on reads.
 ### 4. Restore after losing the only device
 
 RFC: "Overview", scenario 2. Like [3](#3-restore-from-a-remote-backup), except: the BEK is derived from the imported RootBEK, not
-shared by another device. It only works while the lost client is still registered: removing it
+shared by another device. **It only works while the lost client is still registered:** removing it
 ([7](#7-device-removed-or-compromised)) deletes its backups. So restore first, then remove the lost device.
 
 ### 5. Device deletes its backups

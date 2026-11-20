@@ -604,9 +604,24 @@ spec = describe "BackupSubsystem" $ do
       (blobs, res) <- runBackup world0 Nothing $ do
         old <- uploadFull uA a1 a1 1 "old"
         modify (\w -> w {newerFullDuringPut = True})
-        void <$> attempt (uploadInc old uA a1 a1 1 "inc")
-      res `shouldBe` Right (Left BackupErrFullMissing)
-      Map.keys blobs `shouldBe` [newestLoc uA a1 (BackupEpoch 1)]
+        (old,) . void <$> attempt (uploadInc old uA a1 a1 1 "inc")
+      Right (old, rejected) <- pure res
+      rejected `shouldBe` Left BackupErrFullMissing
+      -- the old full file is left to the newer full file's upload (not run by the mock)
+      Map.keys blobs `shouldMatchList` [fullLoc uA a1 1 old, newestLoc uA a1 (BackupEpoch 1)]
+
+    it "leave the full file to a newer one that is rolled back" $ do
+      (blobs, res) <- runBackup world0 Nothing $ do
+        old <- uploadFull uA a1 a1 1 "old"
+        modify (\w -> w {newerFullDuringPut = True})
+        rejected <- attempt (uploadInc old uA a1 a1 1 "inc")
+        modify (\w -> w {newerFullDuringPut = False})
+        deleteBlob (newestLoc uA a1 (BackupEpoch 1))
+        (old,void rejected,) <$> filesOf uA a1 a1 1
+      Right (old, rejected, fs) <- pure res
+      rejected `shouldBe` Left BackupErrFullMissing
+      fs `shouldBe` [old]
+      Map.keys blobs `shouldBe` [fullLoc uA a1 1 old]
 
     it "of a full file that lost a race are never listed and removed by the next upload" $ do
       -- the race: the incremental file passed the check against the old full file, a newer full

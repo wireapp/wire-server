@@ -119,12 +119,14 @@ interpretBackupSubsystem = interpret $ \case
 -- A stored object is complete (S3 makes it visible on completion only), so there is no lock: a
 -- new full file replaces the previous one. The newest full file (greatest id) wins. An
 -- incremental file is stored under the full file it extends, which must be the newest one, so it
--- cannot belong to a full file that is still uploading. After storing, every upload deletes what
--- the newest full file superseded: older full files, and incremental files under them, also
--- orphans of an incremental upload that raced a newer full file. A full file also deletes all
--- files of all but the two newest epochs (listed after the upload, so epochs created meanwhile
--- count). Concurrent full uploads prune each other, a late older one deletes itself. An upload
--- whose own prune deletes its file fails.
+-- cannot belong to a full file that is still uploading. After storing, an upload whose file is
+-- current deletes what the newest full file superseded: older full files, and incremental files
+-- under them, also orphans of an incremental upload that raced a newer full file. An upload whose
+-- file is superseded deletes only its file and fails: the newer full file's upload prunes the
+-- rest after its own checks, so a newer full file that is rolled back leaves the previous one
+-- current. A full file also deletes all files of all but the two newest epochs (listed after the
+-- upload, so epochs created meanwhile count). An upload whose own epoch prune deletes its file
+-- fails.
 uploadBackupImpl ::
   ( Member BackupBlobStore r,
     Member BrigAPIAccess r,
@@ -157,9 +159,11 @@ uploadBackupImpl uid zcid cid e base len src = do
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
   store BackupLocation {user = uid, client = cid, epoch = e, file}
   superseded <- pruneTargets <$> listBlobs uid cid e
-  traverse_ (deleteBlob . location) superseded
-  -- A newer full was stored during the upload: this file was just pruned, don't report it.
-  when (file `elem` map (.file) superseded) $ throw BackupErrFullMissing
+  -- A newer full was stored during the upload: delete only this file and fail. The newer full's
+  -- upload prunes the rest after its own checks; if it is rolled back, the previous full stays.
+  if file `elem` map (.file) superseded
+    then deleteBlob (location file) *> throw BackupErrFullMissing
+    else traverse_ (deleteBlob . location . (.file)) superseded
   -- Epochs listed again: one may have appeared during the upload.
   when (isNothing base) $ do
     stale <- staleEpochs . Set.insert e . Set.fromList <$> listBlobEpochs uid cid
@@ -168,7 +172,7 @@ uploadBackupImpl uid zcid cid e base len src = do
     when (e `elem` stale) $ throw BackupErrEpochNotAllowed
   pure (toFile BackupBlob {file, size = len})
   where
-    location b = BackupLocation {user = uid, client = cid, epoch = e, file = b.file}
+    location f = BackupLocation {user = uid, client = cid, epoch = e, file = f}
     store l = do
       let put = void (putBlob l len src) `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
           recheck = do

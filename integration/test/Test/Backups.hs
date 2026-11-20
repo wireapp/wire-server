@@ -399,16 +399,23 @@ testBackupIncrementalNeedsFull = do
     resp.json %. "label" `shouldMatch` "backup-full-missing"
   bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> resp.status `shouldMatchInt` 404
 
--- | All parallel full uploads succeed, exactly one full file is left afterwards.
+-- | Parallel full uploads succeed, or fail with 409 if a newer full was stored meanwhile. Exactly
+-- one full file is left afterwards, from a successful upload.
 testBackupConcurrentFulls :: (HasCallStack) => App ()
 testBackupConcurrentFulls = do
   (owner, _, _) <- backupTeam OwnDomain
   c1 <- newClient owner
-  void $ pooledForConcurrentlyN 4 [1 .. 4 :: Int] $ \_ ->
+  fids <- fmap catMaybes $ pooledForConcurrentlyN 4 [1 .. 4 :: Int] $ \_ ->
     bindResponse (uploadBackup owner c1 c1 1 Nothing (BSC.pack "x")) $ \resp ->
-      resp.status `shouldMatchInt` 200
+      if resp.status == 409
+        then Nothing <$ (resp.json %. "label" `shouldMatch` "backup-full-missing")
+        else do
+          resp.status `shouldMatchInt` 200
+          Just <$> (resp.json %. "id" & asString)
   bindResponse (listBackupFiles owner c1 c1 1) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    fid <- resp.json %. "full.id" & asString
+    fids `shouldContain` [fid]
     (resp.json %. "incrementals" & asList) >>= \is -> length is `shouldMatchInt` 0
 
 testBackupListAll :: (HasCallStack) => App ()
