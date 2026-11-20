@@ -57,8 +57,8 @@ type FullUploadDescription =
   "The new full backup replaces the epoch's previous full backup and the incremental files \
   \of it; the newest full backup (by id) wins. If a newer full backup is stored during the \
   \upload, this one is deleted and the upload fails with `backup-full-missing`. A failed or \
-  \aborted upload leaves no file behind, except a server error (500) after the file was stored: \
-  \then the file may stay. Only the two newest epochs are kept: after the full backup is stored, all files of \
+  \aborted upload leaves no file behind, except in rare infrastructure failures: then the file \
+  \may stay. Only the two newest epochs are kept: after the full backup is stored, all files of \
   \the older epochs are deleted. If two newer epochs are stored during the upload, this epoch is deleted \
   \and the upload fails with `backup-epoch-not-allowed`."
 
@@ -66,8 +66,9 @@ type IncrementalUploadDescription =
   "Extends the full backup `fullId`, which must be the newest full backup of the epoch \
   \(`backup-full-missing` otherwise, also if a newer full backup is stored during the upload: \
   \upload a new full backup instead). A failed or aborted \
-  \upload leaves no file behind, except a server error (500) after the file was stored: then the \
-  \file may stay, and a retry stores it a second time."
+  \upload leaves no file behind, except in rare infrastructure failures: then the file may stay, \
+  \and a retry stores it a second time. Clients must tolerate duplicate incremental files on \
+  \restore, e.g. by a sequence number in the plaintext."
 
 type DeleteClientBackupsDescription =
   "Deletes all backups of the client, which must be the calling client. The team feature is not \

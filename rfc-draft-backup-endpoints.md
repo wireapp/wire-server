@@ -130,18 +130,14 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
   - `<ClientId>` must equal `Z-Client` (else 403 `backup-forbidden`). I.e.
     clients can only write for their own, never for others!
   - A stored file is always complete: the object only becomes visible once its
-    upload finished. A failed upload leaves no file.
+    upload finished. A failed upload leaves no file (except in rare
+    infrastructure failures, see [Special cases](#special-cases)).
   - Epoch rule (epochs ≥ 1): with no epoch stored any epoch is allowed;
     otherwise only the newest stored epoch `N` or `N+1` (violations raise HTTP 409
     `backup-epoch-not-allowed`).
   - A failed upload (fewer bytes than `Content-Length` arrive, client
-    disconnect, storage error, client removed meanwhile) removes the file and
-    surfaces the error; a short body or disconnect gives 400 `incomplete-body`.
-    Exception: a storage error after the file was stored and found current (while
-    deleting superseded files or stale epochs) leaves the file in place. Rolling it
-    back could leave the epoch without a full, as the previous one may already be
-    deleted. A retry then stores the file again; for an incremental, the epoch
-    holds it twice.
+    disconnect, storage error, client removed meanwhile) surfaces the error; a
+    short body or disconnect gives 400 `incomplete-body`.
   - An empty file (`Content-Length: 0`) is rejected with 400 `invalid-length`.
   - **Size subtlety:** the server stores exactly the first `Content-Length` bytes
     and ignores any excess, because the HTTP layer hands the handler no more than
@@ -291,6 +287,10 @@ current one.
 These rules apply: size cap (HTTP 413) and file count cap `maxFilesPerEpoch`
 counting the current files including the full (409 `backup-too-many-files`).
 Concurrent incremental uploads can slightly exceed the file count cap.
+
+Clients must tolerate duplicate incrementals on restore, e.g. by a sequence
+number in the plaintext: in rare infrastructure failures a retried incremental
+is stored twice (see [Special cases](#special-cases)).
 
 Example: `POST /v19/backups/clients/4b2f7a9c1d3e5f60/epochs/2/full/01a1cf41-5e4b-7c3b-8d2a-5e6f4a1b9c07/incremental` with `Content-Length: 2048` and 2048 body bytes → `200`
 
@@ -614,8 +614,9 @@ Each operation writes first, then looks:
      includes the file's epoch.
 
   A failure in 2 or 3 deletes the file. 4 and 5 fail only due to a concurrent
-  upload (a newer full, or two newer epochs). The failing upload deletes
-  its own file: in 4 as superseded, in 5 with its pruned epoch.
+  upload (a newer full, or two newer epochs), or a storage error (see [Special
+  cases](#special-cases)). The upload rejected by a concurrent one deletes its
+  own file: in 4 as superseded, in 5 with its pruned epoch.
 
 - **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
   and delete everything `t` covers.
@@ -750,6 +751,16 @@ inconsistency that a later operation cleans up (i.e. they are "bounded"):
   lists the epochs meanwhile deletes epoch N as not kept. If F is then deleted
   because a look failed transiently (Brig or S3 error, request cancelled), only
   epoch N+1 is left. N+1 stays restorable, containing the latest available backups.
+- **Storage error after storing.** Rare: S3 fails after an upload stored its
+  file and passed steps 2 and 3. The upload answers 500 and the file stays, as
+  it cannot be deleted while the storage fails:
+  - A full must stay anyway: step 4 may already have deleted the previous full,
+    so a rollback could leave the epoch without one. A retried full upload
+    replaces it.
+  - An incremental stays under its full. A retried incremental upload stores it
+    a second time; both stay until the next full supersedes them. **Clients must
+    therefore tolerate duplicate incrementals on restore**, e.g. by a sequence
+    number in the plaintext (which also gives the order to apply them in).
 
 #### No locks
 

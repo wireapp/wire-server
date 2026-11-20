@@ -61,13 +61,18 @@ uploads (ids are assigned at upload start, so ordering incrementals by id alone 
 not be safe).
 
 After a full is stored the server deletes everything else in the epoch, so a new full
-replaces the old one and its incrementals. Every upload deletes what the current full
+replaces the old one and its incrementals. Only an upload whose own file is current (the
+current full, or an incremental under it) prunes; it deletes what the current full
 superseded, which also removes an incremental that was stored just after a newer full
-(it raced the new full). Concurrent fulls prune each other, a late older one deletes
-itself. An upload whose own prune deletes its file fails with `409 backup-full-missing`.
+(it raced the new full). An upload whose file is not current (superseded, or already
+deleted by a newer full's prune) deletes only its own file and fails with
+`409 backup-full-missing`.
 
-A failed or aborted upload (any error, client disconnect) removes the file it created.
-Incremental uploads need the current full (`409 backup-full-missing` otherwise).
+A failed or aborted upload (any error, client disconnect) removes the file it created,
+except in rare infrastructure failures: a storage error after the file passed the client
+and tombstone checks leaves it in place (500), so a retried incremental is stored twice.
+Clients must tolerate duplicate incrementals on restore. Incremental uploads need the
+current full (`409 backup-full-missing` otherwise).
 
 ### Why list + per-file redirect
 
