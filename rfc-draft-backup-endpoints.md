@@ -587,7 +587,7 @@ endpoints](#api-endpoints).
     completed before then.
 - Deletes remove all versions (see [Deletion and versioned
   buckets](#deletion-and-versioned-buckets)) and are idempotent.
-- Brig's reads of client rows see its own completed writes. I.e. a client deletion is immediately visible afterwards.
+- Brig's reads of clients see its own completed writes. I.e. a client deletion is immediately visible afterwards.
 - Cargohold clocks are roughly synchronized (NTP), because they create UUIDv7
   ids with encoded time which are later compared to others.
 
@@ -612,7 +612,7 @@ Each operation writes first, then looks:
 
 - **Upload** (full or incremental):
   1. PUT the file.
-  2. Look: read the client row (Brig); fail if it is gone.
+  2. Look: ask Brig whether the client still exists; fail if not.
   3. Look: list the tombstones; fail if one covers the file.
   4. Look: list the epoch. If the file is not current (superseded, or already
      deleted by a newer full), delete only it and fail. Else delete the superseded
@@ -627,8 +627,8 @@ Each operation writes first, then looks:
 
 - **Client deletes its backups:** PUT tombstone `t`, then list the client prefix
   and delete everything `t` covers.
-- **Client removal:** Brig enqueues an event, then deletes the client row. The
-  consumer deletes the row again (idempotent), then enqueues a second event
+- **Client removal:** Brig enqueues an event, then deletes the client. The
+  consumer deletes the client again (idempotent), then enqueues a second event
   (`DeleteClientBackups`). Its consumer lists the client prefix and deletes
   everything, tombstones included. On failure the queue redelivers this event,
   without repeating the client removal and its notification, until the broker's
@@ -639,8 +639,8 @@ Each operation writes first, then looks:
   compromised) client.
 - **User deletion:** the same with a backend-internal event (`DeleteBackups`,
   never fanned out), enqueued by Brig's `deleteAccount` as its last step, after
-  the user is marked deleted and its client rows are gone. The consumer deletes
-  all client rows again, then the user prefix.
+  the user is marked deleted and its clients are gone. The consumer deletes
+  all clients again, then the user prefix.
 
 #### Why races are safe
 
@@ -657,13 +657,13 @@ Of the two looks, the later one starts after both writes have completed, so it
 sees both markers. Hence at least one side sees the other and cleans up. Both may
 do so; deletes are idempotent.
 
-| Race                                        | A writes, then looks at | B writes, then looks at              | Ends up deleted            | Deleted by                                   |
-| ------------------------------------------- | ----------------------- | ------------------------------------ | -------------------------- | -------------------------------------------- |
-| full F1 vs newer full F2, same epoch        | F1; epoch listing       | F2; epoch listing                    | F1 and its incrementals    | F1 if it sees F2, else F2                    |
-| incremental I under F1 vs newer full F2     | I; epoch listing        | F2; epoch listing                    | I (and F1)                 | I if it sees F2, else F2 (F1 always by F2)   |
-| full of epoch N vs full of epoch N+2        | full in N; epoch list   | full in N+2; epoch list              | epoch N                    | N's upload if it sees N+2, else N+2's upload |
-| upload vs client or user removal            | file; client row        | row deletion; client prefix listing  | the file                   | upload if the row is gone, else the removal  |
-| upload vs client deleting its backups (`t`) | file; tombstones        | tombstone `t`; client prefix listing | the file, if `t` covers it | upload if it sees `t`, else the deletion     |
+| Race                                        | A writes, then looks at | B writes, then looks at                        | Ends up deleted            | Deleted by                                     |
+| ------------------------------------------- | ----------------------- | ---------------------------------------------- | -------------------------- | ---------------------------------------------- |
+| full F1 vs newer full F2, same epoch        | F1; epoch listing       | F2; epoch listing                              | F1 and its incrementals    | F1 if it sees F2, else F2                      |
+| incremental I under F1 vs newer full F2     | I; epoch listing        | F2; epoch listing                              | I (and F1)                 | I if it sees F2, else F2 (F1 always by F2)     |
+| full of epoch N vs full of epoch N+2        | full in N; epoch list   | full in N+2; epoch list                        | epoch N                    | N's upload if it sees N+2, else N+2's upload   |
+| upload vs client or user removal            | file; client in Brig    | client deletion in Brig; client prefix listing | the file                   | upload if the client is gone, else the removal |
+| upload vs client deleting its backups (`t`) | file; tombstones        | tombstone `t`; client prefix listing           | the file, if `t` covers it | upload if it sees `t`, else the deletion       |
 
 Notes on the rows:
 
@@ -677,11 +677,11 @@ Notes on the rows:
   incremental of F2.
 - Epochs: a full of N+2 implies one of N+1 (epoch rule), so the later epoch
   listing sees three epochs and N is not kept.
-- Client or user removal: the removal first deletes the client row (its marker),
-  then lists the client prefix. The upload first PUTs its file, then reads the
-  row. If the upload sees the row gone, it deletes its own file. If it still sees
-  the row, the row deletion hasn't happened yet, so the removal's listing comes
-  later and finds the file.
+- Client or user removal: the removal first deletes the client in Brig (its
+  marker), then lists the client prefix. The upload first PUTs its file, then
+  asks Brig whether the client still exists. If not, it deletes its own file. If
+  it does, Brig hasn't deleted it yet, so the removal's listing comes later and
+  finds the file.
 - Client backup deletion: the deletion PUTs tombstone `t`, then lists and deletes
   covered files. The upload PUTs its file, then lists tombstones and deletes its
   file if `t` covers it. Both sides use the same test: the file's `<FullId>`
@@ -920,14 +920,14 @@ RFC: "Backup deletion", "Device compromise". The user removes a device.
 
 - **Public endpoints:** the existing client removal, `DELETE /clients/<ClientId>`
 - **Internal:**
-  - Brig enqueues `DeleteClient`, then deletes the client row
-  - the queue consumer deletes the row again, then enqueues `DeleteClientBackups`
+  - Brig enqueues `DeleteClient`, then deletes the client
+  - the queue consumer deletes the client again, then enqueues `DeleteClientBackups`
   - its consumer calls Cargohold `DELETE /i/backups/users/<UserId>/clients/<ClientId>`; the queue
     redelivers the event on failure (see [Operations](#operations))
 - **S3:** deletes all versions under `backup/<h(uid)>/<h(cid)>/`, tombstones included
 
 Note: the RFC requires immediate deletion. Here it is asynchronous via the queue, but reads need
-a current client, so the backups are unreachable as soon as the client row is gone (download
+a current client, so the backups are unreachable as soon as Brig has deleted the client (download
 links issued before stay valid until the objects are deleted or `downloadLinkTTL` expires).
 
 ### 8. User deleted
@@ -938,7 +938,7 @@ RFC: "Backup deletion".
 - **Internal:**
   - Brig's `deleteAccount` enqueues `DeleteBackups` last; `DELETE /i/users/<UserId>` enqueues
     it again for an already deleted user
-  - the queue consumer deletes the user's client rows, then calls Cargohold
+  - the queue consumer deletes the user's clients, then calls Cargohold
     `DELETE /i/backups/users/<UserId>`; the queue redelivers the event on failure (see
     [Operations](#operations))
 - **S3:** deletes all versions under `backup/<h(uid)>/`
