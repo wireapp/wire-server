@@ -643,10 +643,15 @@ Each operation writes first, then looks:
   broker's dead-letter limit (STOMP) or the redrive policy or retention period
   (SQS) ends it. Operators must monitor the dead-letter queue and replay failed
   deletions.
-- **User deletion:** the same with a backend-internal event (`DeleteBackups`,
-  never fanned out), enqueued by Brig's `deleteAccount` as its last step, after
-  the user is marked deleted and its clients are gone. The consumer deletes
-  all clients again, then the user prefix.
+- **User deletion:**
+  1. Brig's `deleteAccount` marks the user deleted, deletes its clients and, as
+     its last step, enqueues a backend-internal event (`DeleteBackups`).
+     `DELETE /i/users/<UserId>` enqueues it again for an already deleted user.
+  2. Its consumer deletes all clients of the user again (idempotent), then the
+     user prefix.
+
+  So the backup deletion never blocks the user deletion, even with a broken
+  store. A failing step 2 is redelivered as with client removal.
 
 #### Why races are safe
 
