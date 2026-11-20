@@ -24,6 +24,7 @@ import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
+import Data.ByteString qualified as StrictBS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.HashMap.Strict qualified as HM
@@ -40,16 +41,17 @@ import Data.Text.Ascii
 import Data.Text.Encoding qualified as TE
 import Data.Text.Encoding.Error as TErr
 import Data.Time
+import Data.Vector.Generic qualified as VG
 import GHC.TypeLits (Nat, symbolVal)
 import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Test.QuickCheck (Arbitrary (..), listOf1)
+import Test.QuickCheck (Arbitrary (..), Gen, chooseInt, elements, listOf1, oneof, vectorOf)
 import URI.ByteString
-import URI.ByteString.QQ qualified as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -84,8 +86,25 @@ instance FromHttpApiData RedirectUrl where
   parseUrlPiece = parseHeader . TE.encodeUtf8
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
+-- | Generates absolute @http(s)@ URLs with varying host, optional port, path
+-- and query. Components only use lowercase alphanumerics, so the generated
+-- values survive serialisation round trips unchanged.
 instance Arbitrary RedirectUrl where
-  arbitrary = pure $ RedirectUrl [URI.QQ.uri|https://example.com|]
+  arbitrary = do
+    scheme <- elements ["http", "https"]
+    host <- intercalate "." <$> listOfRange 1 3 component
+    port <- oneof [pure "", (':' :) . show <$> chooseInt (1, 65535)]
+    path <- concatMap ('/' :) <$> listOfRange 0 3 component
+    queryPairs <- listOfRange 0 3 ((\k v -> k <> "=" <> v) <$> component <*> component)
+    let queryPart = if null queryPairs then "" else '?' : intercalate "&" queryPairs
+        raw = scheme <> "://" <> host <> port <> path <> queryPart
+    either (error . ("Arbitrary RedirectUrl: " <>) . show) (pure . RedirectUrl) $
+      parseURI strictURIParserOptions (TE.encodeUtf8 (T.pack raw))
+    where
+      listOfRange :: Int -> Int -> Gen a -> Gen [a]
+      listOfRange lo hi g = chooseInt (lo, hi) >>= flip vectorOf g
+      component :: Gen String
+      component = listOfRange 1 10 (elements (['a' .. 'z'] <> ['0' .. '9']))
 
 type OAuthApplicationNameMinLength = (6 :: Nat)
 
@@ -876,3 +895,38 @@ instance Cql OAuthCodeChallenge where
   toCql = CqlBlob . toByteString
   fromCql (CqlBlob t) = runParser parser (toStrict t)
   fromCql _ = Left "OAuthCodeChallenge: Blob expected"
+
+--------------------------------------------------------------------------------
+-- Postgres marshalling
+
+instance PostgresMarshall Text OAuthAuthorizationCode where
+  postgresMarshall = toText . unOAuthAuthorizationCode
+
+instance PostgresUnmarshall Text OAuthAuthorizationCode where
+  postgresUnmarshall = bimap T.pack OAuthAuthorizationCode . validateBase16
+
+instance PostgresMarshall Text OAuthCodeChallenge where
+  postgresMarshall = unOAuthCodeChallenge
+
+instance PostgresUnmarshall Text OAuthCodeChallenge where
+  postgresUnmarshall = Right . OAuthCodeChallenge
+
+instance PostgresMarshall StrictBS.ByteString RedirectUrl where
+  postgresMarshall = toByteString'
+
+instance PostgresUnmarshall StrictBS.ByteString RedirectUrl where
+  postgresUnmarshall = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
+
+-- | Scopes are stored as the current canonical scope strings; rows written by
+-- older versions may carry deprecated cumulative scopes (@write@, @admin@),
+-- which 'storedScope' expands exactly like the Cql reading path. The instances
+-- are generic over the vector type because hasql.TH encoders/decoders are.
+instance (VG.Vector v Text) => PostgresMarshall (v Text) OAuthScopes where
+  postgresMarshall =
+    VG.fromList
+      . map (TE.decodeUtf8With TErr.lenientDecode . toByteString')
+      . Set.toList
+      . unOAuthScopes
+
+instance (VG.Vector v Text) => PostgresUnmarshall (v Text) OAuthScopes where
+  postgresUnmarshall = Right . OAuthScopes . Set.unions . map storedScope . VG.toList

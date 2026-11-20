@@ -38,15 +38,18 @@ module Test.Wire.API.Roundtrip.PostgresMarshall (tests) where
 import Crypto.Error (CryptoFailable (..))
 import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Aeson as A
+import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.Code qualified as Code
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Vector (Vector)
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.Connection qualified as Connection
+import Wire.API.OAuth qualified as OAuth
 import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
@@ -66,7 +69,11 @@ tests =
       testRoundTrip @Int32 @FeatureStatus,
       testRoundTrip @Int32 @LockStatus,
       testRoundTrip @Int32 @Connection.RelationWithHistory,
-      testRoundTrip @A.Value @DbConfig
+      testRoundTrip @A.Value @DbConfig,
+      testRoundTrip @Text @OAuth.OAuthAuthorizationCode,
+      testRoundTrip @Text @OAuth.OAuthCodeChallenge,
+      testRoundTrip @BS.ByteString @OAuth.RedirectUrl,
+      testRoundTrip @(Vector Text) @OAuth.OAuthScopes
     ]
 
 testRoundTrip ::
