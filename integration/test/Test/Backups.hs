@@ -89,6 +89,10 @@ uploadAndGetUrl user cid epoch = do
 --------------------------------------------------------------------------------
 -- Tests
 
+-- Known gap: no test checks that deletes remove /all versions/ on a versioned bucket. The local
+-- S3 (Garage) has no versioning, so only the fallback without version ids runs here, and this
+-- suite has no S3 client to list object versions.
+
 testBackupRoundtrip :: (HasCallStack) => App ()
 testBackupRoundtrip = do
   (owner, _, _) <- backupTeam OwnDomain
