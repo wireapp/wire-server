@@ -16,9 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MockInterpreters.BackupBlobStore
-  ( BlobVersions,
+  ( Blobs,
     Tombstones,
-    versionsOf,
     inMemoryBackupBlobStoreInterpreter,
     countingBackupBlobStoreInterpreter,
     lockstepSource,
@@ -31,7 +30,6 @@ import Data.ByteString qualified as BS
 import Data.Id (ClientId, UserId)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
 import Imports
@@ -43,19 +41,14 @@ import Wire.API.Backup
 import Wire.BackupBlobStore
 import Wire.BackupBlobStore.Key
 
--- | Models a versioned bucket: version history per key, newest first, each with its
--- version id. 'Nothing' is a delete marker.
-type BlobVersions = Map BackupLocation [(Int, Maybe ByteString)]
+-- | The stored objects. Deletes remove all versions, so one body per key suffices.
+type Blobs = Map BackupLocation ByteString
 
 -- | The tombstones of clients.
 type Tombstones = Set (UserId, ClientId, BackupFileId)
 
--- | All versions of a key (including delete markers), newest first.
-versionsOf :: BackupLocation -> BlobVersions -> [Maybe ByteString]
-versionsOf l = map snd . Map.findWithDefault [] l
-
 inMemoryBackupBlobStoreInterpreter ::
-  ( Member (State BlobVersions) r,
+  ( Member (State Blobs) r,
     Member (State Tombstones) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
@@ -64,7 +57,7 @@ inMemoryBackupBlobStoreInterpreter ::
 inMemoryBackupBlobStoreInterpreter = interpreter (const (pure ()))
 
 countingBackupBlobStoreInterpreter ::
-  ( Member (State BlobVersions) r,
+  ( Member (State Blobs) r,
     Member (State Tombstones) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
@@ -75,7 +68,7 @@ countingBackupBlobStoreInterpreter consumed =
   interpreter (atomically . modifyTVar' consumed . (+) . fromIntegral . BS.length)
 
 interpreter ::
-  ( Member (State BlobVersions) r,
+  ( Member (State Blobs) r,
     Member (State Tombstones) r,
     Member (Error BlobUploadError) r,
     Member (Embed IO) r
@@ -87,15 +80,15 @@ interpreter onChunk = interpret $ \case
     let counted = awaitForever (\c -> liftIO (onChunk c) >> yield c)
     body <- BS.concat <$> embed (runConduitRes (src .| counted .| sinkList))
     when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
-    Just . Text.pack . show <$> addVersion l (Just body)
-  BlobExists l -> gets (Map.member l . live)
+    modify (Map.insert l body)
+  BlobExists l -> gets (Map.member l)
   SignedDownloadUrl l ->
     either (error . show) pure
       . parseURI strictURIParserOptions
       . Text.encodeUtf8
       $ "https://blob.test/" <> UUID.toText (unBackupFileId (fileRefId l.file))
   ListBlobEpochs u c -> do
-    files <- gets (Map.keys . live)
+    files <- gets Map.keys
     pure
       . Set.toDescList
       . Set.fromList
@@ -107,7 +100,6 @@ interpreter onChunk = interpret $ \case
         . map (\(l, b) -> BackupBlob {file = l.file, size = fromIntegral (BS.length b)})
         . filter (\(l, _) -> l.user == u && l.client == c && l.epoch == e)
         . Map.toList
-        . live
   DeleteBlob l -> modify (Map.delete l)
   DeleteBlobs p -> do
     modify (Map.filterWithKey (\l _ -> not (inPrefix p l)))
@@ -117,15 +109,6 @@ interpreter onChunk = interpret $ \case
   DeleteClientBackupsBefore u c t -> do
     modify (Map.filterWithKey (\l _ -> not (inPrefix (ClientPrefix u c) l && fullFileId l.file < t)))
     modify (Set.filter (\(u', c', i) -> (u', c') /= (u, c) || i >= t))
-  where
-    addVersion l v = do
-      h <- gets (Map.findWithDefault [] l)
-      let i = 1 + maximum (0 : map fst h)
-      modify (Map.insert l ((i, v) : h))
-      pure i
-
-    live :: BlobVersions -> Map BackupLocation ByteString
-    live = Map.mapMaybe (\case (_, Just b) : _ -> Just b; _ -> Nothing)
 
 -- | Tombstones are below the client prefix, not below an epoch prefix.
 tombstoneInPrefix :: BackupPrefix -> UserId -> ClientId -> Bool

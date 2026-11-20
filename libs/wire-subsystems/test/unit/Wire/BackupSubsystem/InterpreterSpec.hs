@@ -111,7 +111,7 @@ type Effs =
      State World,
      State UTCTime,
      State Tombstones,
-     State BlobVersions,
+     State Blobs,
      Embed IO
    ]
 
@@ -168,7 +168,7 @@ runBackup ::
   World ->
   Maybe (TVar Word64) ->
   Sem Effs a ->
-  IO (BlobVersions, Either BackupError a)
+  IO (Blobs, Either BackupError a)
 runBackup w counter prog =
   fmap (either (error . show) Function.id) <$> runBackupWithFailures w counter prog
 
@@ -177,7 +177,7 @@ runBackupWithFailures ::
   World ->
   Maybe (TVar Word64) ->
   Sem Effs a ->
-  IO (BlobVersions, Either MockFailure (Either BackupError a))
+  IO (Blobs, Either MockFailure (Either BackupError a))
 runBackupWithFailures w counter prog = do
   base <- generate arbitrary
   fmap (either (error . show) Function.id)
@@ -222,13 +222,12 @@ failingStore = intercept $ \case
           1
           (yield "n")
     whenM (gets (.newerFullDuringPut)) $
-      void (putBlob (newestLoc l.user l.client l.epoch) 1 (yield "n"))
-    v <- putBlob l n s
+      putBlob (newestLoc l.user l.client l.epoch) 1 (yield "n")
+    putBlob l n s
     whenM (gets (.sweepAfterPut)) $
       listTombstones l.user l.client
         >>= traverse_ (deleteClientBackupsBefore l.user l.client) . foldr (max . Just) Nothing
     whenM (gets (.failAfterPut)) $ throw StoreDown
-    pure v
   ListBlobs u c e -> listBlobs u c e
   BlobExists l -> blobExists l
   SignedDownloadUrl l -> signedDownloadUrl l
@@ -570,8 +569,8 @@ spec = describe "BackupSubsystem" $ do
          in uploadBackup (loc uA) a1 a1 (BackupEpoch 1) Nothing len (lockstepSource consumed n size)
     Just (blobs, res) <- pure out
     void res `shouldBe` Right ()
-    map (map snd) (Map.elems blobs)
-      `shouldBe` [[Just (BS.concat [BS.replicate size (fromIntegral i) | i <- [0 .. n - 1]])]]
+    Map.elems blobs
+      `shouldBe` [BS.concat [BS.replicate size (fromIntegral i) | i <- [0 .. n - 1]]]
 
   describe "incremental files" $ do
     it "need a full file" $ do
@@ -633,7 +632,7 @@ spec = describe "BackupSubsystem" $ do
         passTime 1
         let orphan = BackupFileId (UUID.fromWords64 maxBound maxBound)
             l = BackupLocation {user = uA, client = a1, epoch = BackupEpoch 1, file = IncrementalFile old.id orphan}
-        modify (Map.insert l [(1, Just "orphan")])
+        modify (Map.insert l "orphan")
         listed <- filesOf uA a1 a1 1
         passTime 1
         inc <- uploadInc new uA a1 a1 1 "inc"

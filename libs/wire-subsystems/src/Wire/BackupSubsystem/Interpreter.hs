@@ -157,7 +157,7 @@ uploadBackupImpl uid zcid cid e base len src = do
   either (throw . rejectionError) pure $ checkUpload limits base epochs blobs e len
   fid <- newFileId
   let file = maybe (FullFile fid) (`IncrementalFile` fid) base
-  store BackupLocation {user = uid, client = cid, epoch = e, file}
+  store (location file)
   superseded <- pruneTargets <$> listBlobs uid cid e
   -- A newer full was stored during the upload: delete only this file and fail. The newer full's
   -- upload prunes the rest after its own checks; if it is rolled back, the previous full stays.
@@ -174,7 +174,7 @@ uploadBackupImpl uid zcid cid e base len src = do
   where
     location f = BackupLocation {user = uid, client = cid, epoch = e, file = f}
     store l = do
-      let put = void (putBlob l len src) `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
+      let put = putBlob l len src `catch` \BlobLengthMismatch -> throw BackupErrIncompleteBody
           recheck = do
             stillThere <- Set.member cid <$> clientsOf uid
             unless stillThere $ throw BackupErrForbidden
@@ -204,7 +204,7 @@ clientBackups uid cid = do
 
 -- | Creation time of the newest file of a client's backups.
 newestBackup :: ClientBackups -> Maybe UTCTimeMillis
-newestBackup c = foldr (max . Just . (.createdAt)) Nothing c.epochs
+newestBackup c = maximum (Nothing : map (Just . (.createdAt)) c.epochs)
 
 clientsOf :: (Member BrigAPIAccess r) => UserId -> Sem r (Set ClientId)
 clientsOf uid = Map.findWithDefault mempty uid . userClients <$> lookupClients [uid]

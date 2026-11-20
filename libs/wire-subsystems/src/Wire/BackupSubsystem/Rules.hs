@@ -36,6 +36,7 @@ where
 
 import Data.Aeson (FromJSON)
 import Data.Json.Util (toUTCTimeMillis)
+import Data.List.Extra (dropEnd)
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Backup
@@ -107,11 +108,11 @@ currentBlobs = maybe [] (uncurry (:)) . currentFiles
 epochSummary :: BackupEpoch -> [BackupBlob] -> Maybe EpochSummary
 epochSummary e blobs = case map toFile (currentBlobs blobs) of
   [] -> Nothing
-  files@(f : _) ->
+  files ->
     Just
       EpochSummary
         { epoch = e,
-          createdAt = foldr (max . (.createdAt)) f.createdAt files,
+          createdAt = maximum (map (.createdAt) files),
           fileCount = fromIntegral (length files),
           size = sum (map (.size) files)
         }
@@ -119,13 +120,13 @@ epochSummary e blobs = case map toFile (currentBlobs blobs) of
 -- | The files of an epoch that a stored full file superseded or that were stored under a
 -- superseded full file, to be deleted.
 pruneTargets :: [BackupBlob] -> [BackupBlob]
-pruneTargets blobs = case currentFiles blobs of
-  Nothing -> []
-  Just _ -> filter (`notElem` currentBlobs blobs) blobs
+pruneTargets blobs = case currentBlobs blobs of
+  [] -> []
+  current -> filter (`notElem` current) blobs
 
 -- | The epochs to delete: all but the two newest.
 staleEpochs :: Set BackupEpoch -> [BackupEpoch]
-staleEpochs = reverse . drop 2 . reverse . Set.toAscList
+staleEpochs = dropEnd 2 . Set.toAscList
 
 toFile :: BackupBlob -> BackupFile
 toFile b =

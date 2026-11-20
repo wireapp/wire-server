@@ -19,7 +19,7 @@ module Test.Backups where
 
 import API.Brig (addClient, deleteClient)
 import API.Cargohold
-import API.Galley (setTeamFeatureConfig)
+import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Reader (asks)
 import Crypto.Hash (Context, Digest, SHA256, hashFinalize, hashInit, hashUpdate)
 import qualified Data.ByteString as BS
@@ -36,26 +36,9 @@ import UnliftIO (pooledForConcurrentlyN)
 --------------------------------------------------------------------------------
 -- Helpers
 
-featureName :: String
-featureName = "automaticBackups"
-
-backupFeature :: String -> Value
-backupFeature status =
-  object
-    [ "status" .= status,
-      "config" .= object ["enforcedSchedule" .= "weekly", "enforced" .= False, "serverOnly" .= False]
-    ]
-
--- REVIEW: Quite some duplication with disableBackups. extract base function?
-enableBackups :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
-enableBackups owner tid =
-  bindResponse (setTeamFeatureConfig owner tid featureName (backupFeature "enabled"))
-    $ \resp -> resp.status `shouldMatchInt` 200
-
-disableBackups :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
-disableBackups owner tid =
-  bindResponse (setTeamFeatureConfig owner tid featureName (backupFeature "disabled"))
-    $ \resp -> resp.status `shouldMatchInt` 200
+-- | Sets the status of the automaticBackups feature of the team.
+setBackups :: (HasCallStack, MakesValue owner) => owner -> String -> String -> App ()
+setBackups owner tid status = assertSuccess =<< setTeamFeatureStatus owner tid "automaticBackups" status
 
 newClient :: (HasCallStack, MakesValue user) => user -> App String
 newClient user = addClient user def >>= getJSON 201 >>= objId
@@ -64,7 +47,7 @@ newClient user = addClient user def >>= getJSON 201 >>= objId
 backupTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String, Value)
 backupTeam domain = do
   (owner, tid, [mate]) <- createTeam domain 2
-  enableBackups owner tid
+  setBackups owner tid "enabled"
   pure (owner, tid, mate)
 
 -- | Content of the Location header of a redirect response
@@ -221,7 +204,7 @@ testBackupFeatureDisabled = do
   c1 <- newClient owner
   bindResponse (uploadBackup owner c1 c1 1 Nothing (BSC.pack "x")) $ \resp ->
     resp.status `shouldMatchInt` 200
-  disableBackups owner tid
+  setBackups owner tid "disabled"
   bindResponse (uploadBackup owner c1 c1 2 Nothing (BSC.pack "x")) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "backup-feature-disabled"

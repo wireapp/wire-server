@@ -31,7 +31,6 @@ module CargoHold.S3
     deleteV3,
     uploadBackupBlob,
     putEmptyObject,
-    deleteObject,
     headObjectExists,
     listCommonPrefixes,
     listObjects,
@@ -157,18 +156,17 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src
           & createMultipartUpload_contentType ?~ MIME.showType ct
           & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
   complete <- streamUpload logCtx createReq (fromIntegral cl) src
-  unless (isJust complete) $ throwE incompleteBody
+  unless complete $ throwE incompleteBody
   where
     ct = octets -- see note “overrideMimeTypeAsOctetStream”
 
 -- | Upload a backup file. Unlike 'uploadV3', no metadata is stored. 'BlobLengthMismatch' if the
--- stream length differs from the declared one; the S3 object may exist then. Returns the
--- @x-amz-version-id@ of the new object as answered by S3 ('Nothing' on unversioned buckets).
+-- stream length differs from the declared one; the S3 object may exist then.
 uploadBackupBlob ::
   S3AssetKey ->
   Word64 ->
   ConduitM () ByteString (ResourceT IO) () ->
-  Handler (Either BlobUploadError (Maybe Text))
+  Handler (Either BlobUploadError ())
 uploadBackupBlob (S3AssetKey key) len src = do
   let logCtx = "remote" .= val "S3" ~~ "backup.key" .= key ~~ "backup.size" .= len
   Log.info $ logCtx ~~ msg (val "Uploading backup file")
@@ -177,22 +175,20 @@ uploadBackupBlob (S3AssetKey key) len src = do
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType octets
   complete <- streamUpload logCtx createReq len src
-  pure $ case complete of
-    Nothing -> Left BlobLengthMismatch
-    Just r -> Right (fromObjectVersionId <$> r ^. completeMultipartUploadResponse_versionId)
+  pure $ if complete then Right () else Left BlobLengthMismatch
 
 -- | Stores an empty object (a multipart upload cannot be empty).
 putEmptyObject :: S3AssetKey -> Handler ()
 putEmptyObject (S3AssetKey key) =
   void . exec $ \b -> newPutObject (BucketName b) (ObjectKey key) (toBody BS.empty)
 
--- | Stream @src@ to S3 as multipart upload. 'Nothing' if the stream length differs from @len@.
+-- | Stream @src@ to S3 as multipart upload. 'False' if the stream length differs from @len@.
 streamUpload ::
   (Log.Msg -> Log.Msg) ->
   CreateMultipartUpload ->
   Word64 ->
   ConduitM () ByteString (ResourceT IO) () ->
-  Handler (Maybe CompleteMultipartUploadResponse)
+  Handler Bool
 streamUpload logCtx createReq len src = do
   awsEnv <- asks (.aws)
   cntRef <- liftIO $ newIORef (0 :: Word64)
@@ -217,8 +213,8 @@ streamUpload logCtx createReq len src = do
     Right uploadResult -> do
       bytesSeen <- liftIO $ readIORef cntRef
       case uploadResult of
-        _ | bytesSeen /= len -> pure Nothing
-        Right r -> pure (Just r)
+        _ | bytesSeen /= len -> pure False
+        Right _ -> pure True
         Left ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
           Log.err $
             logCtx
@@ -269,21 +265,18 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         <*> Just (getAmzAuditLogMetadata h)
 
 deleteV3 :: V3.AssetKey -> Handler ()
-deleteV3 = flip deleteObject Nothing . mkKey
-
--- | Deletes the given version, or plain delete if 'Nothing' (on a versioned bucket that only
--- adds a delete marker). Idempotent: S3 does not fail for missing keys.
-deleteObject :: S3AssetKey -> Maybe Text -> Handler ()
-deleteObject (S3AssetKey key) version = do
+deleteV3 (s3Key . mkKey -> key) = do
   Log.debug $
     "remote" .= val "S3"
-      ~~ "key" .= key
-      ~~ msg (val "Deleting object")
+      ~~ "asset.key" .= key
+      ~~ msg (val "Deleting asset")
+  Log.debug $
+    "remote" .= val "S3"
+      ~~ "asset.key" .= key
+      ~~ msg (val "Deleting asset")
   void $ exec req
   where
-    req b =
-      newDeleteObject (BucketName b) (ObjectKey key)
-        & deleteObject_versionId .~ (ObjectVersionId <$> version)
+    req b = newDeleteObject (BucketName b) (ObjectKey key)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> Handler ()
 updateMetadataV3 (s3Key . mkKey -> key) meta = do

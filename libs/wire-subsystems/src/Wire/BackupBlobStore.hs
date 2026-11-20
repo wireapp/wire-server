@@ -44,13 +44,12 @@ data BackupBlob = BackupBlob
 -- device to be deleted immediately.
 data BackupBlobStore m a where
   -- | The 'Word64' is the declared @Content-Length@. Interpreters fail with
-  -- 'BlobLengthMismatch' if the stream has a different length. Returns the S3 @VersionId@
-  -- of the new object ('Nothing' if the bucket is unversioned).
+  -- 'BlobLengthMismatch' if the stream has a different length.
   PutBlob ::
     BackupLocation ->
     Word64 ->
     ConduitT () ByteString (ResourceT IO) () ->
-    BackupBlobStore m (Maybe Text)
+    BackupBlobStore m ()
   BlobExists :: BackupLocation -> BackupBlobStore m Bool
   SignedDownloadUrl :: BackupLocation -> BackupBlobStore m URI
   -- | Epoch prefixes of the device, any order.

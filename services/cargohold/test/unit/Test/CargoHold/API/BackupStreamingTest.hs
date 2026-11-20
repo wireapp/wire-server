@@ -207,7 +207,6 @@ countingBlobStore received stored = interpret $ \case
     body <- embed $ runConduitRes (src .| count .| foldC)
     when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
     writeIORef stored (Just body)
-    pure Nothing
   ListBlobEpochs _ _ -> pure []
   ListBlobs {} -> pure []
   DeleteBlob _ -> writeIORef stored Nothing
