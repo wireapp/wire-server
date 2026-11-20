@@ -280,8 +280,10 @@ saveConvToPostgres allConvData = do
     Transaction.statement (DeleteConv, storedConv.id_) markDeletionPendingStmt
   where
     storedConv = allConvData.conv
-    -- insertConv reports whether the row was new; children are only inserted
-    -- for a new conversation.
+    -- In all these queries we do nothing on conflict because if the data is in
+    -- Postgres it is considered fresher and data from Cassandra is ignored.
+    -- insertConv also reports whether the row was new, so that child rows are
+    -- only inserted for a new conversation.
     insertConv ::
       Hasql.Statement
         ( ConvId,

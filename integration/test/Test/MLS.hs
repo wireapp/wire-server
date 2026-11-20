@@ -1068,8 +1068,8 @@ testExternalCommitDuplicateClient = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
--- | A ghost client (member-client row lost) is healed from the stored ratchet
--- tree on the next commit bundle; remove/re-add then works again
+-- | A ghost client (lost member-client row) is healed from the stored ratchet
+-- tree on the next commit bundle. Remove/re-add then works again
 -- (no 400 mls-invalid-leaf-node-index).
 testGhostMemberRowRepair :: (HasCallStack) => App ()
 testGhostMemberRowRepair = do

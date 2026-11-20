@@ -180,10 +180,12 @@ testMigrationToPostgresMLS = do
 
       replicateM n $ createTestConv convAdmin tid [melC]
 
--- | WPB-29949: the group info validation digest is migrated with the
--- conversation, so ghost member-client rows of a conversation created in
--- Cassandra can still be healed from its ratchet tree once it lives in
--- Postgres. Without the digest the repair would be skipped.
+-- | WPB-29949: A conversation is created in Cassandra and migrated to
+-- Postgres. Then one of its member-client rows is deleted in Postgres. The
+-- next commit bundle must restore that row from the stored ratchet tree.
+--
+-- This only works if the migration copies the GroupInfo validation digest:
+-- the repair only trusts a validated ratchet tree and is skipped otherwise.
 testGhostMemberRowRepairAfterMigration :: (HasCallStack) => App ()
 testGhostMemberRowRepairAfterMigration = do
   resourcePool <- asks (.resourcePool)
@@ -192,8 +194,9 @@ testGhostMemberRowRepairAfterMigration = do
     (alice, bob, alice2, bob1, convId) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
       [alice, bob] <- createAndConnectUsers [domainM, domainM]
       [alice1, alice2, bob1] <- traverse (createMLSClient def) [alice, alice, bob]
-      -- No key package for alice2 yet: the first commit must cover all
-      -- MLS-capable clients of the creator that have key packages.
+      -- Do not upload a key package for alice2 yet: the first commit of a
+      -- conversation must add every client of the creator that has a key
+      -- package, so galley would reject it with 409 mls-client-mismatch.
       void $ uploadNewKeyPackage def bob1
       convId <- createNewGroup def alice1
       void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
@@ -205,15 +208,19 @@ testGhostMemberRowRepairAfterMigration = do
       -- Inject the damage in Postgres: delete bob1's member-client row.
       void $ I.deleteMLSMemberClient alice convId bob bob1.client >>= assertSuccess
 
-      -- Any commit bundle triggers the repair; it must come from a non-member.
+      -- Any commit bundle triggers the repair. Here it is an external commit
+      -- from alice2, a client that is not in the group yet: galley rejects
+      -- external commits from existing members without a self-remove proposal.
       void $ uploadNewKeyPackage def alice2
       void $ createExternalCommit convId alice2 Nothing >>= sendAndConsumeCommitBundle
 
       clients <- memberClientIds alice convId
       clients `shouldContain` [(bob1.user, bob1.client)]
 
--- | Same as 'testGhostMemberRowRepairAfterMigration' for a subconversation,
--- whose digest is migrated with the subconversation row.
+-- | WPB-29949: A subconversation is created in Cassandra and migrated to
+-- Postgres. Then one of its member-client rows is deleted in Postgres. The
+-- next commit bundle must restore that row from the stored ratchet tree,
+-- using the validation digest migrated with the subconversation row.
 testGhostSubConvMemberRowRepairAfterMigration :: (HasCallStack) => App ()
 testGhostSubConvMemberRowRepairAfterMigration = do
   resourcePool <- asks (.resourcePool)
@@ -243,11 +250,10 @@ testGhostSubConvMemberRowRepairAfterMigration = do
       clients <- memberClientIds alice subConvId
       clients `shouldContain` [(bob1.user, bob1.client)]
 
--- | WPB-29949: a conversation that is already in Postgres when the migration
--- reaches a Cassandra copy of it (a previous migration committed but crashed
--- before deleting the Cassandra data) keeps its Postgres data: stale Cassandra
--- member-client rows are not merged into the live group. Without the guard
--- they would be inserted without any conflict.
+-- | WPB-29949: When the migration encounters a Cassandra conversation which
+-- already has newer data in Postgres, the Cassandra data is not merged.
+-- Without this guard, stale member-client rows would be inserted without any
+-- conflict.
 --
 -- The conversation is created in Postgres and stale Cassandra rows are written
 -- for it. Restoring the rows of a migrated conversation would not work:
@@ -444,11 +450,9 @@ insertMemberClient keyspace gid domain user client idx =
         "removal_pending" .= False
       ]
 
--- | The stale rows were written (so that the migration can see them) ...
 assertRowsPresent :: (HasCallStack) => [App [Text]] -> App ()
 assertRowsPresent = traverse_ (>>= assertBool "stale Cassandra rows are not visible" . not . null)
 
--- | ... and the migration processed and deleted them.
 assertRowsGone :: (HasCallStack) => [App [Text]] -> App ()
 assertRowsGone = traverse_ (>>= assertBool "stale Cassandra rows were left behind" . null)
 
@@ -491,7 +495,7 @@ runPhase3Migration backend =
     waitForMigration backend.berDomain convMigrationFinishedCounterName
     waitForMigration backend.berDomain userMigrationFinishedCounterName
 
--- | (user id, client id) of the member-client rows of an MLS group.
+-- | Gets (user id, client id) of the member-client rows of an MLS group.
 memberClientIds :: (HasCallStack, MakesValue user) => user -> ConvId -> App [(String, String)]
 memberClientIds user convId = do
   rows <- I.getMLSMemberClients user convId >>= getJSON 200 >>= (%. "member_clients") >>= asList
