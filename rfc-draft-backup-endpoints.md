@@ -143,6 +143,8 @@ Rules shared by all routes under `/backups/clients/<ClientId>`:
     server stores the first `Content-Length` bytes and can't detect any excess
     (the HTTP layer hands it no more), so too many bytes give a truncated file;
     too few give 400 `incomplete-body`.
+  - In general, clients should avoid concurrent uploads and deletions to get
+    easily predictable outcomes.
 
 ##### `/backups/clients/<ClientId>`
 
