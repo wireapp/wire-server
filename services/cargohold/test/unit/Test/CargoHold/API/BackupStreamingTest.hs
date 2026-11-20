@@ -50,6 +50,7 @@ import Wire.API.Team.Feature (AutomaticBackupsConfig, FeatureStatus (..), Lockab
 import Wire.API.User (User (..), userId)
 import Wire.API.User.Client (UserClients (..))
 import Wire.BackupBlobStore
+import Wire.BackupBlobStore.Key (BackupLocation (..))
 import Wire.BackupSubsystem
 import Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem)
 import Wire.BackupSubsystem.Rules (BackupLimits (..))
@@ -83,7 +84,7 @@ uploadStreams = do
   let body = Http.RequestBodyStream (fromIntegral (chunkCount * chunkSize)) ($ popper)
   status <- timeout (10 * 1000 * 1000) (postUpload received stored body)
   status @?= Just 200
-  readIORef stored >>= (@?= Just (foldMap chunk [0 .. chunkCount - 1]))
+  fmap snd <$> readIORef stored >>= (@?= Just (foldMap chunk [0 .. chunkCount - 1]))
 
 -- | Without @Content-Length@ servant rejects the request before the subsystem is called.
 uploadChunked :: IO ()
@@ -96,10 +97,10 @@ uploadChunked = do
     timeout (10 * 1000 * 1000) $
       postUpload received stored (Http.RequestBodyStreamChunked ($ popper))
   status @?= Just 400
-  readIORef stored >>= (@?= Nothing)
+  fmap snd <$> readIORef stored >>= (@?= Nothing)
 
 -- | POSTs @body@ to the upload route served by 'backupServer' in warp, returns the status.
-postUpload :: TVar Word64 -> IORef (Maybe ByteString) -> Http.RequestBody -> IO Int
+postUpload :: TVar Word64 -> IORef (Maybe (BackupLocation, ByteString)) -> Http.RequestBody -> IO Int
 postUpload received stored body = do
   base <- generate arbitrary
   tid <- generate arbitrary
@@ -153,7 +154,7 @@ lockstepPopper received = do
 runSubsystem ::
   User ->
   TVar Word64 ->
-  IORef (Maybe ByteString) ->
+  IORef (Maybe (BackupLocation, ByteString)) ->
   Sem
     '[ BackupSubsystem,
        BackupBlobStore,
@@ -197,18 +198,20 @@ limits =
 countingBlobStore ::
   (Member (Embed IO) r, Member (Error BlobUploadError) r) =>
   TVar Word64 ->
-  IORef (Maybe ByteString) ->
+  IORef (Maybe (BackupLocation, ByteString)) ->
   InterpreterFor BackupBlobStore r
 countingBlobStore received stored = interpret $ \case
-  PutBlob _ len src -> do
+  PutBlob l len src -> do
     let count = awaitForever $ \c -> do
           liftIO . atomically $ modifyTVar' received (+ fromIntegral (BS.length c))
           yield c
     body <- embed $ runConduitRes (src .| count .| foldC)
     when (fromIntegral (BS.length body) /= len) $ throw BlobLengthMismatch
-    writeIORef stored (Just body)
-  ListBlobEpochs _ _ -> pure []
-  ListBlobs {} -> pure []
+    writeIORef stored (Just (l, body))
+  ListBlobEpochs _ _ -> map ((.epoch) . fst) . maybeToList <$> readIORef stored
+  ListBlobs {} ->
+    map (\(l, body) -> BackupBlob {file = l.file, size = fromIntegral (BS.length body)}) . maybeToList
+      <$> readIORef stored
   DeleteBlob _ -> writeIORef stored Nothing
   DeleteBlobs _ -> writeIORef stored Nothing
   ListTombstones _ _ -> pure []
