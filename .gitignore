@@ -81,6 +81,7 @@ telepresence.log
 # local config
 .envrc.local
 cabal.project.local
+.vscode/
 
 # Nix output symlinks
 result
