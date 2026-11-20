@@ -27,4 +27,4 @@ data:
       port: 8080
     ibis:
       host: {{ .Values.config.ibisHost }}
-      port: 8080
+      port: {{ .Values.config.ibisPort }}
