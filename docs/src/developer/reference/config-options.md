@@ -2430,6 +2430,7 @@ galley:
       budget: postgresql
       nonce: postgresql
       connections: postgresql
+      activationKeys: postgresql
 background-worker:
   config:
     migrateConversations: false

@@ -106,6 +106,7 @@ galley:
       budget: cassandra
       nonce: cassandra
       connections: cassandra
+      activationKeys: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
