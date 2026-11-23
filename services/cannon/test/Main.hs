@@ -19,11 +19,15 @@ module Main where
 
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
+import Data.Metrics.Types (treeLookup)
 import Imports
 import Test.Cannon.Dict qualified as D
+import Test.Cannon.Options qualified as Options
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Internal.Cannon qualified as Internal
+import Wire.API.Routes.Public.Cannon (CannonAPI)
+import Wire.API.Routes.Version (SpecialiseToVersion, Version (V8))
 
 main :: IO ()
 main =
@@ -35,5 +39,10 @@ main =
             "inconcistent sitemap"
             mempty
             (pathsConsistencyCheck $ routesToPaths @Internal.API),
+        testCase "fan-in and classic notifications routes" $ do
+          let paths = routesToPaths @(SpecialiseToVersion 'V8 CannonAPI)
+          treeLookup paths ["events"] @?= Just "/events"
+          treeLookup paths ["await"] @?= Just "/await",
+        Options.tests,
         D.tests
       ]

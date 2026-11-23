@@ -36,7 +36,12 @@ module Cannon.Options
     rabbitMqMaxConnections,
     rabbitMqMaxChannels,
     notificationTTL,
+    notificationFanInPostgres,
+    brig,
+    galley,
+    federationDomain,
     Opts (..),
+    NotificationFanInPostgres (..),
     gracePeriodSeconds,
     millisecondsBetweenBatches,
     minBatchSize,
@@ -52,9 +57,12 @@ import Control.Lens (makeFields)
 import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
 import Data.Default
+import Data.Domain (Domain)
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended (AmqpEndpoint)
 import System.Logger.Extended (Level, LogFormat)
+import Util.Options (Endpoint, FilePathSecrets)
 import Wire.API.Routes.Version
 
 data Cannon = Cannon
@@ -115,8 +123,22 @@ makeFields ''DrainOpts
 
 deriveApiFieldJSON ''DrainOpts
 
+data NotificationFanInPostgres = NotificationFanInPostgres
+  { connection :: Map Text Text,
+    password :: Maybe FilePathSecrets,
+    pool :: PoolConfig
+  }
+  deriving (Show, Generic)
+
+instance FromJSON NotificationFanInPostgres where
+  parseJSON = withObject "NotificationFanInPostgres" $ \o -> NotificationFanInPostgres <$> o .: "connection" <*> o .:? "password" <*> o .: "pool"
+
 data Opts = Opts
   { _optsCannon :: !Cannon,
+    _optsNotificationFanInPostgres :: !NotificationFanInPostgres,
+    _optsBrig :: !Endpoint,
+    _optsGalley :: !Endpoint,
+    _optsFederationDomain :: !Domain,
     _optsGundeck :: !Gundeck,
     _optsRabbitmq :: !AmqpEndpoint,
     _optsLogLevel :: !Level,
@@ -147,6 +169,10 @@ instance FromJSON Opts where
   parseJSON = withObject "CannonOpts" $ \o ->
     Opts
       <$> o .: "cannon"
+      <*> o .: "notificationFanInPostgres"
+      <*> o .: "brig"
+      <*> o .: "galley"
+      <*> o .: "federationDomain"
       <*> o .: "gundeck"
       <*> o .: "rabbitmq"
       <*> o .: "logLevel"
