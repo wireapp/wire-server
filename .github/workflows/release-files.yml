@@ -2,7 +2,7 @@ name: Release files
 
 on:
   pull_request:
-    branches: [dev, release/*]
+    branches: [develop, release/*]
 
 concurrency:
   group: release-files-${{ github.ref }}
@@ -45,12 +45,12 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - if: steps.touched.outputs.touched == 'true'
-        uses: wireapp/wire-rm-actions/compatibility@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/compatibility@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           file: publication/compatibility.yaml
 
       - if: steps.touched.outputs.touched == 'true'
-        uses: wireapp/wire-rm-actions/release-declaration@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/release-declaration@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           file: publication/declaration.json
           component: wire-server

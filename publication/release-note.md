@@ -57,6 +57,7 @@ At startup, SQL data migrations give every existing meeting without a live join 
 
 ## API changes
 
+- Client API version 19 is final and supported; version 20 is now the development version. ([#5734](https://github.com/wireapp/wire-server/pull/5734))
 - From API version 19 every meeting carries its `link`. Refreshing a meeting link reports `has_password` according to the password supplied with the refresh. ([#5597](https://github.com/wireapp/wire-server/pull/5597))
 - `GET /license` (API version 19) returns the meetings licensing flags `invitation_links`, `emails_sending` and `calendars_integration`, all false without a valid licence. ([#5671](https://github.com/wireapp/wire-server/pull/5671))
 - Calendar-managed meetings (API version 19): `POST /meetings` takes an optional `externally_managed_by` with `externally_calendar_event_id` and `externally_calendar_id`. Only access tokens issued to a configured OAuth client can create or change them; they send no emails through Wire. ([#5682](https://github.com/wireapp/wire-server/pull/5682))

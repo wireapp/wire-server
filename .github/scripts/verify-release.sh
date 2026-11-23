@@ -8,7 +8,7 @@
 set -euo pipefail
 
 : "${MANIFEST:?}" "${ASSET_DIR:?}" "${VERSION:?}" "${TARGET_COMMIT:?}"
-RELEASE_BRANCHES=${RELEASE_BRANCHES:-'^(dev|release/[0-9]+\.[0-9]+)$'}
+RELEASE_BRANCHES=${RELEASE_BRANCHES:-'^(develop|release/[0-9]+\.[0-9]+)$'}
 
 die() {
   echo "::error::$*"
