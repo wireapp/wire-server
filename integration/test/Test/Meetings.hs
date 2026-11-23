@@ -235,9 +235,7 @@ testMeetingsConfigDisabledBlocksCreate :: (HasCallStack) => App ()
 testMeetingsConfigDisabledBlocksCreate = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
-  -- Disable the MeetingsConfig feature
-  let firstMeeting = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
-  I.setTeamFeatureConfig owner tid "meetings" firstMeeting >>= assertStatus 200
+  disableMeetings owner tid
 
   -- Try to create a meeting - should fail
   now <- liftIO getCurrentTime
@@ -247,11 +245,10 @@ testMeetingsConfigDisabledBlocksCreate = do
 
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
--- | Read endpoints (@GET /meetings/list@, @GET /meetings/{domain}/{id}@) treat a
--- team with the @meetings@ feature disabled as "no meetings" (list -> @200 []@,
--- get -> @404 meeting-not-found@) instead of @403 invalid-op@, while write
--- endpoints (@POST /meetings@) keep the hard gate and still return @403
--- invalid-op@. See WPB-27329.
+-- | Read endpoints (@GET /meetings/list@, @GET /meetings/{domain}/{id}@) are
+-- not gated by the caller's team @meetings@ feature (WPB-30305): a user keeps
+-- seeing the meetings they created or were added to. Write endpoints
+-- (@POST /meetings@) keep the hard gate and still return @403 invalid-op@.
 testMeetingsReadsWhenDisabled :: (HasCallStack) => App ()
 testMeetingsReadsWhenDisabled = do
   (owner, tid, _members) <- createTeam OwnDomain 1
@@ -264,33 +261,56 @@ testMeetingsReadsWhenDisabled = do
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- Positive control while enabled: the created meeting is directly findable.
+  disableMeetings owner tid
+
+  -- Read paths still return the meeting.
+  getMeetingsList owner >>= getJSON 200 >>= meetingIds >>= (`shouldMatch` [meetingId])
   getMeeting owner domain meetingId >>= assertStatus 200
 
-  -- Disable the meetings feature for the team.
-  let disabled = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
-  I.setTeamFeatureConfig owner tid "meetings" disabled >>= assertStatus 200
-
-  -- Read paths treat a disabled feature as "no meetings": list -> 200 [], get -> 404.
-  getMeetingsList owner `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    meetings <- resp.json & asList
-    shouldBeEmpty meetings
-
-  getMeeting owner domain meetingId >>= assertLabel 404 "meeting-not-found"
-
-  -- Write paths keep the hard gate: create -> 403 invalid-op (unchanged behavior).
+  -- Write paths keep the hard gate: create -> 403 invalid-op.
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
-  -- Re-enable: the previously-created meeting is readable again.
-  let enabled = object ["status" .= "enabled", "lockStatus" .= "unlocked"]
-  I.setTeamFeatureConfig owner tid "meetings" enabled >>= assertStatus 200
+-- | WPB-30305: a user whose team has the @meetings@ feature disabled can list
+-- and fetch a meeting of another team once added to its conversation, but
+-- still cannot create meetings.
+testMeetingListCrossTeamWhenDisabled :: (HasCallStack) => App ()
+testMeetingListCrossTeamWhenDisabled = do
+  (ownerA, _tidA, _) <- createTeam OwnDomain 1
+  (ownerB, tidB, _) <- createTeam OwnDomain 1
+  disableMeetings ownerB tidB
+  connectTwoUsers ownerA ownerB
 
-  listResp2 <- getMeetingsList owner
-  assertSuccess listResp2
-  meetings2 <- listResp2.json & asList
-  fetchedIds <- forM meetings2 $ \m -> m %. "qualified_id" %. "id" >>= asString
-  (meetingId `elem` fetchedIds) `shouldMatch` True
+  meeting <- createDefaultMeeting ownerA
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Not yet a member: nothing visible.
+  getMeetingsList ownerB >>= getJSON 200 >>= meetingIds >>= shouldBeEmpty
+  getMeeting ownerB domain meetingId >>= assertLabel 404 "meeting-not-found"
+
+  -- Meeting conversations are MLS: add owner B through an MLS commit.
+  aClient <- createMLSClient def ownerA
+  bClient <- createMLSClient def ownerB
+  void $ uploadNewKeyPackage def bClient
+  convId <- meeting %. "qualified_conversation" >>= getConversation ownerA >>= getJSON 200 >>= objConvId
+  createGroup def aClient convId
+  void $ createAddCommit aClient convId [ownerB] >>= sendAndConsumeCommitBundle
+
+  getMeetingsList ownerB >>= getJSON 200 >>= meetingIds >>= (`shouldMatch` [meetingId])
+  getMeeting ownerB domain meetingId >>= assertStatus 200
+
+  now <- liftIO getCurrentTime
+  postMeetings ownerB (defaultMeetingJson "Team B meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) [])
+    >>= assertLabel 403 "invalid-op"
+
+-- | Disable the @meetings@ feature for a team.
+disableMeetings :: (HasCallStack, MakesValue user) => user -> String -> App ()
+disableMeetings owner tid =
+  I.setTeamFeatureConfig owner tid "meetings" (object ["status" .= "disabled", "lockStatus" .= "unlocked"])
+    >>= assertStatus 200
+
+-- | The meeting ids of a @GET /meetings/list@ response body.
+meetingIds :: (HasCallStack) => Value -> App [String]
+meetingIds body = body & asList >>= traverse (\m -> m %. "qualified_id" %. "id" >>= asString)
 
 -- Test that creating a meeting with a start time in the past is rejected
 testMeetingCreatePastStartTime :: (HasCallStack) => App ()

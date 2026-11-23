@@ -2665,19 +2665,39 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Left MeetingsFeatureDisabled
 
-    it "returns Nothing on getMeeting for team user with meetings disabled" $ do
+    -- WPB-30305: read paths are not gated by the caller's team feature, so a
+    -- team user with meetings disabled still sees meetings (e.g. of another
+    -- team) whose conversation they were added to.
+    it "lists and gets a meeting the team user was added to even with meetings disabled" $ do
       result <-
-        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam (Just (ConnId "test-conn")) Nothing newMeeting
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $ do
+          -- The personal user has no team, so creation is not gated.
+          meeting <- createMeeting zUserPersonal (Just (ConnId "test-conn")) Nothing newMeeting
+          let convId = qUnqualified meeting.conversation.qualifiedId
+          modify @(Map ConvId (Set UserId)) (Map.insertWith Set.union convId (Set.singleton uidTeam))
+          listed <- listMeetings zUserTeam
+          fetched <- getMeeting zUserTeam meeting.meeting.id
+          pure (meeting, listed, fetched)
 
       case result of
-        Left err -> fail $ "Failed to create meeting: " <> show err
-        Right meeting -> do
-          result2 <-
-            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-              getMeeting zUserTeam meeting.meeting.id
+        Left err -> fail $ "Unexpected error: " <> show err
+        Right (meeting, listed, fetched) -> do
+          map (.id) listed `shouldBe` [meeting.meeting.id]
+          (.id) <$> fetched `shouldBe` Just meeting.meeting.id
 
-          result2 `shouldBe` Right Nothing
+    it "still hides meetings the team user is not a member of when meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $ do
+          meeting <- createMeeting zUserPersonal (Just (ConnId "test-conn")) Nothing newMeeting
+          listed <- listMeetings zUserTeam
+          fetched <- getMeeting zUserTeam meeting.meeting.id
+          pure (listed, fetched)
+
+      case result of
+        Left err -> fail $ "Unexpected error: " <> show err
+        Right (listed, fetched) -> do
+          listed `shouldBe` []
+          fetched `shouldBe` Nothing
 
     it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
       result <-
@@ -2706,13 +2726,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               deleteMeeting zUserTeam (Just (ConnId "test-conn")) Nothing meeting.meeting.id
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
-
-    it "returns [] on listMeetings for team user with meetings disabled" $ do
-      result <-
-        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-          listMeetings zUserTeam
-
-      result `shouldBe` Right []
 
     it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
       result <-

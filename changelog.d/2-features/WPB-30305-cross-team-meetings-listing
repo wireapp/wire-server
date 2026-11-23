@@ -1,0 +1,1 @@
+`GET /meetings/list` and `GET /meetings/{domain}/{id}` no longer hide meetings when the caller's team has the `meetings` feature disabled: users see the meetings they created or were added to (e.g. meetings of another team). Creating and modifying meetings still requires the feature.
