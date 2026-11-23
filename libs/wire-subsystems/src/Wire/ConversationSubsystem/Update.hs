@@ -768,7 +768,8 @@ joinConversationById lusr zcon cnv = do
 -- 'joinConversationById' with 'CodeAccess' instead. Deliberately exempt from
 -- 'Query.ensureGuestLinksEnabled' (which @POST /conversations/join@ enforces
 -- for CodeAccess joins): the meeting join link is its own capability, gated
--- by the meetings feature, and is unaffected by the conversation
+-- by the meeting's owning team meetings feature (in MeetingsSubsystem), and
+-- is unaffected by the conversation
 -- guest-links policy (WPB-28989 security review).
 joinMeetingConversation ::
   ( Member BrigAPIAccess r,

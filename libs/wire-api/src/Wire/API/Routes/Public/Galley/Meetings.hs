@@ -206,6 +206,8 @@ type MeetingsAPI =
     :<|> Named
            "get-meeting"
            ( Summary "Get a single meeting by ID"
+               :> Description
+                    "Only the creator and members of the meeting's conversation can get a meeting. Returns 404 meeting-not-found for unknown or expired meetings, and for meetings of a team with the meetings feature disabled (for everyone, including the creator). The caller's own team feature status does not matter."
                :> From 'V19
                :> ZLocalUser
                :> "meetings"
@@ -348,7 +350,7 @@ type MeetingsAPI =
            "code-check-meeting-link"
            ( Summary "Check the meeting behind a join link"
                :> Description
-                    "Unauthenticated: no cookie or token needed. Returns the metadata (title, time, recurrence) of the meeting a join link resolves to. Unlike `GET /meetings/{domain}/{id}` no creator or conversation membership is required. Returns 404 meeting-not-found for unknown code keys, stale code values (e.g. after a link refresh), expired meetings, or keys addressing a conversation code; 403 invalid-meeting-password when the link is password-protected and the `password` query param is missing or wrong. Returns 403 id-feature-error when the deployment's license does not cover invitation links."
+                    "Unauthenticated: no cookie or token needed. Returns the metadata (title, time, recurrence) of the meeting a join link resolves to. Unlike `GET /meetings/{domain}/{id}` no creator or conversation membership is required. Returns 404 meeting-not-found for unknown code keys, stale code values (e.g. after a link refresh), expired meetings, meetings of a team with the meetings feature disabled, or keys addressing a conversation code; 403 invalid-meeting-password when the link is password-protected and the `password` query param is missing or wrong. Returns 403 id-feature-error when the deployment's license does not cover invitation links."
                :> From 'V19
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'InvalidMeetingPassword
@@ -369,7 +371,7 @@ type MeetingsAPI =
            "join-meeting"
            ( Summary "Join a meeting through its join link"
                :> Description
-                    "Authenticated. Resolves the join link and adds the user to the meeting's underlying conversation (as with `POST /conversations/join` via the link's code access), returning the meeting with its conversation view. Re-joining is an idempotent no-op. A password-protected link requires the matching `password` query param (403 invalid-meeting-password otherwise); a stale (pre-refresh) code value yields 404 meeting-not-found. Returns 403 id-feature-error when the deployment's license does not cover invitation links."
+                    "Authenticated. Resolves the join link and adds the user to the meeting's underlying conversation (as with `POST /conversations/join` via the link's code access), returning the meeting with its conversation view. Re-joining is an idempotent no-op. A password-protected link requires the matching `password` query param (403 invalid-meeting-password otherwise); a stale (pre-refresh) code value, or a meeting of a team with the meetings feature disabled, yields 404 meeting-not-found. Returns 403 id-feature-error when the deployment's license does not cover invitation links."
                :> From 'V19
                :> ZLocalUser
                :> ZConn

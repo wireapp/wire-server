@@ -98,14 +98,65 @@ startTimeTolerance = 60
 isAlive :: UTCTime -> Store.StoredMeeting -> Bool
 isAlive cutoff = maybe True (>= cutoff) . Store.effectiveEndTime
 
--- | Gate for write paths only: read paths (get, list) are not gated so that
--- users see meetings of other teams they were added to (WPB-30305).
+-- | Write-path gate on the caller's team. Reads and link joins are instead
+-- gated on the meeting's owning team (see 'ownerMeetingsEnabled'), so the
+-- caller's own team status does not matter there.
 checkMeetingsEnabled ::
   ( Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r
   ) =>
   Maybe TeamId ->
   Sem r ()
+checkMeetingsEnabled maybeTeamId =
+  unlessM (teamMeetingsEnabled maybeTeamId) $
+    throw MeetingsFeatureDisabled
+
+-- | Whether the @meetings@ feature is enabled for a team. No team (personal
+-- user) means enabled.
+teamMeetingsEnabled :: (Member FeaturesConfigSubsystem r) => Maybe TeamId -> Sem r Bool
+teamMeetingsEnabled = \case
+  Nothing -> pure True
+  Just teamId -> do
+    meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
+    pure (meetingFeature.status == FeatureStatusEnabled)
+
+-- | Whether the meeting's owning team (the team of its conversation) has the
+-- @meetings@ feature enabled. Get and link code-check/join hide meetings of a
+-- team with the feature disabled from everyone; listing applies the same rule
+-- via 'keepOwnerEnabled'. A meeting without a team (e.g. created before its
+-- creator joined a team) is not gated. Fails closed when the conversation is
+-- missing (e.g. deleted by a team admin): such a meeting can be neither
+-- joined nor rendered with its conversation.
+--
+-- This only gates the meetings API: existing members keep access to the
+-- underlying conversation.
+ownerMeetingsEnabled ::
+  ( Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  Store.StoredMeeting ->
+  Sem r Bool
+ownerMeetingsEnabled meeting =
+  ConversationSubsystem.internalGetConversation meeting.conversationId >>= \case
+    Nothing -> pure False
+    Just conv -> not . null <$> keepOwnerEnabled [conv] [meeting]
+
+-- | Keep the meetings whose owning team has the @meetings@ feature enabled,
+-- given their (already fetched) conversations. A meeting without a team, or
+-- whose conversation is not among @convs@, is kept. The feature is looked up
+-- once per distinct team.
+keepOwnerEnabled ::
+  (Member FeaturesConfigSubsystem r) =>
+  [StoredConversation] ->
+  [Store.StoredMeeting] ->
+  Sem r [Store.StoredMeeting]
+keepOwnerEnabled convs meetings = do
+  let convTeams = Map.fromList [(c.id_, c.metadata.cnvmTeam) | c <- convs]
+      teamOf m = join (Map.lookup m.conversationId convTeams)
+  enabledTeams <-
+    fmap Map.fromList . for (List.nubOrd (mapMaybe teamOf meetings)) $ \tid ->
+      (tid,) <$> teamMeetingsEnabled (Just tid)
+  pure $ filter (maybe True (\tid -> Map.lookup tid enabledTeams == Just True) . teamOf) meetings
 
 -- | Meeting join codes never expire while the meeting lives, and
 -- open-ended recurrences never expire at all, so use the largest TTL
@@ -126,12 +177,6 @@ meetingCodeTimeout = Timeout (fromIntegral (maxBound @Int32))
 -- 'LinkUnavailable' instead of pointing at an unconfigured endpoint.
 codeURIBase :: (Member CodeStore r) => Domain -> Sem r (Maybe HttpsUrl)
 codeURIBase = CodeStore.getConversationCodeURI . Just
-
-checkMeetingsEnabled maybeTeamId =
-  for_ maybeTeamId $ \teamId -> do
-    meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
-    unless (meetingFeature.status == FeatureStatusEnabled) $
-      throw MeetingsFeatureDisabled
 
 -- | System-wide meeting configuration: the legacy time zone used for V16
 -- meetings, how long meetings stay alive after their effective end time, and
@@ -721,13 +766,16 @@ verifyCodePassword rlKey = \case
 -- the join ('joinMeetingImpl'). The caller owns the local-domain guard: a
 -- @domain@ from the link path that differs from the local domain yields
 -- 'Nothing' (surfaced as 404), as do unknown keys, stale code values,
--- expired meetings, keys addressing a conversation code, and code-store
--- modes without meeting-code support. Returns the code's optional (hashed)
--- password and the stored meeting.
+-- expired meetings, keys addressing a conversation code, code-store modes
+-- without meeting-code support, and meetings whose owning team has the
+-- @meetings@ feature disabled ('ownerMeetingsEnabled'). Returns the code's
+-- optional (hashed) password and the stored meeting.
 resolveLiveMeetingByKey ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
-    Member Now r
+    Member Now r,
+    Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   -- | The local domain.
   Domain ->
@@ -746,21 +794,22 @@ resolveLiveMeetingByKey localDomain domain key presentedValue validityPeriod
           cutoff <- addUTCTime (negate validityPeriod) <$> Now.get
           mMeeting <- Store.getMeeting mid
           case mMeeting of
+            -- The presented value is the rotating capability: a value from a
+            -- link superseded by a refresh no longer matches and yields 404.
             Just meeting
-              | isAlive cutoff meeting ->
-                  -- The presented value is the rotating capability: a value from a
-                  -- link superseded by a refresh no longer matches and yields 404.
-                  if toByteString' code.codeValue `constEq` toByteString' presentedValue
-                    then pure (Just (mHashedPw, meeting))
-                    else pure Nothing
+              | isAlive cutoff meeting,
+                toByteString' code.codeValue `constEq` toByteString' presentedValue ->
+                  bool Nothing (Just (mHashedPw, meeting)) <$> ownerMeetingsEnabled meeting
             _ -> pure Nothing
         _ -> pure Nothing
 
 -- | Fetch a meeting the user created or whose conversation they are a member
--- of. Not feature-gated, see 'checkMeetingsEnabled'.
+-- of. Hidden when the meeting's owning team has meetings disabled, see
+-- 'ownerMeetingsEnabled'.
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member Now r,
     Member CodeStore r,
     Member (Error MeetingError) r
@@ -776,14 +825,12 @@ getMeetingImpl zUser meetingId validityPeriod = runMaybeT $ do
   guard $ isAlive cutoff storedMeeting
   guard $ qDomain meetingId == tDomain zUser
   -- Check authorization: user must be creator OR member of the associated conversation
-  let isCreator = storedMeeting.creator == tUnqualified zUser
-  if isCreator
-    then lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting
-    else do
-      -- Check if user is a member of the conversation
-      let convId = storedMeeting.conversationId
-      void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-      lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
+  unless (storedMeeting.creator == tUnqualified zUser) $
+    void $
+      MaybeT $
+        ConversationSubsystem.internalGetLocalMember storedMeeting.conversationId (tUnqualified zUser)
+  guard =<< lift (ownerMeetingsEnabled storedMeeting)
+  lift $ storedMeetingToMeeting (tDomain zUser) storedMeeting
 
 -- | Throw the given error unless the deployment's license covers
 -- invitation links (WPB-29643).
@@ -797,15 +844,17 @@ meetingEmailsLicensed = (.meetings.emailsSending) <$> getLicense
 
 -- | Unauthenticated check of a meeting join link (WPB-28989). Unlike
 -- 'getMeetingImpl' no creator/membership check is made: anyone holding the
--- link may look the meeting up, exactly like
--- resolving a conversation code. A password-protected code requires the
--- matching 'password' query param ('CodeCheckInvalidPassword'); a
--- passwordless code checks with or without a password. Rate-limited per
--- client IP since there is no authenticated user.
+-- link may look the meeting up, exactly like resolving a conversation code.
+-- Like it, meetings whose owning team has meetings disabled are not found. A
+-- password-protected code requires the matching 'password' query param
+-- ('CodeCheckInvalidPassword'); a passwordless code checks with or without a
+-- password. Rate-limited per client IP since there is no authenticated user.
 codeCheckMeetingLinkImpl ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
     Member Now r,
+    Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
     Member (Input (Local ())) r,
@@ -847,12 +896,12 @@ codeCheckMeetingLinkImpl origIp domain key presentedValue mPassword validityPeri
 -- or 'JoinMeetingInvalidPassword' is returned; a password supplied for an
 -- unprotected link is ignored, mirroring the conversation join-by-code
 -- semantics. No @checkMeetingsEnabled@ gate: the joiner's team feature state
--- is irrelevant, matching conversation join-by-code. Lookup failures are
+-- is irrelevant, matching conversation join-by-code; but a meeting whose
+-- owning team has meetings disabled is not found. Lookup failures are
 -- returned as 'JoinMeetingNotFound' rather than thrown because a throw from
--- interpreter space is invisible to callers' local error handlers (PR #5571
--- review lesson); only the strict link-production failure ('LinkUnavailable')
--- and the license gate (which throws 'MeetingNotLicensed', as declared on the
--- route) are thrown.
+-- interpreter space is invisible to callers' local error handlers; only the
+-- strict link-production failure ('LinkUnavailable') and the license gate
+-- (which throws 'MeetingNotLicensed', as declared on the route) are thrown.
 joinMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member CodeStore r,
@@ -860,6 +909,7 @@ joinMeetingImpl ::
     Member HashPassword r,
     Member RateLimit r,
     Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Licensing r
@@ -1205,10 +1255,12 @@ storedMeetingToMeetingWithConversation domain lUser conv sm = do
       }
 
 -- | List the meetings the user created or whose conversation they are a
--- member of. Not feature-gated, see 'checkMeetingsEnabled'.
+-- member of, except those whose owning team has meetings disabled (see
+-- 'ownerMeetingsEnabled').
 listMeetingsImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member Now r,
     Member CodeStore r,
     Member (Error MeetingError) r
@@ -1221,17 +1273,20 @@ listMeetingsImpl zUser validityPeriod = do
   let cutoff = addUTCTime (negate validityPeriod) now
   -- List all meetings created by the user
   createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
+  createdConvs <- ConversationSubsystem.getConversations (map (.conversationId) createdMeetings)
+  enabledCreatedMeetings <- keepOwnerEnabled createdConvs createdMeetings
   -- Loop over local conversations accessible by the user, then filter to only keep meetings.
   memberMeetings <- getAllMemberMeetings zUser cutoff
   -- Combine and deduplicate
   allMeetings <-
     (<> memberMeetings)
-      <$> storedMeetingsToMeetings (tDomain zUser) createdMeetings
+      <$> storedMeetingsToMeetings (tDomain zUser) enabledCreatedMeetings
   pure $ Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
 
 getAllMemberMeetings ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member CodeStore r,
     Member (Error MeetingError) r
   ) =>
@@ -1245,6 +1300,7 @@ getAllMemberMeetings zUser cutoff = do
     processPage ::
       ( Member Store.MeetingsStore r,
         Member ConversationSubsystem r,
+        Member FeaturesConfigSubsystem r,
         Member CodeStore r,
         Member (Error MeetingError) r
       ) =>
@@ -1270,7 +1326,8 @@ getAllMemberMeetings zUser cutoff = do
               -- Fetch meetings for these conversations
               pageMeetings <- forM targetQConvIds $ \qConvId -> do
                 Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-              currentMeetings <- storedMeetingsToMeetings (tDomain zUser) (concat pageMeetings)
+              enabledMeetings <- keepOwnerEnabled meetingConvs (concat pageMeetings)
+              currentMeetings <- storedMeetingsToMeetings (tDomain zUser) enabledMeetings
               -- Check if there are more pages
               if hasMore
                 then do
