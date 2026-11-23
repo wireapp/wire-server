@@ -44,14 +44,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: wireapp/wire-rm-actions
-          ref: b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+          ref: 9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
           path: rm-actions
           sparse-checkout: scripts
           persist-credentials: false
 
       - name: Resolve the draft release and download the candidate
         id: draft
-        uses: wireapp/wire-rm-actions/draft-release@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/draft-release@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: resolve
           version: ${{ inputs.version }}
@@ -90,7 +90,7 @@ jobs:
 
       - name: Login to quay.io with the OIDC token of the job
         id: quay
-        uses: wireapp/wire-rm-actions/quay-login@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/quay-login@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           robot: wire+gha_wire-server
 
@@ -167,7 +167,7 @@ jobs:
 
       - name: Publish the GitHub Release
         id: publish_release
-        uses: wireapp/wire-rm-actions/draft-release@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/draft-release@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: publish
           version: ${{ steps.verify.outputs.version }}
@@ -175,7 +175,7 @@ jobs:
           expected-commit: ${{ steps.verify.outputs.source-commit }}
           replace-assets: ${{ steps.completed.outputs.replace-assets }}
           source-ref: ${{ steps.verify.outputs.source-ref }}
-          latest-branches: ^dev$
+          latest-branches: ^develop$
 
       - name: Release date
         id: released_at

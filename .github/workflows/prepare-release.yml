@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       source_branch:
-        description: 'Branch to release from: dev, or a maintained release/X.Y line'
+        description: 'Branch to release from: develop, or a maintained release/X.Y line'
         type: string
-        default: dev
+        default: develop
         required: true
       type:
         description: 'Release channel'
@@ -52,15 +52,16 @@ jobs:
     steps:
       - name: Validate inputs
         id: inputs
-        uses: wireapp/wire-rm-actions/release-inputs@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/release-inputs@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           source-branch: ${{ inputs.source_branch }}
+          source-branches: ^(develop|release/[0-9]+\.[0-9]+)$
           type: ${{ inputs.type }}
           version-bump: ${{ inputs.bump }}
           force: ${{ inputs.force }}
 
       - name: Verify source branch exists
-        uses: wireapp/wire-rm-actions/release-source@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/release-source@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: verify
           source-branch: ${{ inputs.source_branch }}
@@ -82,14 +83,14 @@ jobs:
 
       - name: Resolve source commit
         id: source
-        uses: wireapp/wire-rm-actions/release-source@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/release-source@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: resolve
           source-branch: ${{ inputs.source_branch }}
 
       - name: Compute target version
         id: version
-        uses: wireapp/wire-rm-actions/version@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/version@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: release
           source-branch: ${{ inputs.source_branch }}
@@ -97,7 +98,7 @@ jobs:
           version-bump: ${{ inputs.bump }}
 
       - name: Summarise the candidate
-        uses: wireapp/wire-rm-actions/release-source@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/release-source@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: summary
           source-branch: ${{ inputs.source_branch }}
@@ -123,7 +124,7 @@ jobs:
 
       - name: Resolve release documents
         id: documents
-        uses: wireapp/wire-rm-actions/release-documents@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/release-documents@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           component: wire-server
           version: ${{ steps.version.outputs.version }}
@@ -132,7 +133,7 @@ jobs:
 
       - name: Check the compatibility file
         id: compatibility
-        uses: wireapp/wire-rm-actions/compatibility@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/compatibility@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           file: publication/compatibility.yaml
           output-dir: ${{ runner.temp }}/compatibility
@@ -150,7 +151,7 @@ jobs:
           echo "documents-json=$documents_json" >> "$GITHUB_OUTPUT"
 
       - name: Release gate
-        uses: wireapp/wire-rm-actions/ci-gate@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/ci-gate@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           version: ${{ steps.version.outputs.version }}
           source-commit: ${{ steps.source.outputs.sha }}
@@ -160,7 +161,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: wireapp/wire-rm-actions
-          ref: b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+          ref: 9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
           path: rm-actions
           sparse-checkout: scripts
           persist-credentials: false
@@ -205,7 +206,7 @@ jobs:
         run: python3 .github/scripts/release-images.py
 
       - name: Login to quay.io with the OIDC token of the job
-        uses: wireapp/wire-rm-actions/quay-login@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/quay-login@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           robot: wire+gha_wire-server
 
@@ -278,14 +279,14 @@ jobs:
         run: .github/scripts/release-body.sh
 
       - name: Check for existing release (pre-draft)
-        uses: wireapp/wire-rm-actions/ci-gate@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/ci-gate@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           version: ${{ steps.version.outputs.version }}
           checks-gate: false
 
       - name: Create the draft release
         id: release
-        uses: wireapp/wire-rm-actions/draft-release@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/draft-release@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           mode: create
           version: ${{ steps.version.outputs.version }}

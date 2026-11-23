@@ -15,9 +15,9 @@ on:
         description: Branch the commit was built from
         required: false
         type: string
-        default: dev
+        default: develop
   push:
-    branches: [dev]
+    branches: [develop]
     paths: [.github/workflows/dev-build.yml]
 
 concurrency:
@@ -29,6 +29,7 @@ permissions: {}
 env:
   OCI_REPOSITORY: quay.io/wire/charts/dev
   S3_REPOSITORY: charts-develop
+  # The branch of wire-builds, not of wire-server.
   WIRE_BUILDS_BRANCH: dev
   # Quay deletes the dev charts after this delay, and the dev manifests say so
   # (expires_at): the release managers do not pin an expired dev build.
@@ -88,14 +89,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: wireapp/wire-rm-actions
-          ref: b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+          ref: 9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
           path: rm-actions
           sparse-checkout: scripts
           persist-credentials: false
 
       - name: Login to quay.io with the OIDC token of the job
         id: quay
-        uses: wireapp/wire-rm-actions/quay-login@b8c3a4e657a646f15808f892d0368bb9cfbb6ca0 # dev, after #12 (until v0.1.1)
+        uses: wireapp/wire-rm-actions/quay-login@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           robot: wire+gha_wire-server
 
