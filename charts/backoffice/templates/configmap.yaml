@@ -24,7 +24,7 @@ data:
     # installations where these services are not available
     galeb:
       host: {{ .Values.config.galebHost }}
-      port: 8080
+      port: {{ .Values.config.galebPort }}
     ibis:
       host: {{ .Values.config.ibisHost }}
-      port: 8080
+      port: {{ .Values.config.ibisPort }}

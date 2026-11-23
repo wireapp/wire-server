@@ -16,7 +16,9 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   galebHost: galeb.integrations
+  galebPort: 8080
   ibisHost: ibis.integrations
+  ibisPort: 8080
 baseUrl: http://localhost:8080
 
 podSecurityContext:
