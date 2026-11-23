@@ -554,15 +554,24 @@ type IConversationAPI =
 
 type IMiscAPI =
   Named
-    "get-team-members"
-    ( CanThrow 'NonBindingTeam
-        :> CanThrow 'TeamNotFound
+    "get-user-team-ids"
+    ( Summary "List current team memberships"
+        :> Description "Return the team IDs available to this user, including current collaborations, for authorization of fan-in reads."
         :> "users"
         :> Capture "uid" UserId
-        :> "team"
-        :> "members"
-        :> Get '[JSON] TeamMemberList
+        :> "teams"
+        :> Get '[JSON] [TeamId]
     )
+    :<|> Named
+           "get-team-members"
+           ( CanThrow 'NonBindingTeam
+               :> CanThrow 'TeamNotFound
+               :> "users"
+               :> Capture "uid" UserId
+               :> "team"
+               :> "members"
+               :> Get '[JSON] TeamMemberList
+           )
     :<|> Named
            "get-team-id"
            ( CanThrow 'NonBindingTeam
