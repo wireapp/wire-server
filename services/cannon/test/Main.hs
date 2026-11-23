@@ -27,7 +27,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Public.Cannon (CannonAPI)
-import Wire.API.Routes.Version (SpecialiseToVersion, Version (V8))
+import Wire.API.Routes.Version (SpecialiseToVersion, Version (V20))
 
 main :: IO ()
 main =
@@ -39,8 +39,8 @@ main =
             "inconcistent sitemap"
             mempty
             (pathsConsistencyCheck $ routesToPaths @Internal.API),
-        testCase "fan-in and classic notifications routes" $ do
-          let paths = routesToPaths @(SpecialiseToVersion 'V8 CannonAPI)
+        testCase "fan-in and classic notification routes in API v20" $ do
+          let paths = routesToPaths @(SpecialiseToVersion 'V20 CannonAPI)
           treeLookup paths ["events"] @?= Just "/events"
           treeLookup paths ["await"] @?= Just "/await",
         Options.tests,

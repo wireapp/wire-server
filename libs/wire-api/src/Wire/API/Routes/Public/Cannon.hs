@@ -64,7 +64,7 @@ type CannonAPI =
            "consume-events"
            ( Summary "Consume events over a websocket connection"
                :> Description "Resume from server-side acknowledgements. Ordering is guaranteed within each stream. A missing client ID selects all owned clients. Events use session delivery tags; synchronization has no delivery tag or sync marker."
-               :> From 'V8
+               :> From 'V20
                :> "events"
                :> ZUser
                :> QueryParam'

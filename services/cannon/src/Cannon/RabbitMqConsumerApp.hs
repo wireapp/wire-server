@@ -17,6 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- FUTUREWORK: Remove the RabbitMQ-backed consumable notifications system.
+-- No clients use it anymore.
 module Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp) where
 
 import Cannon.App (rejectOnError)
