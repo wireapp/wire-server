@@ -1,0 +1,131 @@
+name: Publish legacy channels
+
+run-name: Publish v${{ inputs.version }} to S3 and wire-builds (by @${{ github.actor }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version of a published release from develop (X.Y.Z or X.Y.Z-<channel>.N): pushes its charts to the S3 Helm repository and pins them in wire-builds, again if it was done already'
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: publish-legacy
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish
+    environment:
+      name: release-publication
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the workflow scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: ci
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Checkout the released commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/v${{ inputs.version }}
+          path: src
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Download the assets of the published release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          ASSET_DIR: ${{ runner.temp }}/release-assets
+        run: |
+          set -euo pipefail
+          draft=$(gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          if [[ "$draft" != false ]]; then
+            echo "::error::v${VERSION} is a draft: publish it first, this workflow takes a published release"
+            exit 1
+          fi
+          gh release download "v${VERSION}" --repo "$GITHUB_REPOSITORY" --dir "$ASSET_DIR" --pattern '*'
+          {
+            echo "asset-dir=${ASSET_DIR}"
+            echo "manifest=${ASSET_DIR}/release-manifest.json"
+            echo "commit=$(git -C src rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify the release against its manifests
+        id: verify
+        env:
+          MANIFEST: ${{ steps.release.outputs.manifest }}
+          ASSET_DIR: ${{ steps.release.outputs.asset-dir }}
+          VERSION: ${{ inputs.version }}
+          TARGET_COMMIT: ${{ steps.release.outputs.commit }}
+        run: ci/.github/scripts/verify-release.sh
+
+      - name: Require a release from develop
+        if: steps.verify.outputs.legacy != 'true'
+        env:
+          VERSION: ${{ steps.verify.outputs.version }}
+          SOURCE_REF: ${{ steps.verify.outputs.source-ref }}
+        run: |
+          echo "::error::v${VERSION} was released from ${SOURCE_REF}: only the releases from develop go to the S3 Helm repository and to wire-builds"
+          exit 1
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.19.0
+
+      - name: Check the credentials of S3 and wire-builds
+        env:
+          S3_REPOSITORY: ${{ steps.verify.outputs.s3-repository }}
+          WIRE_BUILDS_BRANCH: ${{ steps.verify.outputs.wire-builds-branch }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
+          WIRE_BUILDS_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
+        run: ci/.github/scripts/check-legacy-credentials.sh
+
+      - name: Publish the charts to the S3 Helm repository and pin them in wire-builds
+        id: legacy
+        env:
+          VERSION: ${{ steps.verify.outputs.version }}
+          CHARTS: ${{ steps.verify.outputs.release-charts }}
+          CHART_DIR: ${{ steps.release.outputs.asset-dir }}
+          COMMIT: ${{ steps.verify.outputs.source-commit }}
+          SOURCE_DIR: ${{ github.workspace }}/src
+          S3_REPOSITORY: ${{ steps.verify.outputs.s3-repository }}
+          WIRE_BUILDS_BRANCH: ${{ steps.verify.outputs.wire-builds-branch }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
+          WIRE_BUILDS_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
+        run: ci/.github/scripts/publish-legacy.sh
+
+      - name: Summary
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        env:
+          VERSION: ${{ steps.verify.outputs.version }}
+          SOURCE_REF: ${{ steps.verify.outputs.source-ref }}
+          LEGACY: ${{ steps.verify.outputs.legacy }}
+          OUTCOME: ${{ steps.legacy.outcome }}
+          S3_REPOSITORY: ${{ steps.verify.outputs.s3-repository }}
+          WIRE_BUILDS_BRANCH: ${{ steps.verify.outputs.wire-builds-branch }}
+          S3_RESULT: ${{ steps.legacy.outputs.s3 }}
+          WIRE_BUILDS_RESULT: ${{ steps.legacy.outputs.wire-builds }}
+          RECOVERY: Publish legacy channels
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo "v${VERSION} from the published release."
+            ci/.github/scripts/legacy-summary.sh
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -138,9 +138,9 @@ jobs:
           VERSION: ${{ steps.inputs.outputs.version }}
           CHARTS: ${{ steps.inputs.outputs.charts }}
           CHART_DIR: ${{ steps.package.outputs.dir }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ON_DIFFERENT_SHA256: skip
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
         run: ci/.github/scripts/publish-charts-s3.sh
 
       - name: Bump the charts in wire-builds dev

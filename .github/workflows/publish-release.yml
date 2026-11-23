@@ -13,6 +13,16 @@ on:
         description: 'Numeric id of the draft GitHub Release created by prepare-release'
         type: string
         required: true
+    secrets:
+      S3_HELM_CHARTS_AWS_ACCESS_KEY_ID:
+        description: 'AWS access key of the S3 Helm repositories, for a release from develop'
+        required: false
+      S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY:
+        description: 'AWS secret key of the S3 Helm repositories, for a release from develop'
+        required: false
+      WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN:
+        description: 'Token with write access to wireapp/wire-builds, for a release from develop'
+        required: false
   workflow_dispatch:
     inputs:
       version:
@@ -87,6 +97,16 @@ jobs:
             echo "error: prepared source commit $SOURCE_COMMIT is no longer an ancestor of origin/${SOURCE_BRANCH}: the candidate is stale and must be prepared again" >&2
             exit 1
           fi
+
+      - name: Check the credentials of S3 and wire-builds
+        if: steps.verify.outputs.legacy == 'true'
+        env:
+          S3_REPOSITORY: ${{ steps.verify.outputs.s3-repository }}
+          WIRE_BUILDS_BRANCH: ${{ steps.verify.outputs.wire-builds-branch }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
+          WIRE_BUILDS_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
+        run: ci/.github/scripts/check-legacy-credentials.sh
 
       - name: Login to quay.io with the OIDC token of the job
         id: quay
@@ -205,17 +225,42 @@ jobs:
           NOTIFY_RM: ${{ github.workspace }}/rm-actions/scripts/notify-rm.sh
         run: ci/.github/scripts/declare-release.sh
 
+      - name: Publish the charts to the S3 Helm repository and pin them in wire-builds
+        id: legacy
+        if: ${{ !cancelled() && steps.publish_release.outcome == 'success' && steps.verify.outputs.legacy == 'true' }}
+        env:
+          VERSION: ${{ steps.verify.outputs.version }}
+          CHARTS: ${{ steps.verify.outputs.release-charts }}
+          CHART_DIR: ${{ steps.draft.outputs.asset-dir }}
+          COMMIT: ${{ steps.verify.outputs.source-commit }}
+          SOURCE_DIR: ${{ github.workspace }}/src
+          S3_REPOSITORY: ${{ steps.verify.outputs.s3-repository }}
+          WIRE_BUILDS_BRANCH: ${{ steps.verify.outputs.wire-builds-branch }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
+          WIRE_BUILDS_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
+        run: ci/.github/scripts/publish-legacy.sh
+
       - name: Summary
         if: ${{ !cancelled() && steps.publish_release.outcome == 'success' }}
         env:
           VERSION: ${{ steps.verify.outputs.version }}
           CHANNEL: ${{ steps.verify.outputs.channel }}
           RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.verify.outputs.version }}
+          SOURCE_REF: ${{ steps.verify.outputs.source-ref }}
+          LEGACY: ${{ steps.verify.outputs.legacy }}
+          OUTCOME: ${{ steps.legacy.outcome }}
+          S3_REPOSITORY: ${{ steps.verify.outputs.s3-repository }}
+          WIRE_BUILDS_BRANCH: ${{ steps.verify.outputs.wire-builds-branch }}
+          S3_RESULT: ${{ steps.legacy.outputs.s3 }}
+          WIRE_BUILDS_RESULT: ${{ steps.legacy.outputs.wire-builds }}
+          RECOVERY: Publish legacy channels
         run: |
           set -euo pipefail
           {
             echo
             echo "v${VERSION} published: ${RELEASE_URL}. Images promoted by digest, charts pushed to oci://quay.io/wire/charts/${CHANNEL}, 12 components declared to the release managers."
-            echo
-            echo "> :information_source: The S3 chart repositories and wire-builds are not updated during the PoC."
+            ci/.github/scripts/legacy-summary.sh
           } >> "$GITHUB_STEP_SUMMARY"
