@@ -3,7 +3,7 @@
   "component": "wire-server",
   "version": "5.39.0",
   "summary": "Feature release after 5.38.0. Meetings get mandatory join links, licensed join-by-link, calendar-managed meetings and emails sent by brig; custom backends, login budgets, DPoP nonces and connections can move to PostgreSQL; federated contact status, mock TOTP endpoints and fixes for MLS and SCIM-managed accounts are included, and the ldap-scim-bridge chart is no longer published from wire-server. Before deploying: if galley.config.postgresMigration.conversationCodes is still cassandra, move it to migration-to-postgresql, or meetings fail with 500 link-unavailable; then set license and brig emailSMS if you use meeting join links or meeting emails.",
-  "upgrade_from": ">=5.37.2",
+  "upgrade_from": ">=5.38.0",
   "changes": [
     {
       "kind": "changed",
@@ -27,6 +27,14 @@
       "breaking": true,
       "links": [
         "https://github.com/wireapp/wire-server/pull/5661"
+      ]
+    },
+    {
+      "kind": "changed",
+      "description": "Client API version 19 is final and supported; version 20 is now the development version.",
+      "breaking": false,
+      "links": [
+        "https://github.com/wireapp/wire-server/pull/5734"
       ]
     },
     {
@@ -153,6 +161,22 @@
       ]
     },
     {
+      "kind": "added",
+      "description": "backoffice: the ports of the galeb and ibis services are configurable with backoffice.config.galebPort and backoffice.config.ibisPort. Both default to 8080, the value that was hard-coded, so nothing changes unless you set them.",
+      "breaking": false,
+      "links": [
+        "https://github.com/wireapp/wire-server/pull/5741"
+      ]
+    },
+    {
+      "kind": "added",
+      "description": "nginz gets a /log-traces route to a new log-analyzer upstream (10 MB body limit, rate-limited per address). log-analyzer is in nginx_conf.ignored_upstreams by default, so the route only exists once you remove it from that list and run a log-analyzer service.",
+      "breaking": false,
+      "links": [
+        "https://github.com/wireapp/wire-server/pull/5722"
+      ]
+    },
+    {
       "kind": "changed",
       "description": "Validating the key-package uploads of a client loads its MLS public key at most once per signature scheme per request instead of repeating the lookup.",
       "breaking": false,
@@ -178,7 +202,7 @@
     },
     {
       "kind": "fixed",
-      "description": "MLS timestamp mismatches that broke reply quotes. Federated sends require federation API version 5 on both backends.",
+      "description": "MLS timestamp mismatches that broke reply quotes. The fix applies only when both backends enable federation API version 5, the development version, which the chart disables by default.",
       "breaking": false,
       "links": [
         "https://github.com/wireapp/wire-server/pull/5712"
@@ -385,6 +409,27 @@
       "required": false,
       "default": "disabled, locked",
       "description": "Defaults of the mfa-totp team feature (status, lock status, require_for_all_members, compulsory_for_owners_and_admins). It only supports interface testing against the TOTP mock endpoints."
+    },
+    {
+      "key": "backoffice.config.galebPort",
+      "change": "added",
+      "required": false,
+      "default": "8080",
+      "description": "Port of the galeb service that backoffice calls. Same value as the one that was hard-coded."
+    },
+    {
+      "key": "backoffice.config.ibisPort",
+      "change": "added",
+      "required": false,
+      "default": "8080",
+      "description": "Port of the ibis service that backoffice calls. Same value as the one that was hard-coded."
+    },
+    {
+      "key": "nginz.nginx_conf.ignored_upstreams",
+      "change": "changed",
+      "required": false,
+      "default": "[log-analyzer]",
+      "description": "The list now contains log-analyzer (it was empty). If you override it, for example to add cannon, keep log-analyzer in it unless you run that service."
     }
   ]
 }
