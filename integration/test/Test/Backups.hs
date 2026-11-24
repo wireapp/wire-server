@@ -520,6 +520,41 @@ testBackupDeleteOtherClientsUntouched = do
   bindResponse (getBackupEpoch owner cidB cidB 1) $ \resp ->
     resp.status `shouldMatchInt` 200
 
+-- SERVER-SIDE DELETION
+
+-- | The presigned @Location@ of a full.
+backupLocation :: (HasCallStack) => Value -> String -> Int -> String -> App String
+backupLocation owner cid epoch fullId =
+  bindResponse (downloadBackupFull owner cid cid epoch fullId) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    pure $ BC.unpack (getHeader' (mk (BC.pack "Location")) resp)
+
+-- | The object is eventually deleted by the cleanup. Loops, because orphans of other tests may
+-- fill a cleanup batch.
+assertBackupObjectGone :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
+assertBackupObjectGone domain location = do
+  req <- liftIO $ HTTP.parseRequest location
+  eventually $ do
+    void $ postBackupsCleanup domain
+    bindResponse (submit "GET" req) $ \resp ->
+      resp.status `shouldMatchInt` 404
+
+testBackupsDeletedOnClientRemoval :: (HasCallStack) => App ()
+testBackupsDeletedOnClientRemoval = do
+  (owner, cidA) <- setupBackupUser
+  cidB <- newClientId owner
+  fullId <- uploadFullId owner cidA 1
+  location <- backupLocation owner cidA 1 fullId
+  deleteClient owner cidA >>= assertSuccess
+  -- synchronous: brig has orphaned the backups when it answers
+  bindResponse (getBackupEpoch owner cidB cidA 1) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "backup-not-found"
+  bindResponse (getClientBackups owner cidB cidA) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "epochs" `shouldMatch` ([] :: [Value])
+  assertBackupObjectGone OwnDomain location
+
 -- CLEANUP
 
 -- | The number of files one cleanup batch deleted.

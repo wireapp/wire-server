@@ -58,6 +58,8 @@ import Wire.API.UserMap
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error
+import Wire.BackupStore (BackupStore)
+import Wire.BackupStore qualified as BackupStore
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem (..), ReAuthPolicy (..))
@@ -93,6 +95,7 @@ runClientSubsystem ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member EmailSubsystem r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member (Input ClientSubsystemConfig) r,
     Member (Error FederationError) r,
@@ -140,6 +143,7 @@ addClient ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member EmailSubsystem r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member (Input ClientSubsystemConfig) r
   ) =>
@@ -345,7 +349,8 @@ onClientEvent orig conn e = do
 
 -- | Enqueue an orderly deletion of an existing client.
 execDelete ::
-  ( Member DeleteQueue r,
+  ( Member BackupStore r,
+    Member DeleteQueue r,
     Member AuthenticationSubsystem r,
     Member ClientStore r
   ) =>
@@ -354,6 +359,9 @@ execDelete ::
   Client ->
   Sem r ()
 execDelete u con c = do
+  -- Orphan first: if this fails, the client stays intact and the caller can retry.
+  -- The cron deletes the objects, so the returned ids are not needed.
+  void $ BackupStore.orphanClient u c.clientId
   for_ (clientCookie c) $ \l -> Authentication.revokeCookies u [] [l]
   DeleteQueue.enqueueClientDeletion c.clientId u con
   ClientStore.delete u c.clientId
@@ -364,6 +372,7 @@ rmClient ::
   ( Member AuthenticationSubsystem r,
     Member ClientStore r,
     Member (Error ClientError) r,
+    Member BackupStore r,
     Member DeleteQueue r
   ) =>
   UserId ->
@@ -389,6 +398,7 @@ rmClient u con clt pw =
 removeLegalHoldClient ::
   ( Member Events r,
     Member ClientStore r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r
   ) =>
@@ -454,6 +464,7 @@ claimPrekey ::
   ( Member (Input (Local ())) r,
     Member TinyLog r,
     Member ClientStore r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r,
@@ -474,6 +485,7 @@ claimPrekey protectee uid domain cid = do
 claimLocalPrekey ::
   ( Member ClientStore r,
     Member TinyLog r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r
@@ -539,6 +551,7 @@ claimMultiPrekeyBundlesInternal ::
     Member (Input (Local ())) r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r
   ) =>
@@ -573,6 +586,7 @@ claimMultiPrekeyBundlesV3 ::
     HasBrigFederationAccess m r,
     Member (Input (Local ())) r,
     Member AuthenticationSubsystem r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member (Error FederationError) r
   ) =>
@@ -600,6 +614,7 @@ claimMultiPrekeyBundles ::
     HasBrigFederationAccess m r,
     Member (Input (Local ())) r,
     Member AuthenticationSubsystem r,
+    Member BackupStore r,
     Member DeleteQueue r
   ) =>
   LegalholdProtectee ->
@@ -635,6 +650,7 @@ claimLocalMultiPrekeyBundles ::
     Member ClientStore r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r
   ) =>
@@ -678,6 +694,7 @@ claimLocalMultiPrekeyBundles protectee ucs = do
 noPrekeys ::
   ( Member ClientStore r,
     Member TinyLog r,
+    Member BackupStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r
   ) =>

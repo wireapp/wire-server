@@ -66,6 +66,8 @@ import Wire.BackendNotificationQueueAccess.RabbitMq (interpretBackendNotificatio
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
+import Wire.BackupStore (BackupStore)
+import Wire.BackupStore.Postgres (interpretBackupStoreToPostgres)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.BlockListStore.DualWrite
@@ -231,6 +233,7 @@ type BrigLowerLevelEffects =
      MlsKeyPackageStore,
      UserStore,
      UserGroupStore,
+     BackupStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
      NonceStore,
@@ -573,6 +576,7 @@ runBrigToIO e (AppT ma) = do
               . nonceStore
               . domainVerificationChallengeStore
               . domainRegistrationStore
+              . interpretBackupStoreToPostgres
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
               . interpretMlsKeyPackageStoreToCassandra e.casClient

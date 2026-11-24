@@ -109,6 +109,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
+import Wire.BackupStore (BackupStore)
 import Wire.BlockListStore
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ClientStore
@@ -300,6 +301,7 @@ type MiniBackendLowerEffects =
      VerificationCodeStore,
      SessionStore,
      UserGroupStore,
+     BackupStore,
      RateLimit,
      HashPassword,
      DeleteQueue,
@@ -343,6 +345,9 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
     . noRateLimit
+    . evalState emptyBackupState
+    . inMemoryBackupStore
+    . raiseUnder
     . userGroupStoreTestInterpreter
     . runInMemorySessionStore
     . runInMemoryVerificationCodeStore
