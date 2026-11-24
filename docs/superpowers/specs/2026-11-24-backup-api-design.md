@@ -51,6 +51,25 @@ user/team deletion.
 3. **Hybrid** (only `BackupStore` in wire-subsystems). Dependency cost
    without testability gain. Rejected.
 
+## Upload transport
+
+Chosen: streaming through cargohold (raw `application/octet-stream`,
+`Content-Length` required, streamed into an S3 multipart upload; nginz request
+buffering off). Server enforces size limits (early 413) and counts bytes; one
+request per file; no S3 credentials or writable URLs leave the server.
+Expected sizes (text history, few hundred MB at most) don't need resumability.
+
+Rejected:
+- Presigned PUT (client → S3): multi-step protocol; URL can overwrite the
+  committed object until its TTL ends (conditional writes not portable).
+- Presigned multipart (resumable): most complex, unfinished uploads invisible
+  to the orphans table, same overwrite issue. Can be added later as a new
+  route if sizes grow.
+- Resumable through cargohold (tus / chunk routes): server-side chunk state,
+  large protocol surface.
+- Chunked transfer encoding without `Content-Length`: clients know the size;
+  a required length gives early 413 and a reliable byte-count check.
+
 ## RFC deviations and additions
 
 - `/v20/backups/...` instead of `/v19/...`.
