@@ -305,6 +305,14 @@ getVerificationCode user action = do
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "users", uid, "verification-code", action]
   submit "GET" req
 
+-- | Pending deletion code of 'API.Brig.deleteUserWithPassword' (without password), in the
+-- shape expected by 'API.Brig.verifyDeleteUser'.
+getDeleteCode :: (HasCallStack, MakesValue user) => user -> App Response
+getDeleteCode user = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "delete-code"]
+  submit "GET" req
+
 -- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__features_conferenceCalling
 getFeatureForUser :: (HasCallStack, MakesValue user) => user -> String -> App Response
 getFeatureForUser user featureName = do

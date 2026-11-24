@@ -782,6 +782,7 @@ type GetMLSClients =
                     (Respond 200 "MLS client" ClientInfo)
            )
 
+-- | See also: 'GetDeleteCode', 'InvitationCode'.
 type GetVerificationCode =
   Named
     "get-verification-code"
@@ -793,6 +794,19 @@ type GetVerificationCode =
         :> Get '[Servant.JSON] (Maybe Code.Value)
     )
 
+-- | Not covered by 'GetVerificationCode': 'VerificationAction' is part of the public 2FA
+-- API and has no account-deletion action, and @POST /delete@ needs the key, too.
+-- See also: 'InvitationCode'.
+type GetDeleteCode =
+  Named
+    "get-delete-code"
+    ( Summary "Get the pending account deletion code of a user (see `DELETE /self`), as expected by `POST /delete`"
+        :> "users"
+        :> Capture "uid" UserId
+        :> "delete-code"
+        :> Get '[Servant.JSON] (Maybe VerifyDeleteUser)
+    )
+
 type API =
   "i"
     :> ( IStatusAPI
@@ -800,6 +814,7 @@ type API =
            :<|> AccountAPI
            :<|> MLSAPI
            :<|> GetVerificationCode
+           :<|> GetDeleteCode
            :<|> TeamsAPI
            :<|> UserAPI
            :<|> ClientAPI
@@ -879,6 +894,8 @@ type InvitationByEmail =
         :> Get '[Servant.JSON] Invitation
     )
 
+-- | Unlike 'GetVerificationCode' and 'GetDeleteCode', this is not a verification code
+-- (different store, keyed by team and invitation).
 type InvitationCode =
   Named
     "get-invitation-code"

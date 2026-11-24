@@ -21,7 +21,7 @@ module Test.Teams where
 import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
-import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications, putResendTeamMemberVerificationEmail, setTeamFeatureConfig)
+import API.Galley (TeamPermissions (..), deleteTeamMember, getTeam, getTeamMember, getTeamMembers, getTeamMembersCsv, getTeamNotifications, putResendTeamMemberVerificationEmail, setTeamFeatureConfig, updateTeamMember)
 import API.GalleyInternal (selectTeamMembers)
 import qualified API.GalleyInternal as I
 import API.Gundeck
@@ -39,7 +39,9 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import MLS.Util (InitMLSClient (..), createMLSClient, uploadNewKeyPackage)
 import Notifications
+import qualified SAML2.WebSSO as SAML
 import SetupHelpers
+import System.Random (randomIO)
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
@@ -480,6 +482,114 @@ testDeleteTeamUserRatelimitingIsPropagated = do
     bindResponse (deleteTeamMember tid owner m) $ \resp -> do
       pure resp.status
   Set.fromList statusCodes `shouldMatchSet` ([202, 429] :: [Int])
+
+-- | @DELETE /self@ is for personal users only: deleting team members
+-- is the team admin's job (otherwise eg. SCIM would just re-provision
+-- the account).  This holds for every role and every branch of
+-- @Brig.API.User.deleteSelfUser@: deletion code (user has an email),
+-- password, and immediate deletion (user has neither, eg. SAML-only).
+-- The `managed_by` field makes no difference here.  See also:
+-- 'testDeleteTeamMember',
+-- 'testPendingDeleteCodeRejectedAfterJoiningTeam'.
+testTeamMemberCannotDeleteSelf :: (HasCallStack) => TeamPermissions -> App ()
+testTeamMemberCannotDeleteSelf role = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  let withRole user = updateTeamMember tid owner user role >>= assertSuccess >> pure user
+  passwordUser <- createTeamMember owner def >>= withRole
+  samlOnlyUser <- createSamlOnlyUser owner tid >>= withRole
+  let attempts =
+        [ ("code", passwordUser, Nothing),
+          ("password", passwordUser, Just defPassword),
+          ("nothing", samlOnlyUser, Nothing)
+        ]
+  for_ attempts $ \(path, user, mPassword) ->
+    addFailureContext ("deletion path: " <> path)
+      $ deleteUserWithPassword user mPassword
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "team-member-deleting-self"
+  for_ [passwordUser, samlOnlyUser] $ \user -> getSelf user >>= assertStatus 200
+
+-- | Team member with neither email nor password.
+createSamlOnlyUser :: (HasCallStack) => Value -> String -> App Value
+createSamlOnlyUser owner tid = do
+  void $ I.setTeamFeatureStatus owner tid "sso" "enabled"
+  (idpResp, idpCreds) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- idpResp.json %. "id" >>= asString
+  unameId <- liftIO $ SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+  subject <- either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
+  (Just uid, _) <- loginWithSaml True tid subject (idpId, idpCreds)
+  ownDomain <- objDomain OwnDomain
+  let user = object ["domain" .= ownDomain, "id" .= uid]
+  getSelf user `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    lookupField resp.json "email" `shouldMatch` (Nothing :: Maybe Value)
+  pure user
+
+-- | @DELETE /teams/:tid/members/:uid@ for every deleter role, with and without a
+-- SCIM-managed deletee.  A coin toss decides whether deleter and deletee are the same user.
+--
+-- SCIM-managed users can only be deleted via SCIM (the next SCIM sync would re-create
+-- them).  Apart from that: partners and members can't delete anybody, owners can't delete
+-- themselves (see @canDeleteMember@), admins can.
+testDeleteTeamMember :: (HasCallStack) => TeamPermissions -> TaggedBool "scim" -> App ()
+testDeleteTeamMember deleterRole (TaggedBool scim) = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  scimToken <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  let newWireMember role = do
+        user <- createTeamMember owner def
+        updateTeamMember tid owner user role >>= assertSuccess
+        pure user
+      newScimMember role = do
+        scimUser <- randomScimUser >>= setField "roles" [object ["value" .= map toLower (show role)]]
+        email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+        void $ createScimUser OwnDomain scimToken scimUser >>= getJSON 201
+        registerInvitedUser OwnDomain tid email
+        I.getUsersByEmail OwnDomain [email] >>= getJSON 200 >>= asList >>= assertOne
+      newDeletee = if scim then newScimMember else newWireMember
+  deleteSelf <- liftIO randomIO
+  (deleter, deletee) <-
+    if deleteSelf
+      then (\user -> (user, user)) <$> newDeletee deleterRole
+      else (,) <$> newWireMember deleterRole <*> newDeletee Member
+  let expectedLabel = case deleterRole of
+        Partner -> Just "operation-denied"
+        Member -> Just "operation-denied"
+        Owner | deleteSelf -> Just "access-denied"
+        _ | scim -> Just "delete-via-scim-only"
+        _ -> Nothing
+  addFailureContext ("deleter == deletee: " <> show deleteSelf) $ do
+    deleteTeamMember tid deleter deletee `bindResponse` \resp -> case expectedLabel of
+      Nothing -> resp.status `shouldMatchInt` 202
+      Just label -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` label
+    -- (202 means deletion is asynchronous, so only the denied case can be checked here)
+    when (isJust expectedLabel) $ do
+      deleteeId <- deletee %. "id" >>= asString
+      getTeamMember owner tid deleteeId >>= assertStatus 200
+
+-- | A deletion code requested as a personal user must be rejected after joining a team.
+-- See also: 'testTeamMemberCannotDeleteSelf'.
+testPendingDeleteCodeRejectedAfterJoiningTeam :: (HasCallStack) => App ()
+testPendingDeleteCodeRejectedAfterJoiningTeam = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  user <- I.createUser OwnDomain def >>= getJSON 201
+  deleteUserWithPassword user Nothing >>= assertStatus 202
+  deleteCode <- I.getDeleteCode user >>= getJSON 200
+
+  email <- user %. "email" >>= asString
+  inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
+  getSelf user `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "team" `shouldMatch` tid
+
+  verifyDeleteUser OwnDomain deleteCode `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "team-member-deleting-self"
+  getSelf user >>= assertStatus 200
 
 testSelectTeamMembersByIds :: (HasCallStack) => App ()
 testSelectTeamMembersByIds = do
