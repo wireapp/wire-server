@@ -1579,6 +1579,13 @@ PostgreSQL. Make sure that no lifecycle rules (e.g. TTL) apply to this prefix.
 - `backups.cleanupBatchSize` (integer, at least 1, default 100): maximum number of orphaned
   files one cleanup call (`POST /i/backups/cleanup`) deletes.
 
+On S3 buckets with versioning enabled (or suspended) cargohold deletes all versions and delete
+markers of a backup file, so that deleted backups cannot be restored. On buckets that never had
+versioning only the keys are deleted. If the store does not implement `ListObjectVersions`,
+the plain keys (`backups/<id>`) are deleted. The S3 credentials need `s3:GetBucketVersioning`,
+`s3:ListBucketVersions`, `s3:ListBucket`, `s3:DeleteObject` and `s3:DeleteObjectVersion` on the
+bucket (prefix `backups/`).
+
 Orphaned backup files (replaced or removed files whose S3 deletion failed, unfinished uploads)
 are deleted by background-worker, which calls the internal cargohold endpoint
 `POST /i/backups/cleanup` periodically. Configure it in background-worker:

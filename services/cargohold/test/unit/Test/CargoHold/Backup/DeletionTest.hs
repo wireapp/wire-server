@@ -46,8 +46,74 @@ tests =
                 { targets = Map.fromList [(a, []), (b, [])],
                   unlisted = Set.singleton b
                 }
-        goneIds plan Set.empty @?= [a]
+        goneIds plan Set.empty @?= [a],
+      testCase "versioningErrorListsVersions" $ do
+        versioningFrom (Left ()) @?= VersioningMaybeOn
+        versioningFrom (Right (Just ())) @?= VersioningMaybeOn
+        versioningFrom (Right Nothing :: Either () (Maybe ())) @?= VersioningNeverEnabled,
+      testCase "neverEnabledKeysOnly" $
+        deleteBatches (planDeletion [a, b] VersioningNeverEnabled mempty)
+          @?= [[ObjectTarget ka Nothing, ObjectTarget kb Nothing]],
+      testCase "versionedDeletesAllVersionsAndMarkers" $ do
+        let ts = [ObjectTarget ka (Just v) | v <- ["v1", "v2", "m1"]]
+            plan = planDeletion [a] VersioningMaybeOn (Map.fromList [(a, Listed ts)])
+        deleteBatches plan @?= [ts]
+        goneIds plan Set.empty @?= [a],
+      testCase "versionedIgnoresForeignKeys" $ do
+        let own = ObjectTarget ka (Just "v1")
+            foreign' = ObjectTarget (ka <> "x") (Just "v1")
+            plan = planDeletion [a] VersioningMaybeOn (Map.fromList [(a, Listed [own, foreign'])])
+        deleteBatches plan @?= [[own]],
+      testCase "emptyListingIsGone" $ do
+        let plan = planDeletion [a] VersioningMaybeOn (Map.fromList [(a, Listed [])])
+        deleteBatches plan @?= []
+        goneIds plan Set.empty @?= [a],
+      testCase "listingFailedNotGone" $ do
+        let ta = ObjectTarget ka (Just "v1")
+            plan =
+              planDeletion
+                [a, b]
+                VersioningMaybeOn
+                (Map.fromList [(a, Listed [ta]), (b, ListingFailed)])
+        deleteBatches plan @?= [[ta]]
+        goneIds plan Set.empty @?= [a],
+      testCase "partialDeleteErrors" $ do
+        let va v = ObjectTarget ka (Just v)
+            plan =
+              planDeletion
+                [a, b]
+                VersioningMaybeOn
+                ( Map.fromList
+                    [ (a, Listed [va "v1", va "v2"]),
+                      (b, Listed [ObjectTarget kb (Just "v1")])
+                    ]
+                )
+        goneIds plan (Set.singleton (va "v2")) @?= [b],
+      testCase "classifyNotImplemented" $ do
+        classifyListError 501 "" @?= ListNotImplemented
+        classifyListError 400 "NotImplemented" @?= ListNotImplemented
+        classifyListError 403 "AccessDenied" @?= ListOtherError,
+      QC.testProperty "versionedBatchesBounded" $
+        QC.forAll (QC.choose (0, 2500)) propVersionedBatchesBounded
     ]
+
+ka, kb :: Text
+ka = backupKey a
+kb = backupKey b
+
+-- | Versions spread over files (n in total).
+propVersionedBatchesBounded :: Int -> QC.Property
+propVersionedBatchesBounded n =
+  let perFile =
+        [ (i, [ObjectTarget (backupKey i) (Just (fromString (show j))) | j <- [lo .. hi]])
+        | (i, (lo, hi)) <- zip (ids 3) [(1, n `div` 2), (n `div` 2 + 1, n `div` 2 + 7), (n `div` 2 + 8, n)]
+        ]
+      plan = planDeletion (map fst perFile) VersioningMaybeOn (Map.fromList [(i, Listed ts) | (i, ts) <- perFile])
+      batches = deleteBatches plan
+   in QC.conjoin
+        [ QC.counterexample "batch size" (all (\batch -> not (null batch) && length batch <= maxDeleteBatch) batches),
+          QC.counterexample "concat" (sort (concat batches) QC.=== sort (concatMap snd perFile))
+        ]
 
 a, b :: BackupFileId
 a = BackupFileId (UUID.fromWords 0 0 0 1)

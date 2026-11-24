@@ -22,6 +22,12 @@ module CargoHold.Backup.Deletion
     backupKey,
     maxDeleteBatch,
     keysOnlyPlan,
+    Versioning (..),
+    versioningFrom,
+    Listing (..),
+    ListError (..),
+    classifyListError,
+    planDeletion,
     deleteBatches,
     goneIds,
   )
@@ -79,3 +85,38 @@ goneIds plan failed =
     fid `Set.notMember` plan.unlisted,
     all (`Set.notMember` failed) ts
   ]
+
+-- | Versioning state of the bucket.
+data Versioning = VersioningNeverEnabled | VersioningMaybeOn
+  deriving (Eq, Show)
+
+-- | No status means versioning was never enabled. An error means unknown: take the safe path.
+versioningFrom :: Either e (Maybe s) -> Versioning
+versioningFrom (Right Nothing) = VersioningNeverEnabled
+versioningFrom _ = VersioningMaybeOn
+
+-- | Result of listing the object versions of one file.
+data Listing = Listed [ObjectTarget] | ListingFailed
+
+data ListError = ListNotImplemented | ListOtherError
+  deriving (Eq, Show)
+
+-- | Stores without @ListObjectVersions@ answer 501 or the error code @NotImplemented@.
+classifyListError :: Int -> Text -> ListError
+classifyListError 501 _ = ListNotImplemented
+classifyListError _ "NotImplemented" = ListNotImplemented
+classifyListError _ _ = ListOtherError
+
+-- | Without versioning only the keys are deleted. Otherwise all listed versions and delete
+-- markers with exactly the key of the file are deleted; files without (successful) listing
+-- are unlisted.
+planDeletion :: [BackupFileId] -> Versioning -> Map BackupFileId Listing -> DeletionPlan
+planDeletion ids VersioningNeverEnabled _ = keysOnlyPlan ids
+planDeletion ids VersioningMaybeOn listings =
+  DeletionPlan
+    { targets = Map.fromList [(i, exact i ts) | (i, Listed ts) <- listed],
+      unlisted = Set.fromList [i | (i, ListingFailed) <- listed]
+    }
+  where
+    listed = [(i, fromMaybe ListingFailed (Map.lookup i listings)) | i <- ids]
+    exact i = filter ((== backupKey i) . (.key))

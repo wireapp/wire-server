@@ -18,6 +18,7 @@
 
 module CargoHold.Backup.ObjectStore (interpretBackupObjectStoreS3, deleteBackupObjects) where
 
+import qualified Amazonka
 import Amazonka.S3
   ( BucketName (..),
     ObjectKey (..),
@@ -25,14 +26,24 @@ import Amazonka.S3
     newCreateMultipartUpload,
     newDelete,
     newDeleteObjects,
+    newGetBucketVersioning,
+    newListObjectVersions,
     newObjectIdentifier,
   )
 import Amazonka.S3.Lens
   ( createMultipartUpload_contentType,
+    deleteMarkerEntry_key,
+    deleteMarkerEntry_versionId,
     deleteObjectsResponse_errors,
     delete_objects,
     delete_quiet,
+    getBucketVersioningResponse_status,
+    listObjectVersionsResponse_deleteMarkers,
+    listObjectVersionsResponse_versions,
+    listObjectVersions_prefix,
     objectIdentifier_versionId,
+    objectVersion_key,
+    objectVersion_versionId,
     s3ServiceError_code,
     s3ServiceError_key,
   )
@@ -40,12 +51,14 @@ import CargoHold.API.Error (serverError)
 import qualified CargoHold.AWS as AWS
 import CargoHold.Backup.Deletion
 import CargoHold.S3 (presignGetObject, selectAwsEnv, streamUploadObject)
-import Conduit (runResourceT)
+import Conduit (fuseBoth, runConduit, runResourceT, sinkList)
 import Control.Lens ((.~), (?~), (^.))
 import Data.Domain (Domain, domainText)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Time.Clock (NominalDiffTime)
 import Imports
+import Network.HTTP.Types.Status (statusCode)
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
@@ -55,6 +68,7 @@ import qualified System.Logger as Logger
 import System.Logger.Message (field, msg, val)
 import qualified System.Logger.Message as Log
 import System.Timeout (timeout)
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import UnliftIO.Exception (tryAny)
 import Wire.API.Backup (BackupFileId (..))
 import Wire.BackupObjectStore
@@ -101,14 +115,95 @@ interpretBackupObjectStoreS3 env multiIngress uploadTimeout downloadLinkTTL = in
         Log.err $ Log.msg (Log.val "Failed to presign backup download") . Log.field "error" err
         throw serverError
 
--- | Deletes the objects of the files (keys only, no versions) in batches. Returns the files
--- whose objects are gone. Failures (also exceptions) are logged and never thrown: the objects
--- of a failed batch are reported as not gone.
+-- | Deletes the objects of the files in batches. On versioned (or suspended, or unknown
+-- versioning state) buckets all versions and delete markers are deleted, otherwise only the
+-- keys. Returns the files whose objects are gone. Failures (also exceptions) are logged and
+-- never thrown: the objects of a failed batch are reported as not gone.
 deleteBackupObjects :: AWS.Env -> [BackupFileId] -> IO [BackupFileId]
+deleteBackupObjects _ [] = pure []
 deleteBackupObjects env ids = do
-  let plan = keysOnlyPlan ids
-  failed <- traverse (deleteBatch env) (deleteBatches plan)
-  pure (goneIds plan (Set.unions failed))
+  versioning <- getVersioning env
+  listings <- case versioning of
+    VersioningNeverEnabled -> pure Map.empty
+    VersioningMaybeOn -> do
+      noListing <- newIORef False
+      Map.fromList
+        <$> pooledMapConcurrentlyN listingParallelism (\i -> (i,) <$> listFile env noListing i) ids
+  let plan = planDeletion ids versioning listings
+  failed <- Set.unions <$> traverse (deleteBatch env) (deleteBatches plan)
+  -- An error for a key fails every target of that key, also in other batches.
+  let failedKeys = Set.map (.key) failed
+      allFailed = Set.fromList [t | ts <- Map.elems plan.targets, t <- ts, t.key `Set.member` failedKeys]
+  pure (goneIds plan allFailed)
+
+-- | An error (also an exception) means unknown: 'VersioningMaybeOn'.
+getVersioning :: AWS.Env -> IO Versioning
+getVersioning env = do
+  let req = newGetBucketVersioning (BucketName env.s3Bucket)
+  tryAny (runResourceT (AWS.sendCatch env.amazonkaEnv req)) >>= \case
+    Left e -> unknown "exception" (show e)
+    Right (Left e) -> unknown "error" (show e)
+    Right (Right resp) -> pure (versioningFrom (Right (resp ^. getBucketVersioningResponse_status)))
+  where
+    unknown :: Text -> String -> IO Versioning
+    unknown what details = do
+      Logger.warn env.logger $
+        msg (val "Getting bucket versioning failed, listing object versions")
+          . field "kind" what
+          . field "details" details
+      pure VersioningMaybeOn
+
+-- | How many files are listed concurrently.
+listingParallelism :: Int
+listingParallelism = 8
+
+-- | All versions and delete markers with the prefix of the file ('planDeletion' keeps the exact
+-- key). If the store does not implement listing, the plain key is the only target and the
+-- flag makes the remaining files of the call skip listing.
+listFile :: AWS.Env -> IORef Bool -> BackupFileId -> IO Listing
+listFile env noListing fid = do
+  let plainKey = Listed [ObjectTarget (backupKey fid) Nothing]
+  skip <- readIORef noListing
+  if skip
+    then pure plainKey
+    else do
+      let req =
+            newListObjectVersions (BucketName env.s3Bucket)
+              & listObjectVersions_prefix ?~ backupKey fid
+          source = Amazonka.paginateEither env.amazonkaEnv req
+      tryAny (runResourceT (runConduit (fuseBoth source sinkList))) >>= \case
+        Left e -> failed "exception" (show e)
+        Right (Left (Amazonka.ServiceError se), _)
+          | classifyListError
+              (statusCode (se ^. Amazonka.serviceError_status))
+              (errorCodeText (se ^. Amazonka.serviceError_code))
+              == ListNotImplemented -> do
+              writeIORef noListing True
+              Logger.warn env.logger $
+                msg (val "Store does not support listing object versions, deleting plain keys")
+              pure plainKey
+        Right (Left e, _) -> failed "error" (show e)
+        Right (Right (), pages) -> pure (Listed (concatMap pageTargets pages))
+  where
+    pageTargets page =
+      [ ObjectTarget k (fromVersion <$> (v ^. objectVersion_versionId))
+      | v <- fromMaybe [] (page ^. listObjectVersionsResponse_versions),
+        Just (ObjectKey k) <- [v ^. objectVersion_key]
+      ]
+        <> [ ObjectTarget k (fromVersion <$> (m ^. deleteMarkerEntry_versionId))
+           | m <- fromMaybe [] (page ^. listObjectVersionsResponse_deleteMarkers),
+             Just (ObjectKey k) <- [m ^. deleteMarkerEntry_key]
+           ]
+    fromVersion (ObjectVersionId v) = v
+    errorCodeText (Amazonka.ErrorCode c) = c
+    failed :: Text -> String -> IO Listing
+    failed what details = do
+      Logger.warn env.logger $
+        msg (val "Listing backup object versions failed")
+          . field "file" (backupKey fid)
+          . field "kind" what
+          . field "details" details
+      pure ListingFailed
 
 -- | The targets of the batch that could not be deleted.
 deleteBatch :: AWS.Env -> [ObjectTarget] -> IO (Set ObjectTarget)
