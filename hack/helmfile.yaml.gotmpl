@@ -11,6 +11,9 @@ helmDefaults:
   timeout: 600
   devel: true
   createNamespace: true
+  {{- if env "INTEGRATION_PUBLISHED_CHARTS_DIR" }}
+  skipDeps: true
+  {{- end }}
 environments:
   default:
     values:
@@ -99,16 +102,17 @@ repositories:
   - name: groundhog2k
     url: https://groundhog2k.github.io/helm-charts
 
+{{- $chartsDir := env "INTEGRATION_PUBLISHED_CHARTS_DIR" | default "../.local/charts" }}
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/fake-aws'
+    chart: '{{ $chartsDir }}/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
 
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/fake-aws'
+    chart: '{{ $chartsDir }}/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
 
@@ -120,7 +124,7 @@ releases:
 
   - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/redis-ephemeral'
+    chart: '{{ $chartsDir }}/redis-ephemeral'
     values:
       - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/redis-ephemeral/values.yaml'
@@ -129,11 +133,11 @@ releases:
 
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/cassandra-ephemeral'
+    chart: '{{ $chartsDir }}/cassandra-ephemeral'
 
   - name: 'elasticsearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
+    chart: '{{ $chartsDir }}/elasticsearch-ephemeral'
     values:
       - tls:
           enabled: true
@@ -143,7 +147,7 @@ releases:
 
   - name: 'elasticsearch-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
+    chart: '{{ $chartsDir }}/elasticsearch-ephemeral'
     values:
       - tls:
           enabled: true
@@ -153,7 +157,7 @@ releases:
 
   - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/redis-ephemeral'
+    chart: '{{ $chartsDir }}/redis-ephemeral'
     values:
       - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/redis-ephemeral/values.yaml'
@@ -162,7 +166,7 @@ releases:
 
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/cassandra-ephemeral'
+    chart: '{{ $chartsDir }}/cassandra-ephemeral'
 
   - name: "postgresql"
     namespace: "{{ .Values.namespace1 }}"
@@ -223,7 +227,7 @@ releases:
   # Required for testing redis migration
   - name: redis-ephemeral-2
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/redis-ephemeral'
+    chart: '{{ $chartsDir }}/redis-ephemeral'
     values:
       - redis-ephemeral:
           image:
@@ -243,14 +247,14 @@ releases:
       - './helm_vars/certs/values.yaml.gotmpl'
 
   - name: k8ssandra-test-cluster
-    chart: '../.local/charts/k8ssandra-test-cluster'
+    chart: '{{ $chartsDir }}/k8ssandra-test-cluster'
     namespace: '{{ .Values.namespace1 }}'
     values:
       - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
     condition: useK8ssandraSSL.enabled
 
   - name: k8ssandra-test-cluster
-    chart: '../.local/charts/k8ssandra-test-cluster'
+    chart: '{{ $chartsDir }}/k8ssandra-test-cluster'
     namespace: '{{ .Values.namespace2 }}'
     values:
       - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
@@ -293,7 +297,7 @@ releases:
   {{- if eq (env "WIRE_INGRESS_MODE") "nginx" }}
   - name: 'ingress-svc'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/nginx-ingress-services'
+    chart: '{{ $chartsDir }}/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
     set:
@@ -306,7 +310,7 @@ releases:
   {{- else }}
   - name: 'ingress-svc'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/wire-ingress'
+    chart: '{{ $chartsDir }}/wire-ingress'
     values:
       - './helm_vars/wire-ingress/values.yaml.gotmpl'
     set:
@@ -319,7 +323,7 @@ releases:
   {{- if eq (env "WIRE_INGRESS_MODE") "nginx" }}
   - name: 'ingress-svc'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/nginx-ingress-services'
+    chart: '{{ $chartsDir }}/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
     set:
@@ -332,7 +336,7 @@ releases:
   {{- else }}
   - name: 'ingress-svc'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/wire-ingress'
+    chart: '{{ $chartsDir }}/wire-ingress'
     values:
       - './helm_vars/wire-ingress/values.yaml.gotmpl'
     set:
@@ -349,7 +353,7 @@ releases:
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/wire-server'
+    chart: '{{ $chartsDir }}/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/values-domain1.yaml.gotmpl'
@@ -369,7 +373,7 @@ releases:
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/wire-server'
+    chart: '{{ $chartsDir }}/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/values-domain2.yaml.gotmpl'
@@ -387,7 +391,7 @@ releases:
 
   - name: wire-server-enterprise
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/wire-server-enterprise'
+    chart: '{{ $chartsDir }}/wire-server-enterprise'
     values:
       - secrets:
           configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}

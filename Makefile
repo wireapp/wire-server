@@ -484,7 +484,12 @@ libzauth:
 kube-integration:  kube-integration-setup kube-integration-test
 
 .PHONY: kube-integration-setup
-kube-integration-setup: charts-integration helm-oci-login
+# With INTEGRATION_CHART_REPOSITORY and INTEGRATION_CHART_VERSION set, use
+# published Helm packages instead of preparing charts from this checkout.
+ifeq ($(strip $(INTEGRATION_CHART_REPOSITORY)$(INTEGRATION_CHART_VERSION)),)
+kube-integration-setup: charts-integration
+endif
+kube-integration-setup: helm-oci-login
 	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test

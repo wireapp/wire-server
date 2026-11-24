@@ -31,17 +31,50 @@ fi
 . "$DIR/helm_overrides.sh"
 "${DIR}"/integration-cleanup.sh
 
-# FUTUREWORK explore: have helmfile do the interpolation (and skip the "make charts" step) https://wearezeta.atlassian.net/browse/SQPIT-722
-#
-# FUTUREWORK: get rid of wrapper charts, use helmfile for pinning. Then we may not need the recursive update hack anymore: https://wearezeta.atlassian.net/browse/SQPIT-721
-#
-# Sadly, even with helmfile, we still need to use use this recursive update
-# script beforehand on all relevant charts to download the nested dependencies
-# (e.g. cassandra from underneath databases-ephemeral)
-echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral rabbitmq wire-server nginx-ingress-services wire-ingress)
-mkdir -p ~/.parallel && touch ~/.parallel/will-cite
-printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
+if [[ -n "${INTEGRATION_CHART_REPOSITORY:-}${INTEGRATION_CHART_VERSION:-}" ]]; then
+    : "${INTEGRATION_CHART_REPOSITORY:?Set the published integration chart repository}"
+    : "${INTEGRATION_CHART_VERSION:?Set the published integration chart version}"
+
+    # Use a fresh directory and keep the dependencies bundled in the packages.
+    CHARTS_DIR=$(mktemp -d)
+    trap 'rm -rf "$CHARTS_DIR"' EXIT
+    export INTEGRATION_PUBLISHED_CHARTS_DIR="$CHARTS_DIR"
+
+    charts=(wire-server wire-server-enterprise fake-aws databases-ephemeral
+            redis-ephemeral elasticsearch-ephemeral k8ssandra-test-cluster)
+    if [[ "$WIRE_INGRESS_MODE" == "nginx" ]]; then
+        charts+=(nginx-ingress-services)
+    else
+        charts+=(wire-ingress)
+    fi
+
+    chart_repository=${INTEGRATION_CHART_REPOSITORY%/}
+    if [[ "$chart_repository" != oci://* ]]; then
+        helm repo add wire-integration-published "$chart_repository"
+    fi
+    for chart in "${charts[@]}"; do
+        if [[ "$chart_repository" == oci://* ]]; then
+            chart_ref="$chart_repository/$chart"
+        else
+            chart_ref="wire-integration-published/$chart"
+        fi
+        helm pull "$chart_ref" --version "$INTEGRATION_CHART_VERSION" --untar --untardir "$CHARTS_DIR"
+    done
+    # Cassandra is published as a dependency of databases-ephemeral.
+    mv "$CHARTS_DIR/databases-ephemeral/charts/cassandra-ephemeral" "$CHARTS_DIR/"
+else
+    # FUTUREWORK explore: have helmfile do the interpolation (and skip the "make charts" step) https://wearezeta.atlassian.net/browse/SQPIT-722
+    #
+    # FUTUREWORK: get rid of wrapper charts, use helmfile for pinning. Then we may not need the recursive update hack anymore: https://wearezeta.atlassian.net/browse/SQPIT-721
+    #
+    # Sadly, even with helmfile, we still need to use use this recursive update
+    # script beforehand on all relevant charts to download the nested dependencies
+    # (e.g. cassandra from underneath databases-ephemeral)
+    echo "updating recursive dependencies ..."
+    charts=(fake-aws databases-ephemeral rabbitmq wire-server nginx-ingress-services wire-ingress)
+    mkdir -p ~/.parallel && touch ~/.parallel/will-cite
+    printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
+fi
 
 export NAMESPACE_1="$NAMESPACE"
 export NAMESPACE_2="$NAMESPACE-fed2"
