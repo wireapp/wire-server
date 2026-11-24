@@ -980,7 +980,7 @@ changePassword uid cp = do
   unless user.activated $
     throwE ChangePasswordNoIdentity
   -- A SAML identity does not permit a local password; a SCIM-only ID does.
-  when (maybe False isUserSSOId user.ssoId) $
+  when (any isUserSSOId user.ssoId) $
     throwE ChangePasswordSamlManaged
   currpw <- lift $ liftSem $ UserStore.lookupHashedPassword uid
   let newpw = cp.newPassword
