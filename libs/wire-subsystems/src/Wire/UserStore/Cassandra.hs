@@ -422,7 +422,7 @@ updateSSOIdImpl u ssoid = do
   mteamid <- getUserTeamImpl u
   case mteamid of
     Just _ -> do
-      let update = if maybe False isUserSSOId ssoid then userSAMLIdUpdate else userSSOIdUpdate
+      let update = if any isUserSSOId ssoid then userSAMLIdUpdate else userSSOIdUpdate
       retry x5 $ write update (params LocalQuorum (ssoid, u))
       pure True
     Nothing -> pure False
