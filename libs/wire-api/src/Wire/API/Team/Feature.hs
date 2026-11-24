@@ -125,6 +125,9 @@ module Wire.API.Team.Feature
     MeetingsPremiumConfig (..),
     BackgroundEffectsConfig (..),
     TotpConfig,
+    BackupSchedule (..),
+    AutomaticBackupsConfigB (..),
+    AutomaticBackupsConfig,
     Features,
     AllFeatures,
     NpProject (..),
@@ -298,6 +301,7 @@ data FeatureSingleton cfg where
   FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
   FeatureSingletonBackgroundEffectsConfig :: FeatureSingleton BackgroundEffectsConfig
   FeatureSingletonTotpConfig :: FeatureSingleton TotpConfig
+  FeatureSingletonAutomaticBackupsConfig :: FeatureSingleton AutomaticBackupsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2492,6 +2496,77 @@ instance IsFeatureConfig TotpConfig where
   type FeatureSymbol TotpConfig = "mfa-totp"
   featureSingleton = FeatureSingletonTotpConfig
 
+--------------------------------------------------------------------------------
+-- AutomaticBackupsConfig
+
+data BackupSchedule
+  = BackupScheduleDaily
+  | BackupScheduleWeekly
+  | BackupScheduleMonthly
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BackupSchedule
+  deriving (Arbitrary) via (GenericUniform BackupSchedule)
+
+instance ToSchema BackupSchedule where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "daily" BackupScheduleDaily,
+          element "weekly" BackupScheduleWeekly,
+          element "monthly" BackupScheduleMonthly
+        ]
+
+-- | Feature flag telling clients whether and how to back up to the server. The backend only
+-- looks at the feature status (from the Backup API on); the config is read by clients and
+-- 'serverOnly' is not checked by the server.
+data AutomaticBackupsConfigB t f = AutomaticBackupsConfig
+  { enforcedSchedule :: Wear t f (Maybe BackupSchedule),
+    enforced :: Wear t f Bool,
+    serverOnly :: Wear t f Bool
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (AutomaticBackupsConfigB Covered)
+
+deriving instance ApplicativeB (AutomaticBackupsConfigB Covered)
+
+deriving instance TraversableB (AutomaticBackupsConfigB Covered)
+
+type AutomaticBackupsConfig = AutomaticBackupsConfigB Bare Identity
+
+deriving instance Eq AutomaticBackupsConfig
+
+deriving instance Show AutomaticBackupsConfig
+
+deriving via (RenderableTypeName AutomaticBackupsConfig) instance (RenderableSymbol AutomaticBackupsConfig)
+
+deriving via (GenericUniform AutomaticBackupsConfig) instance (Arbitrary AutomaticBackupsConfig)
+
+deriving via (BarbieFeature AutomaticBackupsConfigB) instance (ParseDbFeature AutomaticBackupsConfig)
+
+deriving via (BarbieFeature AutomaticBackupsConfigB) instance (ToSchema AutomaticBackupsConfig)
+
+instance Default AutomaticBackupsConfig where
+  def = AutomaticBackupsConfig Nothing False False
+
+instance (Typeable f, FieldF f, NestedMaybe f) => ToSchema (AutomaticBackupsConfigB Covered f) where
+  schema =
+    object $
+      AutomaticBackupsConfig
+        <$> enforcedSchedule .= nestedMaybeField "enforcedSchedule" (unnamed schema)
+        <*> enforced .= fieldF "enforced" schema
+        <*> serverOnly .= fieldF "serverOnly" schema
+
+instance Default (LockableFeature AutomaticBackupsConfig) where
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
+
+instance ToObjectSchema AutomaticBackupsConfig where
+  objectSchema = field "config" schema
+
+instance IsFeatureConfig AutomaticBackupsConfig where
+  type FeatureSymbol AutomaticBackupsConfig = "automaticBackups"
+  featureSingleton = FeatureSingletonAutomaticBackupsConfig
+
 -- BackgroundEffects Feature
 
 {-# DEPRECATED BackgroundEffectsConfig "Deprecated (WPB-27912): no longer affects meeting behaviour; kept for API compatibility." #-}
@@ -2623,7 +2698,8 @@ type Features =
     MeetingsConfig,
     MeetingsPremiumConfig,
     BackgroundEffectsConfig,
-    TotpConfig
+    TotpConfig,
+    AutomaticBackupsConfig
   ]
 
 -- | list of available features as a record

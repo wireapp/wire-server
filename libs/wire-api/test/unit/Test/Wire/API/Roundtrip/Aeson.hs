@@ -256,6 +256,8 @@ tests =
       testRoundTrip @(Team.Feature.LockableFeaturePatch Team.Feature.LegalholdConfig),
       testRoundTrip @(Team.Feature.LockableFeaturePatch Team.Feature.SelfDeletingMessagesConfig),
       testRoundTrip @(Team.Feature.Feature Team.Feature.LegalholdConfig),
+      testRoundTrip @(Team.Feature.LockableFeature Team.Feature.AutomaticBackupsConfig),
+      testRoundTrip @(Team.Feature.Feature Team.Feature.AutomaticBackupsConfig),
       testRoundTrip @Team.Feature.AllTeamFeatures,
       testRoundTrip @Team.Feature.FeatureStatus,
       testRoundTrip @Team.Feature.LockStatus,

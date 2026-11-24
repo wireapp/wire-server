@@ -173,6 +173,13 @@ settings:
         config:
           require_for_all_members: false
           compulsory_for_owners_and_admins: false
+    automaticBackups:
+      defaults:
+        status: disabled
+        lockStatus: locked
+        config:
+          enforced: false
+          serverOnly: false
     preventAdminlessGroups:
       defaults:
         status: disabled

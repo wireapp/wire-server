@@ -624,6 +624,31 @@ settings:
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/mfa-totp/(un)?locked`).
 
+### Automatic backups
+
+The `automaticBackups` team feature tells clients whether and how to back up to
+the server. `config.enforcedSchedule` is optional (`daily`, `weekly` or
+`monthly`; omitted means no enforced schedule), `config.enforced` and
+`config.serverOnly` are booleans. The server does not check `serverOnly`. The
+code default is `disabled` / `unlocked`; the helm default is `disabled` /
+`locked`.
+
+Configuration example (in Galley's config):
+
+```yaml
+settings:
+  featureFlags:
+    automaticBackups:
+      defaults:
+        status: disabled
+        lockStatus: locked
+        config:
+          enforced: false
+          serverOnly: false
+```
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/automaticBackups/(un)?locked`).
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator

@@ -39,6 +39,7 @@ import Test.Wire.API.Routes.Version qualified as Routes.Version
 import Test.Wire.API.Routes.Version.Wai qualified as Routes.Version.Wai
 import Test.Wire.API.Swagger qualified as Swagger
 import Test.Wire.API.Team.Export qualified as Team.Export
+import Test.Wire.API.Team.Feature qualified as Team.Feature
 import Test.Wire.API.Team.Member qualified as Team.Member
 import Test.Wire.API.User qualified as User
 import Test.Wire.API.User.Auth qualified as User.Auth
@@ -53,6 +54,7 @@ main =
       "Tests"
       [ Call.Config.tests,
         Team.Member.tests,
+        Team.Feature.tests,
         Team.Export.tests,
         User.tests,
         User.Search.tests,

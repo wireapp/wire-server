@@ -1,0 +1,1 @@
+Add the `automaticBackups` team feature flag (config: optional `enforcedSchedule` (`daily`, `weekly`, `monthly`), `enforced`, `serverOnly`). Disabled and locked by default (helm).

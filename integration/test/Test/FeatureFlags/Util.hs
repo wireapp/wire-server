@@ -263,6 +263,13 @@ defAllFeatures =
                   "compulsory_for_owners_and_admins" .= False
                 ]
           ],
+      "automaticBackups"
+        .= object
+          [ "lockStatus" .= "locked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config" .= object ["enforced" .= False, "serverOnly" .= False]
+          ],
       "preventAdminlessGroups"
         .= object
           [ "lockStatus" .= "unlocked",
@@ -292,6 +299,7 @@ hasExplicitLockStatus "meetings" = True
 hasExplicitLockStatus "meetingsPremium" = True
 hasExplicitLockStatus "backgroundEffects" = True
 hasExplicitLockStatus "mfa-totp" = True
+hasExplicitLockStatus "automaticBackups" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
