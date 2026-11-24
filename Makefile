@@ -16,7 +16,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services wire-ingress fluent-bit kibana k8ssandra-test-cluster wire-server-enterprise
+CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws nginx-ingress-services wire-ingress fluent-bit kibana k8ssandra-test-cluster wire-server-enterprise
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -26,12 +26,12 @@ CHARTS_RELEASE := wire-server redis-ephemeral rabbitmq rabbitmq-external databas
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-ingress-nginx-controller nginx-ingress-services reaper \
+nginx-ingress-services reaper \
 k8ssandra-test-cluster wire-server-enterprise \
 wire-ingress
 # The deployable charts among CHARTS_RELEASE: published to the OCI registry and
 # declared to the release managers, by the dev builds and the releases alike.
-CHARTS_OCI := wire-server wire-server-enterprise nginx-ingress-services ingress-nginx-controller wire-ingress \
+CHARTS_OCI := wire-server wire-server-enterprise nginx-ingress-services wire-ingress \
 cassandra-external elasticsearch-external minio-external rabbitmq-external reaper redis-ephemeral rabbitmq fake-aws-sqs
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
