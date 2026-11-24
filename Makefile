@@ -227,6 +227,14 @@ lint-all: formatc hlint-check-all lint-common
 .PHONY: lint-all-shallow
 lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr
 
+# Fix branch changes and staged/unstaged edits without requiring a clean working copy.
+# Keep these sequential, even under make -j: format after HLint's refactorings.
+.PHONY: lint-fix-pr
+lint-fix-pr:
+	$(MAKE) hlint-inplace-pr
+	$(MAKE) hlint-inplace
+	$(MAKE) formatf
+
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)
 
