@@ -1,0 +1,1 @@
+Adding or replacing a meeting's invited emails now returns 404 meeting-not-found, without sending emails or changing state, when the meeting's conversation is missing or its owning team has meetings disabled (removing invited emails stays possible). Updating a meeting whose conversation is missing no longer modifies the stored meeting before returning 404.

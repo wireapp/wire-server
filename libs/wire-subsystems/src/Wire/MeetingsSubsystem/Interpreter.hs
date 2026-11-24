@@ -511,9 +511,12 @@ updateMeetingImpl zUser mConn caller meetingId update validityPeriod pastEditPer
     for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
     for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
 
-    -- Render the link capability (URI config + live code) before committing
-    -- any side effect: without this check a 'LinkUnavailable' at render time
-    -- would arrive after the row update and the notification.
+    -- Resolve the conversation and the link capability (URI config + live
+    -- code) before committing any side effect, so neither a missing
+    -- conversation (404) nor a 'LinkUnavailable' at render time can follow
+    -- the row update and the notification. The conversation id never changes
+    -- on update.
+    conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
     base <- lift $ codeURIBase (tDomain zUser)
     mCode <- lift $ CodeStore.getMeetingCode (qUnqualified meetingId)
     when (isNothing base || isNothing mCode) $ lift $ throw LinkUnavailable
@@ -529,7 +532,6 @@ updateMeetingImpl zUser mConn caller meetingId update validityPeriod pastEditPer
           update.endTime
           update.tzid
           update.recurrence
-    conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     lift $ notifyMeetingEvent zUser mConn conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     -- Send update emails only when a stored field actually changed (an update
     -- that merely repeats current values must not spam invitees).
@@ -1343,8 +1345,27 @@ getAllMemberMeetings zUser cutoff = do
     isMeetingConv :: StoredConversation -> Bool
     isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
 
+-- | Visibility gate for invited-email changes that send invitations: same
+-- rule as get/list/join ('ownerMeetingsEnabled'), applied before any write or
+-- email. A missing conversation (orphaned meeting) is logged, like the other
+-- mutation paths. Removing invited emails is deliberately not gated: it
+-- sends nothing, and the creator must stay able to drop invitees' addresses
+-- from a meeting hidden this way.
+guardInviteeEmailMutation ::
+  ( Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member TinyLog r
+  ) =>
+  Qualified MeetingId ->
+  Store.StoredMeeting ->
+  MaybeT (Sem r) ()
+guardInviteeEmailMutation meetingId meeting = do
+  conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
+  guard . not . null =<< lift (keepOwnerEnabled [conv] [meeting])
+
 addInvitedEmailsImpl ::
   ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r,
@@ -1379,6 +1400,7 @@ addInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPeriod 
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
+      guardInviteeEmailMutation meetingId storedMeeting
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
       -- The store unions into 'invited_emails', so only addresses not
       -- already invited get an invitation: re-adding an address is a
@@ -1421,6 +1443,7 @@ removeInvitedEmailsImpl zUser mConn caller meetingId emails validityPeriod = do
 
 replaceInvitedEmailsImpl ::
   ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r,
@@ -1455,6 +1478,7 @@ replaceInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPer
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
+      guardInviteeEmailMutation meetingId storedMeeting
       lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
       -- Only newly-added addresses get an invitation; removed addresses get
       -- no email (removal emails are a separate ticket, WPB-27179).
