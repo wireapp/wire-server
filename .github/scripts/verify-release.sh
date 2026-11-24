@@ -2,9 +2,12 @@
 # Verifies the candidate downloaded from the draft release against its manifests
 # before anything is published: the wire-server manifest names the version, the
 # commit the draft targets and a releasable branch; every chart it lists is in
-# ASSET_DIR with the recorded sha256; every image digest has the sha256 form; and
-# every follower chart has its own manifest. Writes what publication needs to
-# GITHUB_OUTPUT.
+# ASSET_DIR with the recorded sha256; every image digest has the sha256 form;
+# every follower chart has its own manifest; and the charts that only go to the S3
+# Helm repository and wire-builds are all there with the recorded sha256, the
+# deployable ones and those making exactly the lists recorded at preparation. Writes
+# what publication needs to GITHUB_OUTPUT, the channels of a release from develop
+# included.
 set -euo pipefail
 
 : "${MANIFEST:?}" "${ASSET_DIR:?}" "${VERSION:?}" "${TARGET_COMMIT:?}"
@@ -82,13 +85,55 @@ for file in "${ASSET_DIR}"/release-manifest.*.json; do
 done
 ((${#components[@]})) || die "no follower manifest (release-manifest.<component>.json) in ${ASSET_DIR}"
 
+legacy_file="${ASSET_DIR}/legacy-charts.sha256"
+lists_file="${ASSET_DIR}/chart-lists.json"
+[[ -f "$legacy_file" ]] || die "legacy-charts.sha256 is not among the draft assets: the candidate does not hold every chart of the release and must be prepared again"
+[[ -f "$lists_file" ]] || die "chart-lists.json is not among the draft assets: the candidate does not hold every chart of the release and must be prepared again"
+legacy=()
+while read -r sha256 file extra; do
+  [[ "$sha256" =~ ^[0-9a-f]{64}$ && -n "$file" && -z "$extra" ]] || die "legacy-charts.sha256 holds a line that is not '<sha256>  <file>'"
+  name=${file%"-${VERSION}.tgz"}
+  [[ "$file" == "${name}-${VERSION}.tgz" && "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "legacy chart file '${file}' is not <chart>-${VERSION}.tgz"
+  [[ -f "${ASSET_DIR}/${file}" ]] || die "chart package ${file} was not downloaded"
+  actual=$(sha256sum "${ASSET_DIR}/${file}" | awk '{print $1}')
+  [[ "$actual" == "$sha256" ]] || die "${file} sha256 ${actual} does not match legacy-charts.sha256 ${sha256}: refusing to publish"
+  legacy+=("$name")
+done <"$legacy_file"
+jq -e '(.release | type == "array" and length > 0 and all(type == "string")) and (.oci | type == "array" and length > 0 and all(type == "string"))' "$lists_file" >/dev/null \
+  || die "chart-lists.json is not {release: [...], oci: [...]}"
+recorded_release=$(jq -r '.release | sort | .[]' "$lists_file")
+recorded_oci=$(jq -r '.oci | sort | .[]' "$lists_file")
+candidate_oci=$(printf '%s\n' "${charts[@]}" | sort)
+candidate_all=$(printf '%s\n' "${charts[@]}" "${legacy[@]}" | sort)
+[[ -z "$(uniq -d <<<"$candidate_all")" ]] || die "a chart is in the candidate twice: $(uniq -d <<<"$candidate_all" | tr '\n' ' ')"
+[[ "$candidate_oci" == "$recorded_oci" ]] \
+  || die "the deployable charts of the candidate ($(tr '\n' ' ' <<<"$candidate_oci")) are not the ones of make echo-oci-charts recorded at preparation ($(tr '\n' ' ' <<<"$recorded_oci"))"
+[[ "$candidate_all" == "$recorded_release" ]] \
+  || die "the charts of the candidate ($(tr '\n' ' ' <<<"$candidate_all")) are not the ones of make echo-release-charts recorded at preparation ($(tr '\n' ' ' <<<"$recorded_release")): a chart is missing or unexpected, prepare the candidate again"
+release_charts=$(tr '\n' ' ' <<<"$candidate_all")
+release_charts=${release_charts% }
+
+legacy_channels=false
+s3_repository=""
+wire_builds_branch=""
+if [[ "$source_ref" == develop ]]; then
+  legacy_channels=true
+  if [[ "$type" == ga ]]; then
+    s3_repository=charts
+    wire_builds_branch=main
+  else
+    s3_repository="charts-develop"
+    wire_builds_branch=dev
+  fi
+fi
+
 declaration=""
 [[ -f "${ASSET_DIR}/release-declaration.json" ]] && declaration="${ASSET_DIR}/release-declaration.json"
 if [[ "$type" == ga && -z "$declaration" ]]; then
   die "a GA needs release-declaration.json among the draft assets"
 fi
 
-echo "::notice::candidate v${VERSION} (${type}) from ${source_ref} at ${source_commit}: $(jq 'length' <<<"$images") images from dev build ${dev_version}, ${#charts[@]} charts to charts/${channel}, ${#components[@]} follower components"
+echo "::notice::candidate v${VERSION} (${type}) from ${source_ref} at ${source_commit}: $(jq 'length' <<<"$images") images from dev build ${dev_version}, ${#charts[@]} charts to oci://quay.io/wire/charts/${channel}, ${#legacy[@]} more charts, ${#components[@]} follower components"
 {
   echo "version=${VERSION}"
   echo "type=${type}"
@@ -99,6 +144,11 @@ echo "::notice::candidate v${VERSION} (${type}) from ${source_ref} at ${source_c
   echo "channel=${channel}"
   echo "images-json=${images}"
   echo "charts=${charts[*]}"
+  echo "legacy-charts=${legacy[*]}"
+  echo "release-charts=${release_charts}"
+  echo "legacy=${legacy_channels}"
+  echo "s3-repository=${s3_repository}"
+  echo "wire-builds-branch=${wire_builds_branch}"
   echo "components=${components[*]}"
   echo "declaration-file=${declaration}"
   echo "manifests<<EOF_MANIFESTS"

@@ -73,13 +73,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Deployable charts of the source commit
-        id: oci_charts
-        run: |
-          set -euo pipefail
-          charts=$(make -s echo-oci-charts)
-          [[ -n "$charts" ]] || { echo "::error::make echo-oci-charts printed nothing"; exit 1; }
-          echo "list=$charts" >> "$GITHUB_OUTPUT"
+      - name: Charts of the source commit
+        id: source_charts
+        run: .github/scripts/source-charts.sh
 
       - name: Resolve source commit
         id: source
@@ -190,11 +186,11 @@ jobs:
         with:
           version: v3.19.0
 
-      - name: Package the charts at the release version
+      - name: Package the deployable charts at the release version
         id: package
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          CHARTS: ${{ steps.source_charts.outputs.oci }}
           OUT_DIR: ${{ runner.temp }}/charts
         run: .github/scripts/package-charts.sh
 
@@ -204,6 +200,14 @@ jobs:
           CHARTS_DIR: .local/charts
           TAG: ${{ steps.version.outputs.version }}
         run: python3 .github/scripts/release-images.py
+
+      - name: Package the other charts at the release version
+        id: legacy_package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CHARTS: ${{ steps.source_charts.outputs.legacy }}
+          OUT_DIR: ${{ runner.temp }}/legacy-charts
+        run: .github/scripts/package-charts.sh
 
       - name: Login to quay.io with the OIDC token of the job
         uses: wireapp/wire-rm-actions/quay-login@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
@@ -226,10 +230,20 @@ jobs:
         id: charts
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          CHARTS: ${{ steps.source_charts.outputs.oci }}
           CHART_DIR: ${{ steps.package.outputs.dir }}
           CHARTS_FILE: ${{ runner.temp }}/charts.json
         run: .github/scripts/chart-checksums.sh
+
+      - name: Checksums of the other charts and the chart lists
+        id: legacy_charts
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_CHARTS: ${{ steps.source_charts.outputs.release }}
+          OCI_CHARTS: ${{ steps.source_charts.outputs.oci }}
+          LEGACY_CHARTS: ${{ steps.source_charts.outputs.legacy }}
+          CHART_DIR: ${{ steps.legacy_package.outputs.dir }}
+        run: .github/scripts/legacy-checksums.sh
 
       - name: Write the release manifests
         id: manifests
@@ -273,7 +287,7 @@ jobs:
           NOTE_PATH: ${{ steps.documents.outputs.note-path }}
           CHANGELOG_FILE: ${{ steps.changelog.outputs.file }}
           IMAGES: ${{ steps.images.outputs.images }}
-          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          CHARTS: ${{ steps.source_charts.outputs.oci }}
           CHART_CHANNEL: ${{ inputs.type == 'ga' && 'stable' || 'dev' }}
           OUT_FILE: ${{ runner.temp }}/release-body.md
         run: .github/scripts/release-body.sh
@@ -295,6 +309,7 @@ jobs:
           body-file: ${{ steps.body.outputs.file }}
           assets: |
             ${{ steps.charts.outputs.assets }}
+            ${{ steps.legacy_charts.outputs.assets }}
             ${{ steps.manifests.outputs.files }}
             ${{ runner.temp }}/release-documents/release-note.md
             ${{ runner.temp }}/release-documents/release-declaration.json
@@ -305,16 +320,18 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           DEV_VERSION: ${{ steps.devbuild.outputs.version }}
           IMAGE_COUNT: ${{ steps.images.outputs.count }}
-          CHARTS: ${{ steps.oci_charts.outputs.list }}
+          CHARTS: ${{ steps.source_charts.outputs.oci }}
+          LEGACY_CHARTS: ${{ steps.source_charts.outputs.legacy }}
         run: |
           set -euo pipefail
           read -ra charts <<<"$CHARTS"
+          read -ra legacy <<<"$LEGACY_CHARTS"
           {
             echo
             echo "| Candidate | |"
             echo "| --- | --- |"
             echo "| Images | ${IMAGE_COUNT} images of the dev build \`${DEV_VERSION}\`, promoted by digest to \`${VERSION}\` at publication |"
-            echo "| Charts | ${#charts[@]} charts packaged at \`${VERSION}\`, attached to the draft release |"
+            echo "| Charts | ${#charts[@]} deployable charts and ${#legacy[@]} others packaged at \`${VERSION}\`, attached to the draft release |"
             echo
             echo "Install the attached charts with the dev build images in a validation environment, then approve the \`release-publication\` environment on this run. Publication promotes these exact artifacts, it never rebuilds them."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -329,3 +346,7 @@ jobs:
     with:
       version: ${{ needs.candidate.outputs.version }}
       release_id: ${{ needs.candidate.outputs.release_id }}
+    secrets:
+      S3_HELM_CHARTS_AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
+      S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
+      WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
