@@ -646,36 +646,83 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
         zUser = toLocalUnsafe (Domain "wire.com") uid
-        mkStoredMeeting mid =
-          Store.StoredMeeting
-            { id = mid,
-              title = fromJust $ checked "Listed Meeting",
-              creator = uid,
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Listed Meeting",
               startTime = addUTCTime 60 now,
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
-              meetingType = API.Scheduled,
+              mtype = API.Scheduled,
               externallyManagedBy = Nothing,
               externallyCalendarEventId = Nothing,
               externallyCalendarId = Nothing,
+              password = Nothing,
               recurrence = Nothing,
-              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
-              invitedEmails = [],
-              trial = False,
-              createdAt = now,
-              updatedAt = now
+              invitedEmails = []
             }
-        midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
         midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
 
     result <-
       runTestStack now gen Map.empty def $ do
-        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
-        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
-        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600) Nothing
-        listMeetings zUser
+        -- The created meeting has a live code and a conversation; a second
+        -- meeting on the same (existing) conversation has no code. Listing
+        -- only renders meetings whose conversation exists, so the shared
+        -- conversation keeps the code-less meeting in the listing. The
+        -- creator leaves the conversation so both meetings are reached only
+        -- through the created-meetings path, not the member path.
+        meeting <- createMeeting zUser (Just (ConnId "test-conn")) Nothing newMeeting
+        modify @(Map ConvId (Set UserId)) (Map.adjust (Set.delete uid) (qUnqualified meeting.meeting.conversationId))
+        listedBefore <- map (.id) <$> listMeetings zUser
+        stored <- maybe (error "created meeting not stored") pure =<< gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified meeting.meeting.id))
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode stored {Store.id = midWithoutCode})
+        listedAfter <- try @MeetingError (listMeetings zUser)
+        pure (meeting.meeting.id, listedBefore, void listedAfter)
 
-    result `shouldBe` Left LinkUnavailable
+    case result of
+      Left err -> fail $ "Unexpected error: " <> show err
+      Right (mid, listedBefore, listedAfter) -> do
+        -- Positive control: listing succeeds before the code-less meeting.
+        listedBefore `shouldBe` [mid]
+        listedAfter `shouldBe` Left LinkUnavailable
+
+  it "listMeetings omits a created meeting whose conversation is missing" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Orphaned Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              externallyManagedBy = Nothing,
+              externallyCalendarEventId = Nothing,
+              externallyCalendarId = Nothing,
+              password = Nothing,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStack now gen Map.empty def $ do
+        meeting <- createMeeting zUser (Just (ConnId "test-conn")) Nothing newMeeting
+        listedBefore <- map (.id) <$> listMeetings zUser
+        -- Simulate a data-inconsistency: the meeting's conversation vanished
+        -- (e.g. deleted by a team admin) while the meeting row survives.
+        modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
+        listedAfter <- listMeetings zUser
+        fetchedAfter <- getMeeting zUser meeting.meeting.id
+        pure (meeting.meeting.id, listedBefore, listedAfter, fetchedAfter)
+
+    case result of
+      Left err -> fail $ "Unexpected error: " <> show err
+      Right (mid, listedBefore, listedAfter, fetchedAfter) -> do
+        listedBefore `shouldBe` [mid]
+        -- Listing agrees with getMeeting: both fail closed.
+        map (.id) listedAfter `shouldBe` []
+        (.id) <$> fetchedAfter `shouldBe` Nothing
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

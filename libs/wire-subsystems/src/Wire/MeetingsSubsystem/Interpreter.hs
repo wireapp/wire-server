@@ -126,7 +126,7 @@ teamMeetingsEnabled = \case
 -- via 'keepOwnerEnabled'. A meeting without a team (e.g. created before its
 -- creator joined a team) is not gated. Fails closed when the conversation is
 -- missing (e.g. deleted by a team admin): such a meeting can be neither
--- joined nor rendered with its conversation.
+-- joined nor rendered with its conversation, and listing omits it too.
 --
 -- This only gates the meetings API: existing members keep access to the
 -- underlying conversation.
@@ -138,13 +138,15 @@ ownerMeetingsEnabled ::
   Sem r Bool
 ownerMeetingsEnabled meeting =
   ConversationSubsystem.internalGetConversation meeting.conversationId >>= \case
+    -- Same fail-closed rule as 'keepOwnerEnabled' for a missing conversation.
     Nothing -> pure False
     Just conv -> not . null <$> keepOwnerEnabled [conv] [meeting]
 
 -- | Keep the meetings whose owning team has the @meetings@ feature enabled,
--- given their (already fetched) conversations. A meeting without a team, or
--- whose conversation is not among @convs@, is kept. The feature is looked up
--- once per distinct team.
+-- given their (already fetched) conversations. A meeting without a team is
+-- kept. A meeting whose conversation is not among @convs@ (missing) is
+-- dropped, failing closed like 'ownerMeetingsEnabled'. The feature is looked
+-- up once per distinct team.
 keepOwnerEnabled ::
   (Member FeaturesConfigSubsystem r) =>
   [StoredConversation] ->
@@ -152,11 +154,15 @@ keepOwnerEnabled ::
   Sem r [Store.StoredMeeting]
 keepOwnerEnabled convs meetings = do
   let convTeams = Map.fromList [(c.id_, c.metadata.cnvmTeam) | c <- convs]
-      teamOf m = join (Map.lookup m.conversationId convTeams)
+      convTeamOf m = Map.lookup m.conversationId convTeams
   enabledTeams <-
-    fmap Map.fromList . for (List.nubOrd (mapMaybe teamOf meetings)) $ \tid ->
+    fmap Map.fromList . for (List.nubOrd (mapMaybe (join . convTeamOf) meetings)) $ \tid ->
       (tid,) <$> teamMeetingsEnabled (Just tid)
-  pure $ filter (maybe True (\tid -> Map.lookup tid enabledTeams == Just True) . teamOf) meetings
+  let isVisible m = case convTeamOf m of
+        Nothing -> False
+        Just Nothing -> True
+        Just (Just tid) -> Map.lookup tid enabledTeams == Just True
+  pure $ filter isVisible meetings
 
 -- | Meeting join codes never expire while the meeting lives, and
 -- open-ended recurrences never expire at all, so use the largest TTL
@@ -1255,8 +1261,8 @@ storedMeetingToMeetingWithConversation domain lUser conv sm = do
       }
 
 -- | List the meetings the user created or whose conversation they are a
--- member of, except those whose owning team has meetings disabled (see
--- 'ownerMeetingsEnabled').
+-- member of, except those whose owning team has meetings disabled or whose
+-- conversation is missing (see 'ownerMeetingsEnabled').
 listMeetingsImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
