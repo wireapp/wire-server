@@ -20,11 +20,11 @@ module CargoHold.Backup.ObjectStore (interpretBackupObjectStoreS3, backupKey) wh
 
 import Amazonka.S3 (BucketName (..), ObjectKey (..), newCreateMultipartUpload)
 import Amazonka.S3.Lens (createMultipartUpload_contentType)
-import qualified CargoHold.AWS as AWS
 import CargoHold.API.Error (serverError)
+import qualified CargoHold.AWS as AWS
 import CargoHold.S3 (presignGetObject, selectAwsEnv, streamUploadObject)
 import Control.Lens ((?~))
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Time.Clock (NominalDiffTime)
 import qualified Data.UUID as UUID
 import Imports
@@ -70,7 +70,13 @@ interpretBackupObjectStoreS3 env multiIngress uploadTimeout downloadLinkTTL = in
         pure (Left err)
       Just (Right ()) -> pure (Right ())
   PresignGet host fid -> do
-    presignEnv <- either throw pure (selectAwsEnv env multiIngress host)
+    presignEnv <- case selectAwsEnv env multiIngress host of
+      Left err -> do
+        Log.warn $
+          Log.msg (Log.val "No matching multiIngress config for the Z-Host header")
+            . Log.field "host" (maybe "<none>" domainText host)
+        throw err
+      Right e -> pure e
     presignGetObject presignEnv downloadLinkTTL (backupKey fid) >>= \case
       Right uri -> pure uri
       Left err -> do

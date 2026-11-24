@@ -132,10 +132,10 @@ runBackupEffects action = do
       . interpretGalleyAPIAccessToRpc (foldMap expandVersionExp opts.settings.disabledAPIVersions) opts.galley
       . interpretBrigAccess opts.brig
       . interpretBackupObjectStoreS3
-          env.aws
-          env.multiIngress
-          opts.backups.uploadTimeout
-          opts.settings.downloadLinkTTL
+        env.aws
+        env.multiIngress
+        opts.backups.uploadTimeout
+        opts.settings.downloadLinkTTL
       . interpretBackupStoreToPostgres
       . interpretBackupSubsystem
       $ action

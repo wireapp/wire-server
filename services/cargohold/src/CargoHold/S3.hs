@@ -66,10 +66,10 @@ import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import qualified Data.HashMap.Lazy as HML
-import qualified Data.Map.Strict as Map
 import Data.Id
+import qualified Data.Map.Strict as Map
 import Data.Qualified (Qualified)
 import qualified Data.Schema as S
 import qualified Data.Text as Text
@@ -334,7 +334,8 @@ signedURL :: (ToByteString p) => p -> Maybe Domain -> Handler URI
 signedURL path mbHost = do
   multiIngressConf <- asks (.multiIngress)
   defaultEnv <- asks (.aws)
-  e <- either throwE pure (selectAwsEnv defaultEnv multiIngressConf mbHost)
+  e <-
+    selectAwsEnv defaultEnv multiIngressConf mbHost & either (\err -> logNoEndpoint >> throwE err) pure
   ttl <- asks (.options.settings.downloadLinkTTL)
   presignGetObject e ttl (Text.decodeLatin1 $ toByteString' path) >>= \case
     Left err -> do
@@ -344,6 +345,11 @@ signedURL path mbHost = do
           ~~ msg (val "Failed to generate a signed URI")
       throwE serverError
     Right u -> pure u
+  where
+    logNoEndpoint =
+      Log.warn $
+        "host" .= maybe "<none>" domainText mbHost
+          ~~ msg (val "No matching multiIngress config for the Z-Host header")
 
 -- | Pick the AWS environment for the @Z-Host@ header's value, see 'signedURL'.
 selectAwsEnv :: AWS.Env -> Map Domain AWS.Env -> Maybe Domain -> Either Wai.Error AWS.Env

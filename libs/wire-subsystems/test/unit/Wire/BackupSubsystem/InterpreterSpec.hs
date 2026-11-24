@@ -30,13 +30,13 @@ import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
 import Data.UUID qualified as UUID
 import Imports
-import URI.ByteString (URI, serializeURIRef')
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
 import Polysemy.TinyLog (TinyLog)
 import Test.Hspec
+import URI.ByteString (URI, serializeURIRef')
 import Wire.API.Backup
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (mkTeamMember)
@@ -132,7 +132,7 @@ runBackup fx behaviour action = do
           Map.singleton
             teamId
             [ mkTeamMember u fullPermissions Nothing UserLegalHoldDisabled
-              | u <- [testUser, otherUser]
+            | u <- [testUser, otherUser]
             ]
       | otherwise = mempty
     features

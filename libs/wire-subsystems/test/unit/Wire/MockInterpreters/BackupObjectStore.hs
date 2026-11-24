@@ -51,5 +51,6 @@ inMemoryBackupObjectStore behaviour = interpret $ \case
       _ -> pure ()
     pure (Right ())
   PresignGet _ (BackupFileId u) ->
-    pure $ either (error . show) Imports.id $
-      parseURI strictURIParserOptions ("https://s3.example/backups/" <> UUID.toASCIIBytes u)
+    pure $
+      either (error . show) Imports.id $
+        parseURI strictURIParserOptions ("https://s3.example/backups/" <> UUID.toASCIIBytes u)
