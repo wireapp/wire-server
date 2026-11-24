@@ -41,7 +41,8 @@ data CommitIncrementalError
   deriving (Eq, Show)
 
 data BackupStore m a where
-  -- | Insert an upload reservation (an orphan with @file_created_at NULL@).
+  -- | Insert an upload reservation (an orphan with @file_created_at NULL@). A commit claims
+  -- it only while @deletion_last_tried@ is NULL.
   ReserveUpload :: UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupStore m ()
   -- | One transaction under the per-client lock: re-check the epoch rule, claim the
   -- reservation, add the full to the epoch (orphaning a replaced full and its
@@ -80,7 +81,8 @@ data BackupStore m a where
   -- (no lock, read only). Ascending by client and epoch; clients without epochs are absent.
   ListClientBackups :: UserId -> Maybe ClientId -> BackupStore m [ClientBackups]
   -- | One transaction under the per-client lock: orphan all committed files (incrementals
-  -- and fulls) of the client, keeping their creation times. Upload reservations stay.
+  -- and fulls) of the client, keeping their creation times. Upload reservations stay but are
+  -- marked (@deletion_last_tried@), so committing them fails with the reservation gone.
   -- Returns the orphaned ids.
   OrphanClient :: UserId -> ClientId -> BackupStore m [BackupFileId]
   -- | Remove orphan rows by id (no lock).

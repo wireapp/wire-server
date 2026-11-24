@@ -33,7 +33,9 @@ import Wire.Sem.Now qualified as Now
 
 -- | A row of @backup_orphans@.
 data MockOrphan = MockOrphan
-  { -- | 'Nothing' for upload reservations.
+  { userId :: UserId,
+    clientId :: ClientId,
+    -- | 'Nothing' for upload reservations.
     fileCreatedAt :: Maybe UTCTime,
     orphanedAt :: UTCTime,
     deletionLastTried :: Maybe UTCTime
@@ -57,9 +59,9 @@ inMemoryBackupStore ::
   (Member (State BackupState) r, Member Now r) =>
   InterpreterFor BackupStore r
 inMemoryBackupStore = interpret $ \case
-  ReserveUpload _ _ _ fid -> do
+  ReserveUpload uid cid _ fid -> do
     now <- Now.get
-    modify $ \s -> s {orphans = Map.insert fid (newOrphan now Nothing) s.orphans}
+    modify $ \s -> s {orphans = Map.insert fid (newOrphan uid cid now Nothing) s.orphans}
   CommitFull uid cid epoch fid size -> do
     s <- get
     now <- Now.get
@@ -76,18 +78,18 @@ inMemoryBackupStore = interpret $ \case
                 replaced = case Map.lookup key s.epochs of
                   Nothing -> mempty
                   Just (_, old) ->
-                    Map.singleton old.id (newOrphan now (Just (fromUTCTimeMillis old.createdAt)))
+                    Map.singleton old.id (newOrphan uid cid now (Just (fromUTCTimeMillis old.createdAt)))
                 inserted = Map.insert key (now, file) s.epochs
                 isStale (u, c, e) = u == uid && c == cid && epoch >= BackupEpoch 3 && e <= staleEpochs epoch
                 (stale, kept) = Map.partitionWithKey (\k _ -> isStale k) inserted
                 staleOrphans =
                   Map.fromList
-                    [(f.id, newOrphan now (Just (fromUTCTimeMillis f.createdAt))) | (_, f) <- Map.elems stale]
+                    [(f.id, newOrphan uid cid now (Just (fromUTCTimeMillis f.createdAt))) | (_, f) <- Map.elems stale]
                 -- the incrementals of replaced and stale fulls are orphaned as well
                 orphanedFulls = Set.fromList (toList replacedFull <> [f.id | (_, f) <- Map.elems stale])
                 (goneIncs, keptIncs) = Map.partition ((`Set.member` orphanedFulls) . fst) s.incrementals
                 incOrphans =
-                  Map.map (newOrphan now . Just . fromUTCTimeMillis . (.createdAt) . snd) goneIncs
+                  Map.map (newOrphan uid cid now . Just . fromUTCTimeMillis . (.createdAt) . snd) goneIncs
                 newOrphans = replaced <> staleOrphans <> incOrphans
             put
               BackupState
@@ -134,15 +136,19 @@ inMemoryBackupStore = interpret $ \case
     let ofClient = Map.filterWithKey (\(u, c, _) _ -> u == uid && c == cid) s.epochs
         fulls = Set.fromList [f.id | (_, f) <- Map.elems ofClient]
         (movedIncs, keptIncs) = Map.partition ((`Set.member` fulls) . fst) s.incrementals
-        orphanOf = newOrphan now . Just . fromUTCTimeMillis . (.createdAt)
+        orphanOf = newOrphan uid cid now . Just . fromUTCTimeMillis . (.createdAt)
         newOrphans =
           Map.map (orphanOf . snd) movedIncs
             <> Map.fromList [(f.id, orphanOf f) | (_, f) <- Map.elems ofClient]
+        blocked o
+          | o.userId == uid && o.clientId == cid && isNothing o.fileCreatedAt =
+              o {deletionLastTried = o.deletionLastTried <|> Just now}
+          | otherwise = o
     put
       s
         { epochs = Map.difference s.epochs ofClient,
           incrementals = keptIncs,
-          orphans = s.orphans <> newOrphans
+          orphans = Map.map blocked s.orphans <> newOrphans
         }
     pure (Map.keys newOrphans)
   DeleteOrphanRows ids ->
@@ -164,13 +170,15 @@ inMemoryBackupStore = interpret $ \case
           maybe True (== cid) mcid
         ]
 
-newOrphan :: UTCTime -> Maybe UTCTime -> MockOrphan
-newOrphan now created =
-  MockOrphan {fileCreatedAt = created, orphanedAt = now, deletionLastTried = Nothing}
+newOrphan :: UserId -> ClientId -> UTCTime -> Maybe UTCTime -> MockOrphan
+newOrphan uid cid now created =
+  MockOrphan {userId = uid, clientId = cid, fileCreatedAt = created, orphanedAt = now, deletionLastTried = Nothing}
 
--- | Is the file an upload reservation?
+-- | Can the commit claim the file: an upload reservation not marked by 'OrphanClient'?
 isReservation :: BackupFileId -> BackupState -> Bool
-isReservation fid s = fmap (.fileCreatedAt) (Map.lookup fid s.orphans) == Just Nothing
+isReservation fid s =
+  fmap (\o -> (o.fileCreatedAt, o.deletionLastTried)) (Map.lookup fid s.orphans)
+    == Just (Nothing, Nothing)
 
 -- | Mirrors the aggregate query of "Wire.BackupStore.Postgres".
 summaryOf :: BackupState -> BackupEpoch -> BackupFile -> EpochSummary

@@ -110,7 +110,8 @@ deleteOrphansNow [] = pure ()
 deleteOrphansNow ids = do
   gone <- deleteObjects ids
   deleteOrphanRows gone
-  let failed = filter (`Set.notMember` Set.fromList gone) ids
+  let goneSet = Set.fromList gone
+      failed = filter (`Set.notMember` goneSet) ids
   markDeletionTried failed
   let counts = Log.field "deleted" (length gone) . Log.field "failed" (length failed)
   if null failed

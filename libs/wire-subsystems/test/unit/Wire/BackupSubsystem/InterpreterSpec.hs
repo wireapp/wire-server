@@ -621,13 +621,14 @@ spec = describe "BackupSubsystem" $ do
     it "deleteAllowedWhenFeatureOff" $ do
       -- the feature is switched off after the upload: the stub reads the fixture, so the
       -- upload is committed at store level
-      (r, state, _) <- runBackup defaultFixture {featureEnabled = False} PutSucceeds $ do
+      (r, state, objects) <- runBackup defaultFixture {featureEnabled = False} PutSucceeds $ do
         (full, _) <- storeFull 1 1
         putObject full.id 5 (body "hello") >>= orFail
         deleteOwn
       r `shouldBe` Right ()
       state.epochs `shouldBe` mempty
       state.orphans `shouldBe` mempty
+      objects `shouldBe` mempty
 
     it "deleteAllowedWithoutTeam" $ do
       (r, _, _) <- runBackup defaultFixture {inTeam = False} PutSucceeds deleteOwn
@@ -644,14 +645,19 @@ spec = describe "BackupSubsystem" $ do
       fmap (.full.id) b1 `shouldBe` Right b.id
       Map.lookup b.id objects `shouldBe` Just "other"
 
-    it "deleteKeepsReservations" $ do
+    it "deleteBlocksReservationsOfClientOnly" $ do
       (r, state, _) <- runBackup defaultFixture PutSucceeds $ do
         _ <- uploadA 1 >>= orFail
+        passTime 1
         reserveUpload testUser clientA (BackupEpoch 2) (fileN 9)
+        reserveUpload testUser clientB (BackupEpoch 1) (fileN 8)
         deleteOwn
       r `shouldBe` Right ()
-      map (.fileCreatedAt) (Map.elems state.orphans) `shouldBe` [Nothing]
-      Map.keys state.orphans `shouldBe` [fileN 9]
+      -- reservations stay (the cleanup collects them), those of the client are blocked
+      map (.fileCreatedAt) (Map.elems state.orphans) `shouldBe` [Nothing, Nothing]
+      (.deletionLastTried) <$> Map.lookup (fileN 9) state.orphans
+        `shouldBe` Just (Just (addUTCTime 1 defaultTime))
+      (.deletionLastTried) <$> Map.lookup (fileN 8) state.orphans `shouldBe` Just Nothing
 
     it "deleteObjectFailureMarksTried" $ do
       let failing = fileN 1
@@ -672,12 +678,40 @@ spec = describe "BackupSubsystem" $ do
       for_ others $ \f -> Map.member f objects `shouldBe` False
 
     it "commitAfterOrphanClientFails" $ do
-      r <- fmap (\(x, _, _) -> x) . runBackup defaultFixture PutSucceeds $ do
-        _ <- storeFull 1 1
+      ((next, replace, inc), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        (e1, _) <- storeFull 1 1
+        -- in-flight uploads: the next epoch, a replacement of epoch 1, an incremental
         reserveUpload testUser clientA (BackupEpoch 2) (fileN 2)
+        reserveUpload testUser clientA (BackupEpoch 1) (fileN 3)
+        reserveUpload testUser clientA (BackupEpoch 1) (fileN 4)
         _ <- orphanClient testUser clientA
-        commitFull testUser clientA (BackupEpoch 2) (fileN 2) 5
-      r `shouldBe` Left CommitEpochInvalid
+        next <- commitFull testUser clientA (BackupEpoch 2) (fileN 2) 5
+        replace <- commitFull testUser clientA (BackupEpoch 1) (fileN 3) 5
+        inc <- commitIncremental 10 testUser clientA (BackupEpoch 1) e1.id (fileN 4) 3
+        pure (void next, void replace, void inc)
+      next `shouldBe` Left CommitEpochInvalid
+      -- epoch 1 is accepted again without epochs, so only the blocked reservation stops it
+      replace `shouldBe` Left CommitReservationGone
+      inc `shouldBe` Left CommitFullMissing
+
+    it "commitFirstUploadAfterOrphanClientFails" $ do
+      (r, state, _) <- runBackup defaultFixture PutSucceeds $ do
+        reserveUpload testUser clientA (BackupEpoch 1) (fileN 1)
+        _ <- orphanClient testUser clientA
+        commitFull testUser clientA (BackupEpoch 1) (fileN 1) 5
+      void r `shouldBe` Left CommitReservationGone
+      state.epochs `shouldBe` mempty
+
+    it "commitIncrementalAfterOrphanClientFails" $ do
+      (r, state, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- storeFull 1 1
+        reserveUpload testUser clientA (BackupEpoch 1) (fileN 2)
+        _ <- orphanClient testUser clientA
+        -- a new epoch 1 exists, but the reservation was made before the removal
+        _ <- storeFull 1 3
+        commitIncremental 10 testUser clientA (BackupEpoch 1) (fileN 3) (fileN 2) 3
+      r `shouldBe` Left CommitIncrementalReservationGone
+      state.incrementals `shouldBe` mempty
 
     it "replaceFullDeletesOldObjectInline" $ do
       ((first, second), state, objects) <- runBackup defaultFixture PutSucceeds $ do

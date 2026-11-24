@@ -35,7 +35,6 @@ import Amazonka.S3.Lens
     objectIdentifier_versionId,
     s3ServiceError_code,
     s3ServiceError_key,
-    s3ServiceError_versionId,
   )
 import CargoHold.API.Error (serverError)
 import qualified CargoHold.AWS as AWS
@@ -125,14 +124,11 @@ deleteBatch env batch = do
     Right (Left e) -> wholeBatch "error" (show e)
     Right (Right resp) -> do
       let errs = fromMaybe [] (resp ^. deleteObjectsResponse_errors)
-          failed =
-            [ ObjectTarget k (unVersion <$> e ^. s3ServiceError_versionId)
-            | e <- errs,
-              Just (ObjectKey k) <- [e ^. s3ServiceError_key]
-            ]
-          unVersion (ObjectVersionId v) = v
+          errKeys = [k | e <- errs, Just (ObjectKey k) <- [e ^. s3ServiceError_key]]
+          -- by key only: an error for a key fails every target with that key
+          failed = [t | t <- batch, t.key `elem` errKeys]
       -- an error without a key cannot be attributed to an object
-      if length failed /= length errs
+      if length errKeys /= length errs
         then wholeBatch "error without key" (show (map (^. s3ServiceError_code) errs))
         else do
           unless (null errs) $

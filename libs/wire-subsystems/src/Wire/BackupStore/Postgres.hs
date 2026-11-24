@@ -193,7 +193,8 @@ commitIncrementalTx maxFiles uid cid epoch full fid size = do
     abort err = Tx.condemn $> Left err
 
 -- | Orphans all committed files of the client (incrementals first: they reference the fulls,
--- ON DELETE RESTRICT), keeping their creation times. Reservations are not touched.
+-- ON DELETE RESTRICT), keeping their creation times. In-flight reservations stay but can no
+-- longer be claimed; the cleanup collects them (and their objects).
 orphanClientTx :: UserId -> ClientId -> Tx.Transaction [BackupFileId]
 orphanClientTx uid cid = do
   let user = toUUID uid
@@ -202,6 +203,8 @@ orphanClientTx uid cid = do
   void $ Tx.statement (user, client) lockClient
   incs <- Tx.statement (user, client) orphanClientIncrementals
   fulls <- Tx.statement (user, client) orphanClientEpochs
+  -- in-flight uploads must not commit anymore: their claim requires deletion_last_tried IS NULL
+  Tx.statement (user, client) blockReservations
   pure (map BackupFileId (toList incs <> toList fulls))
 
 mkFile :: UUID -> Int64 -> UTCTime -> BackupFile
@@ -264,7 +267,7 @@ deleteReservation =
   [rowsAffectedStatement|
     DELETE FROM backup_orphans
     WHERE id = $1 :: uuid AND user_id = $2 :: uuid AND client_id = $3 :: text
-      AND file_created_at IS NULL
+      AND file_created_at IS NULL AND deletion_last_tried IS NULL
   |]
 
 -- | A deletion marker for a file: (file, user, client, epoch, file creation time)
@@ -418,6 +421,16 @@ orphanClientEpochs =
     INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
     SELECT full_id, $1 :: uuid, $2 :: text, epoch_no, full_created_at FROM removed
     RETURNING id :: uuid
+  |]
+
+-- | Marks the upload reservations of the client, so that they can no longer be claimed:
+-- (user, client)
+blockReservations :: Statement (UUID, Text) ()
+blockReservations =
+  [resultlessStatement|
+    UPDATE backup_orphans SET deletion_last_tried = now()
+    WHERE user_id = $1 :: uuid AND client_id = $2 :: text
+      AND file_created_at IS NULL AND deletion_last_tried IS NULL
   |]
 
 -- | Removes orphan rows: (ids)
