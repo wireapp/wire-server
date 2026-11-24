@@ -33,6 +33,7 @@ import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
 import Wire.API.BackgroundJobs qualified as BackgroundJobs
+import Wire.API.Backup qualified as Backup
 import Wire.API.Call.Config qualified as Call.Config
 import Wire.API.Connection qualified as Connection
 import Wire.API.Conversation qualified as Conversation
@@ -106,6 +107,10 @@ tests =
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
       testRoundTrip @Asset.Asset,
+      testRoundTrip @Backup.BackupFile,
+      testRoundTrip @Backup.BackupFiles,
+      testRoundTrip @Backup.BackupEpoch,
+      testRoundTrip @Backup.BackupFileId,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.Scheme,
       testRoundTrip @Call.Config.Transport,

@@ -25,6 +25,7 @@
 , exceptions
 , extended
 , federator
+, hasql-resource-pool
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -43,6 +44,8 @@
 , mmorph
 , mtl
 , optparse-applicative
+, polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
 , resourcet
@@ -72,6 +75,7 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -102,6 +106,7 @@ mkDerivation {
     errors
     exceptions
     extended
+    hasql-resource-pool
     HsOpenSSL
     http-client
     http-client-openssl
@@ -113,6 +118,8 @@ mkDerivation {
     metrics-core
     metrics-wai
     mime
+    polysemy
+    polysemy-wire-zoo
     prometheus-client
     QuickCheck
     resourcet
@@ -136,6 +143,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [

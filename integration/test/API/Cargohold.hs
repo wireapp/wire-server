@@ -41,6 +41,40 @@ import UnliftIO (catch)
 
 type LByteString = LBS.ByteString
 
+-- BACKUPS
+
+-- | Upload the full backup of an epoch. Arguments: caller, Z-Client, client in the path, epoch,
+-- body. The request body has a known size, so http-client sets @Content-Length@.
+uploadBackupFull ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Int ->
+  ByteString ->
+  App Response
+uploadBackupFull user zClientId clientId epoch bytes = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full"]
+  submit "POST"
+    $ req
+    & zUser uid
+    & zClient zClientId
+    & addBody (HTTP.RequestBodyBS bytes) "application/octet-stream"
+
+-- | Arguments: caller, Z-Client, client in the path, epoch.
+getBackupEpoch ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Int ->
+  App Response
+getBackupEpoch user zClientId clientId epoch = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch]
+  submit "GET" $ req & zUser uid & zClient zClientId
+
 -- UPLOAD
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> String -> App Response

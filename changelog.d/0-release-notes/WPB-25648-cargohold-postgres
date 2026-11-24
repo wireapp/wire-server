@@ -1,0 +1,1 @@
+Cargohold now needs access to PostgreSQL (Backup API). Its helm values require `postgresql`, `postgresqlPool` and optionally `postgresqlPassword` (secret `pgPassword`), as well as a `galley` endpoint (set by the chart). The tables are created by brig's `migrate-postgres` (cargohold does not run migrations). Make sure the S3 prefix `backups/` has no lifecycle rules.

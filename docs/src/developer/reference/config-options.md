@@ -1561,6 +1561,17 @@ provides a lot of useful information.
 - `settings.maxTotalBytes` (integer, bytes): maximum upload size for team users.
 - `settings.maxTotalBytesStrict` (integer, bytes): stricter maximum upload size for non-team users (including ephemeral users).
 
+Cargohold stores the files of the Backup API (`/backups`, requires the team feature
+`automaticBackups`) in the same S3 bucket (prefix `backups/`) and tracks them in
+PostgreSQL. Make sure that no lifecycle rules (e.g. TTL) apply to this prefix.
+
+- `postgresql` (map), `postgresqlPassword` (optional, path of a file with the password) and
+  `postgresqlPool`: connection settings, same shape as in brig and galley. Cargohold needs the
+  database of brig and galley, but does not run migrations (brig's `migrate-postgres` does).
+- `galley` (endpoint): used to check the team feature `automaticBackups`.
+- `backups.maxFullBytes` (integer, bytes): maximum size of a full backup file.
+- `backups.uploadTimeout` (integer, seconds): maximum duration of a backup upload.
+
 ## Settings in cannon
 
 ### Events websocket inactivity

@@ -72,6 +72,7 @@ library
     Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.BackgroundJobs
+    Wire.API.Backup
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
@@ -721,6 +722,7 @@ test-suite wire-api-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Paths_wire_api
+    Test.Wire.API.Backup
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.Meeting

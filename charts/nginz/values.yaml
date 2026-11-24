@@ -188,6 +188,11 @@ nginx_conf:
       allow_credentials: true
       max_body_size: "0"
       disable_request_buffering: true
+    - path: /backups
+      envs:
+      - all
+      max_body_size: "0"
+      disable_request_buffering: true
     cannon:
     - path: /await
       envs:

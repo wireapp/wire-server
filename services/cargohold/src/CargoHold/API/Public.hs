@@ -17,6 +17,7 @@
 
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
+import qualified CargoHold.API.Backup as Backup
 import CargoHold.API.Error (unverifiedUser)
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
@@ -59,6 +60,7 @@ servantSitemap =
     :<|> qualifiedAPI
     :<|> legacyAPI
     :<|> mainAPI
+    :<|> backupAPI
   where
     userAPI :: forall tag. (tag ~ 'UserPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
     userAPI =
@@ -83,6 +85,10 @@ servantSitemap =
     qualifiedAPI =
       Named @"assets-download-v4" downloadAssetV4
         :<|> Named @"assets-delete-v4" deleteAssetV4
+    backupAPI :: ServerT BackupAPI Handler
+    backupAPI =
+      Named @"backup-upload-full" Backup.uploadFull
+        :<|> Named @"backup-get-epoch" Backup.getEpochFiles
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
       Named @"tokens-renew" renewTokenV3

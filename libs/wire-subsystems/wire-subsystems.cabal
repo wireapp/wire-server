@@ -242,6 +242,11 @@ library
     Wire.BackgroundJobsPublisher.RabbitMQ
     Wire.BackgroundJobsRunner
     Wire.BackgroundJobsRunner.Interpreter
+    Wire.BackupObjectStore
+    Wire.BackupStore
+    Wire.BackupStore.Postgres
+    Wire.BackupSubsystem
+    Wire.BackupSubsystem.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BlockListStore.DualWrite
@@ -660,6 +665,7 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.BackupSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.AdminlessGroupsSpec
@@ -685,6 +691,8 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.AuthenticationSubsystem
     Wire.MockInterpreters.BackgroundJobPublisher
+    Wire.MockInterpreters.BackupObjectStore
+    Wire.MockInterpreters.BackupStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
     Wire.MockInterpreters.CodeStore

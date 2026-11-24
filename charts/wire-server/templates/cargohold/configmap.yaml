@@ -22,6 +22,19 @@ data:
       host: brig
       port: 8080
 
+    galley:
+      host: galley
+      port: 8080
+
+    postgresql: {{ toYaml .Values.cargohold.config.postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .Values.cargohold.config.postgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.cargohold.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/cargohold/secrets/pgPassword
+    {{- end }}
+
+    backups:
+      {{- toYaml .Values.cargohold.config.backups | nindent 6 }}
+
     aws:
       {{- with .Values.cargohold.config.aws }}
       s3Bucket: {{ .s3Bucket }}

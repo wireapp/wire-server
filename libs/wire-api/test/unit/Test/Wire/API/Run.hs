@@ -20,6 +20,7 @@ module Test.Wire.API.Run (main) where
 import Imports
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Tasty
+import Test.Wire.API.Backup qualified as Backup
 import Test.Wire.API.Call.Config qualified as Call.Config
 import Test.Wire.API.Conversation qualified as Conversation
 import Test.Wire.API.MLS qualified as MLS
@@ -52,7 +53,8 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Call.Config.tests,
+      [ Backup.tests,
+        Call.Config.tests,
         Team.Member.tests,
         Team.Feature.tests,
         Team.Export.tests,

@@ -27,6 +27,7 @@ import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import URI.ByteString
 import Wire.API.Asset
+import Wire.API.Backup
 import Wire.API.Error
 import Wire.API.Error.Cargohold
 import Wire.API.Routes.API
@@ -130,6 +131,7 @@ type CargoholdAPI =
     :<|> QualifiedAPI
     :<|> LegacyAPI
     :<|> MainAPI
+    :<|> BackupAPI
 
 -- | Asset API for a given principal (user/bot/provider).
 --
@@ -347,6 +349,43 @@ type MainAPI =
                     '[JSON]
                     '[RespondEmpty 200 "Asset deleted"]
                     ()
+           )
+
+type BackupEpochPath api =
+  From 'V20
+    :> ZLocalUser
+    :> ZClient
+    :> "backups"
+    :> "clients"
+    :> Capture "cid" ClientId
+    :> "epochs"
+    :> Capture "epoch" BackupEpoch
+    :> api
+
+type BackupAPI =
+  Named
+    "backup-upload-full"
+    ( Summary "Upload the full backup file of an epoch"
+        :> CanThrow 'BackupForbidden
+        :> CanThrow 'BackupDisabled
+        :> CanThrow 'BackupEpochInvalid
+        :> CanThrow 'BackupTooLarge
+        :> CanThrow 'InvalidLength
+        :> CanThrow 'IncompleteBody
+        :> BackupEpochPath
+             ( "full"
+                 :> Header' '[Required, Strict] "Content-Length" Word64
+                 :> BackupBody
+                 :> Post '[JSON] BackupFile
+             )
+    )
+    :<|> Named
+           "backup-get-epoch"
+           ( Summary "Get the files of an epoch"
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupDisabled
+               :> CanThrow 'BackupNotFound
+               :> BackupEpochPath (Get '[JSON] BackupFiles)
            )
 
 data CargoholdAPITag

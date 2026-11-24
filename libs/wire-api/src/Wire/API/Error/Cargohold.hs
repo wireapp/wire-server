@@ -30,6 +30,11 @@ data CargoholdError
   | UserNotFound
   | IncompleteBody
   | MissingAuditMetadata
+  | BackupForbidden
+  | BackupDisabled
+  | BackupEpochInvalid
+  | BackupTooLarge
+  | BackupNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -52,3 +57,13 @@ type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound
 type instance MapError 'IncompleteBody = 'StaticError 400 "incomplete-body" "HTTP content-length header does not match body size"
 
 type instance MapError 'MissingAuditMetadata = 'StaticError 400 "missing-audit-metadata" "Missing required asset audit metadata"
+
+type instance MapError 'BackupForbidden = 'StaticError 403 "backup-forbidden" "Backups of other clients cannot be modified"
+
+type instance MapError 'BackupDisabled = 'StaticError 403 "backup-disabled" "Backups are not enabled"
+
+type instance MapError 'BackupEpochInvalid = 'StaticError 409 "backup-epoch-invalid" "Invalid backup epoch"
+
+type instance MapError 'BackupTooLarge = 'StaticError 413 "backup-too-large" "Backup file too large"
+
+type instance MapError 'BackupNotFound = 'StaticError 404 "backup-not-found" "Backup not found"
