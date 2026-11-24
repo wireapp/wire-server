@@ -45,5 +45,9 @@ data BackupObjectStore m a where
   -- | Presigned download URL of the object of the given file. The 'Domain' selects the
   -- ingress (multi-ingress setups).
   PresignGet :: Maybe Domain -> BackupFileId -> BackupObjectStore m URI
+  -- | Delete the objects of the given files. Returns the ids whose objects are gone; a
+  -- missing object counts as gone. Never throws: failures are logged by the interpreter
+  -- and those ids are not returned.
+  DeleteObjects :: [BackupFileId] -> BackupObjectStore m [BackupFileId]
 
 makeSem ''BackupObjectStore

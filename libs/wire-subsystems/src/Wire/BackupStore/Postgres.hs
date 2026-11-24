@@ -25,6 +25,7 @@ import Data.Profunctor (lmap)
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
+import Data.Vector qualified as Vector
 import Hasql.Statement (Statement)
 import Hasql.TH
 import Hasql.Transaction qualified as Tx
@@ -75,6 +76,12 @@ interpretBackupStoreToPostgres = interpret $ \case
   ListClientBackups uid mcid -> do
     rows <- runStatement (toUUID uid, clientToText <$> mcid) selectBackupSummaries
     groupSummaries . catMaybes <$> for (toList rows) parseRow
+  OrphanClient uid cid ->
+    runTransaction ReadCommitted Write (orphanClientTx uid cid)
+  DeleteOrphanRows [] -> pure ()
+  DeleteOrphanRows ids -> runStatement (map fileIdToUUID ids) deleteOrphanRowsStmt
+  MarkDeletionTried [] -> pure ()
+  MarkDeletionTried ids -> runStatement (map fileIdToUUID ids) markDeletionTriedStmt
 
 -- | Client ids are written from 'ClientId's, so a row that does not parse is a bug: log and
 -- skip it.
@@ -111,7 +118,7 @@ commitFullTx ::
   BackupEpoch ->
   BackupFileId ->
   Word64 ->
-  Tx.Transaction (Either CommitFullError BackupFile)
+  Tx.Transaction (Either CommitFullError (BackupFile, [BackupFileId]))
 commitFullTx uid cid epoch fid size = do
   let user = toUUID uid
       client = clientToText cid
@@ -128,20 +135,26 @@ commitFullTx uid cid epoch fid size = do
         then abort CommitReservationGone
         else do
           existing <- Tx.statement (user, client, epochNo) selectEpochFull
-          (i, s, c) <- case existing of
+          ((i, s, c), replaced) <- case existing of
             Just (oldId, _, oldCreatedAt) -> do
               -- the incrementals reference the old full: move them away before updating it
-              Tx.statement (user, client, epochNo, oldId) orphanIncrementalsOfFull
+              movedIncs <- Tx.statement (user, client, epochNo, oldId) orphanIncrementalsOfFull
               Tx.statement (oldId, user, client, epochNo, oldCreatedAt) insertDeletion
-              Tx.statement (user, client, epochNo, newId, fromIntegral size) updateEpochFull
-            Nothing ->
-              Tx.statement (user, client, epochNo, newId, fromIntegral size) insertEpoch
-          when (epoch >= BackupEpoch 3) $ do
-            let newestStale = epochToInt (staleEpochs epoch)
-            -- the incrementals reference the stale fulls: move them away before deleting those
-            Tx.statement (user, client, newestStale) orphanStaleIncrementals
-            Tx.statement (user, client, newestStale) orphanStaleEpochs
-          pure (Right (mkFile i s c))
+              row <- Tx.statement (user, client, epochNo, newId, fromIntegral size) updateEpochFull
+              pure (row, toList movedIncs <> [oldId])
+            Nothing -> do
+              row <- Tx.statement (user, client, epochNo, newId, fromIntegral size) insertEpoch
+              pure (row, [])
+          stale <-
+            if epoch >= BackupEpoch 3
+              then do
+                let newestStale = epochToInt (staleEpochs epoch)
+                -- the incrementals reference the stale fulls: move them away before deleting those
+                incs <- Tx.statement (user, client, newestStale) orphanStaleIncrementals
+                fulls <- Tx.statement (user, client, newestStale) orphanStaleEpochs
+                pure (toList incs <> toList fulls)
+              else pure []
+          pure (Right (mkFile i s c, map BackupFileId (replaced <> stale)))
   where
     abort err = Tx.condemn $> Left err
 
@@ -178,6 +191,18 @@ commitIncrementalTx maxFiles uid cid epoch full fid size = do
     _ -> abort CommitFullMissing
   where
     abort err = Tx.condemn $> Left err
+
+-- | Orphans all committed files of the client (incrementals first: they reference the fulls,
+-- ON DELETE RESTRICT), keeping their creation times. Reservations are not touched.
+orphanClientTx :: UserId -> ClientId -> Tx.Transaction [BackupFileId]
+orphanClientTx uid cid = do
+  let user = toUUID uid
+      client = clientToText cid
+  -- exactly one lock per transaction, serializing all writers of this client
+  void $ Tx.statement (user, client) lockClient
+  incs <- Tx.statement (user, client) orphanClientIncrementals
+  fulls <- Tx.statement (user, client) orphanClientEpochs
+  pure (map BackupFileId (toList incs <> toList fulls))
 
 mkFile :: UUID -> Int64 -> UTCTime -> BackupFile
 mkFile fid size createdAt =
@@ -271,9 +296,9 @@ updateEpochFull =
 
 -- | Removes the epochs up to and including the given one and orphans their fulls:
 -- (user, client, newest stale epoch)
-orphanStaleEpochs :: Statement (UUID, Text, Int64) ()
+orphanStaleEpochs :: Statement (UUID, Text, Int64) (Vector UUID)
 orphanStaleEpochs =
-  [resultlessStatement|
+  [vectorStatement|
     WITH stale AS (
       DELETE FROM backup_epochs
       WHERE user_id = $1 :: uuid AND client_id = $2 :: text AND epoch_no <= $3 :: int8
@@ -281,6 +306,7 @@ orphanStaleEpochs =
     )
     INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
     SELECT full_id, $1 :: uuid, $2 :: text, epoch_no, full_created_at FROM stale
+    RETURNING id :: uuid
   |]
 
 -- | The incrementals of a full, oldest first: (full)
@@ -334,9 +360,9 @@ insertIncremental =
   |]
 
 -- | Orphans the incrementals of a full: (user, client, epoch, full)
-orphanIncrementalsOfFull :: Statement (UUID, Text, Int64, UUID) ()
+orphanIncrementalsOfFull :: Statement (UUID, Text, Int64, UUID) (Vector UUID)
 orphanIncrementalsOfFull =
-  [resultlessStatement|
+  [vectorStatement|
     WITH moved AS (
       DELETE FROM backup_incrementals
       WHERE full_id = $4 :: uuid
@@ -344,13 +370,14 @@ orphanIncrementalsOfFull =
     )
     INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
     SELECT id, $1 :: uuid, $2 :: text, $3 :: int8, created_at FROM moved
+    RETURNING id :: uuid
   |]
 
 -- | Orphans the incrementals of the fulls of the epochs up to and including the given one:
 -- (user, client, newest stale epoch)
-orphanStaleIncrementals :: Statement (UUID, Text, Int64) ()
+orphanStaleIncrementals :: Statement (UUID, Text, Int64) (Vector UUID)
 orphanStaleIncrementals =
-  [resultlessStatement|
+  [vectorStatement|
     WITH moved AS (
       DELETE FROM backup_incrementals i
       USING backup_epochs e
@@ -360,7 +387,56 @@ orphanStaleIncrementals =
     )
     INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
     SELECT id, $1 :: uuid, $2 :: text, epoch_no, created_at FROM moved
+    RETURNING id :: uuid
   |]
+
+-- | Orphans the incrementals of all epochs of the client: (user, client)
+orphanClientIncrementals :: Statement (UUID, Text) (Vector UUID)
+orphanClientIncrementals =
+  [vectorStatement|
+    WITH moved AS (
+      DELETE FROM backup_incrementals i
+      USING backup_epochs e
+      WHERE i.full_id = e.full_id
+        AND e.user_id = $1 :: uuid AND e.client_id = $2 :: text
+      RETURNING i.id, i.created_at, e.epoch_no
+    )
+    INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
+    SELECT id, $1 :: uuid, $2 :: text, epoch_no, created_at FROM moved
+    RETURNING id :: uuid
+  |]
+
+-- | Removes all epochs of the client and orphans their fulls: (user, client)
+orphanClientEpochs :: Statement (UUID, Text) (Vector UUID)
+orphanClientEpochs =
+  [vectorStatement|
+    WITH removed AS (
+      DELETE FROM backup_epochs
+      WHERE user_id = $1 :: uuid AND client_id = $2 :: text
+      RETURNING full_id, epoch_no, full_created_at
+    )
+    INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
+    SELECT full_id, $1 :: uuid, $2 :: text, epoch_no, full_created_at FROM removed
+    RETURNING id :: uuid
+  |]
+
+-- | Removes orphan rows: (ids)
+deleteOrphanRowsStmt :: Statement [UUID] ()
+deleteOrphanRowsStmt =
+  lmap
+    Vector.fromList
+    [resultlessStatement|
+      DELETE FROM backup_orphans WHERE id = ANY($1 :: uuid[])
+    |]
+
+-- | (ids)
+markDeletionTriedStmt :: Statement [UUID] ()
+markDeletionTriedStmt =
+  lmap
+    Vector.fromList
+    [resultlessStatement|
+      UPDATE backup_orphans SET deletion_last_tried = now() WHERE id = ANY($1 :: uuid[])
+    |]
 
 -- | One row per epoch of the user (of the client, if given); an epoch without incrementals
 -- counts only its full. @SUM@ of @int8@ is @numeric@, hence the casts. (user, client)

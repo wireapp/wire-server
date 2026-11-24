@@ -461,6 +461,19 @@ type BackupAPI =
                :> CanThrow 'BackupDisabled
                :> BackupPath ("clients" :> Capture "cid" ClientId :> Get '[JSON] ClientBackups)
            )
+    :<|> Named
+           "backup-delete-client"
+           ( Summary "Delete all backups of a client"
+               :> Description
+                    "The path client must equal Z-Client. The feature flag is not checked. \
+                    \Succeeds if there is nothing to delete."
+               :> CanThrow 'BackupForbidden
+               :> BackupPath
+                    ( "clients"
+                        :> Capture "cid" ClientId
+                        :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 204 "Backups deleted"] ()
+                    )
+           )
 
 data CargoholdAPITag
 

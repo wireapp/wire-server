@@ -21,6 +21,7 @@ module Wire.MockInterpreters.BackupObjectStore where
 import Conduit (runConduitRes, sinkList, (.|))
 import Data.ByteString qualified as BS
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime)
 import Data.UUID qualified as UUID
 import Imports
@@ -37,11 +38,17 @@ data PutBehaviour
   | -- | Succeeds, but only after the given time passed.
     PutTakes NominalDiffTime
 
+data DeleteBehaviour
+  = DeleteSucceeds
+  | -- | Deleting these objects fails: they stay and are not reported as gone.
+    DeleteFailsFor (Set BackupFileId)
+
 inMemoryBackupObjectStore ::
   (Member (State (Map BackupFileId ByteString)) r, Member MockNow r, Member (Embed IO) r) =>
   PutBehaviour ->
+  DeleteBehaviour ->
   InterpreterFor BackupObjectStore r
-inMemoryBackupObjectStore behaviour = interpret $ \case
+inMemoryBackupObjectStore behaviour deleteBehaviour = interpret $ \case
   PutObject _ _ _ | PutFailsWith err <- behaviour -> pure (Left err)
   PutObject fid _ body -> do
     bytes <- embed (BS.concat <$> runConduitRes (body .| sinkList))
@@ -50,6 +57,13 @@ inMemoryBackupObjectStore behaviour = interpret $ \case
       PutTakes d -> passTime d
       _ -> pure ()
     pure (Right ())
+  DeleteObjects ids -> do
+    let failing = case deleteBehaviour of
+          DeleteSucceeds -> mempty
+          DeleteFailsFor failed -> failed
+        gone = filter (`Set.notMember` failing) ids
+    modify (\objects -> foldr Map.delete objects gone)
+    pure gone
   PresignGet _ (BackupFileId u) ->
     pure $
       either (error . show) Imports.id $

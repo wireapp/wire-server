@@ -45,14 +45,15 @@ data BackupStore m a where
   ReserveUpload :: UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupStore m ()
   -- | One transaction under the per-client lock: re-check the epoch rule, claim the
   -- reservation, add the full to the epoch (orphaning a replaced full and its
-  -- incrementals) and orphan the fulls and incrementals of stale epochs.
+  -- incrementals) and orphan the fulls and incrementals of stale epochs. The list holds
+  -- the ids orphaned this way.
   CommitFull ::
     UserId ->
     ClientId ->
     BackupEpoch ->
     BackupFileId ->
     Word64 ->
-    BackupStore m (Either CommitFullError BackupFile)
+    BackupStore m (Either CommitFullError (BackupFile, [BackupFileId]))
   -- | One transaction under the per-client lock: re-check that the full is the epoch's
   -- current one and that the epoch has room for another file (the first argument is
   -- @maxFilesPerEpoch@, counting the full), claim the reservation and add the incremental.
@@ -78,5 +79,13 @@ data BackupStore m a where
   -- | Summaries of the current files of the epochs of the user, of one client or of all
   -- (no lock, read only). Ascending by client and epoch; clients without epochs are absent.
   ListClientBackups :: UserId -> Maybe ClientId -> BackupStore m [ClientBackups]
+  -- | One transaction under the per-client lock: orphan all committed files (incrementals
+  -- and fulls) of the client, keeping their creation times. Upload reservations stay.
+  -- Returns the orphaned ids.
+  OrphanClient :: UserId -> ClientId -> BackupStore m [BackupFileId]
+  -- | Remove orphan rows by id (no lock).
+  DeleteOrphanRows :: [BackupFileId] -> BackupStore m ()
+  -- | Set @deletion_last_tried@ of orphan rows by id (no lock).
+  MarkDeletionTried :: [BackupFileId] -> BackupStore m ()
 
 makeSem ''BackupStore

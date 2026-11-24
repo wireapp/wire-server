@@ -532,3 +532,10 @@ beginMultipartBody sets t l =
 -- via 'beginMultipartBody'.
 endMultipartBody' :: Builder
 endMultipartBody' = byteString $ cs "\r\n--frontier--\r\n"
+
+-- | Delete all backups of a client. Arguments: caller, Z-Client, client in the path.
+deleteClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteClientBackups user zClientId clientId = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId]
+  submit "DELETE" $ req & zUser uid & zClient zClientId

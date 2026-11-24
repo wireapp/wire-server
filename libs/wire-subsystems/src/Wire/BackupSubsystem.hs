@@ -120,5 +120,8 @@ data BackupSubsystem m a where
   -- | Arguments: caller, calling client (Z-Client), client of the path. Unknown clients, also
   -- those of other users, have no epochs.
   GetClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ClientBackups
+  -- | Arguments: caller, calling client (Z-Client), client of the path. Neither the feature
+  -- nor a team is required.
+  DeleteClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ()
 
 makeSem ''BackupSubsystem

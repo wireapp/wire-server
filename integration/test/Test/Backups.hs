@@ -410,3 +410,107 @@ testBackupListDisabled = do
   bindResponse (getClientBackups owner' removed removed) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "backup-forbidden"
+
+-- DELETE
+
+-- | The presigned download URL of a full, as a request.
+presignedFullRequest :: (HasCallStack) => Value -> String -> Int -> String -> App HTTP.Request
+presignedFullRequest owner cid epoch fullId =
+  bindResponse (downloadBackupFull owner cid cid epoch fullId) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    liftIO $ HTTP.parseRequest (BC.unpack (getHeader' (mk (BC.pack "Location")) resp))
+
+testBackupDeleteClient :: (HasCallStack) => App ()
+testBackupDeleteClient = do
+  (owner, cid) <- setupBackupUser
+  fullId <- uploadFullId owner cid 1
+  _ <- uploadIncrementalId owner cid 1 fullId 100
+  _ <- uploadFullId owner cid 2
+  bindResponse (deleteClientBackups owner cid cid) $ \resp ->
+    resp.status `shouldMatchInt` 204
+  for_ [1, 2] $ \epoch ->
+    bindResponse (getBackupEpoch owner cid cid epoch) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "backup-not-found"
+  -- nothing left to delete
+  bindResponse (deleteClientBackups owner cid cid) $ \resp ->
+    resp.status `shouldMatchInt` 204
+
+testBackupDeleteRemovesObject :: (HasCallStack) => App ()
+testBackupDeleteRemovesObject = do
+  (owner, cid) <- setupBackupUser
+  fullId <- uploadFullId owner cid 1
+  req <- presignedFullRequest owner cid 1 fullId
+  bindResponse (deleteClientBackups owner cid cid) $ \resp ->
+    resp.status `shouldMatchInt` 204
+  -- the object is gone from S3, not just unreferenced
+  bindResponse (submit "GET" req) $ \resp ->
+    resp.status `shouldMatchInt` 404
+
+testBackupReplaceRemovesOldObject :: (HasCallStack) => App ()
+testBackupReplaceRemovesOldObject = do
+  (owner, cid) <- setupBackupUser
+  oldId <- uploadFullId owner cid 1
+  oldReq <- presignedFullRequest owner cid 1 oldId
+  bindResponse (uploadBackupFull owner cid cid 1 (BC.replicate 16 'y')) $ \resp ->
+    resp.status `shouldMatchInt` 200
+  bindResponse (submit "GET" oldReq) $ \resp ->
+    resp.status `shouldMatchInt` 404
+
+testBackupDeleteForbiddenOtherClient :: (HasCallStack) => App ()
+testBackupDeleteForbiddenOtherClient = do
+  (owner, cid) <- setupBackupUser
+  other <- newClientId owner
+  _ <- uploadFullId owner cid 1
+  bindResponse (deleteClientBackups owner cid other) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  bindResponse (getBackupEpoch owner cid cid 1) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+testBackupDeleteRemovedClient :: (HasCallStack) => App ()
+testBackupDeleteRemovedClient = do
+  (owner, _) <- setupBackupUser
+  removed <- newClientId owner
+  deleteClient owner removed >>= assertSuccess
+  bindResponse (deleteClientBackups owner removed removed) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "backup-forbidden"
+
+-- | Deletion (GDPR) does not depend on the feature flag.
+testBackupDeleteWhenDisabled :: (HasCallStack) => App ()
+testBackupDeleteWhenDisabled = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  Internal.setTeamFeatureLockStatus owner tid "automaticBackups" "unlocked"
+  setStatus owner tid "enabled"
+  cid <- newClientId owner
+  _ <- uploadFullId owner cid 1
+  setStatus owner tid "disabled"
+  bindResponse (deleteClientBackups owner cid cid) $ \resp ->
+    resp.status `shouldMatchInt` 204
+  setStatus owner tid "enabled"
+  bindResponse (getBackupEpoch owner cid cid 1) $ \resp ->
+    resp.status `shouldMatchInt` 404
+  where
+    setStatus owner tid status =
+      bindResponse (Internal.setTeamFeatureStatus owner tid "automaticBackups" status) $ \resp ->
+        resp.status `shouldMatchInt` 200
+
+testBackupDeleteWithoutTeam :: (HasCallStack) => App ()
+testBackupDeleteWithoutTeam = do
+  personal <- randomUser OwnDomain def
+  cid <- newClientId personal
+  bindResponse (deleteClientBackups personal cid cid) $ \resp ->
+    resp.status `shouldMatchInt` 204
+
+testBackupDeleteOtherClientsUntouched :: (HasCallStack) => App ()
+testBackupDeleteOtherClientsUntouched = do
+  (owner, cidA) <- setupBackupUser
+  cidB <- newClientId owner
+  _ <- uploadFullId owner cidA 1
+  _ <- bindResponse (uploadBackupFull owner cidB cidB 1 (BC.replicate 16 'x')) $ \resp ->
+    resp.status `shouldMatchInt` 200
+  bindResponse (deleteClientBackups owner cidA cidA) $ \resp ->
+    resp.status `shouldMatchInt` 204
+  bindResponse (getBackupEpoch owner cidB cidB 1) $ \resp ->
+    resp.status `shouldMatchInt` 200

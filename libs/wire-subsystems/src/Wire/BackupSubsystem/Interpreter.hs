@@ -16,12 +16,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem) where
+module Wire.BackupSubsystem.Interpreter (interpretBackupSubsystem, deleteOrphansNow) where
 
 import Conduit (ConduitT, ResourceT)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Data.Time.Clock (addUTCTime)
 import Imports
 import Polysemy
@@ -92,6 +93,29 @@ interpretBackupSubsystem = interpret $ \case
     listClientBackups uid (Just cid) <&> \case
       [] -> ClientBackups {client = cid, epochs = []}
       entry : _ -> entry
+  DeleteClientBackups caller zClient cid -> do
+    let uid = tUnqualified caller
+    when (zClient /= cid) $ throw BackupErrorForbidden
+    ensureClientExists uid zClient
+    orphanClient uid cid >>= deleteOrphansNow
+
+-- | Best effort: delete the objects of the orphans, then their rows. Rows of orphans whose
+-- objects are not gone stay (marked as tried) for the cleanup. S3 failures are logged by the
+-- object store interpreter and never thrown.
+deleteOrphansNow ::
+  (Member BackupStore r, Member BackupObjectStore r, Member TinyLog r) =>
+  [BackupFileId] ->
+  Sem r ()
+deleteOrphansNow [] = pure ()
+deleteOrphansNow ids = do
+  gone <- deleteObjects ids
+  deleteOrphanRows gone
+  let failed = filter (`Set.notMember` Set.fromList gone) ids
+  markDeletionTried failed
+  let counts = Log.field "deleted" (length gone) . Log.field "failed" (length failed)
+  if null failed
+    then Log.debug $ Log.msg (Log.val "Deleted orphaned backup files") . counts
+    else Log.warn $ Log.msg (Log.val "Could not delete all orphaned backup files") . counts
 
 uploadFullImpl ::
   ( Member BackupStore r,
@@ -125,7 +149,7 @@ uploadFullImpl uid zClient cid epoch len body = do
   commitFull uid cid epoch fid len >>= \case
     Left CommitEpochInvalid -> throw BackupErrorEpochInvalid
     Left CommitReservationGone -> reservationGone fid
-    Right file -> pure file
+    Right (file, orphaned) -> deleteOrphansNow orphaned $> file
 
 uploadIncrementalImpl ::
   ( Member BackupStore r,

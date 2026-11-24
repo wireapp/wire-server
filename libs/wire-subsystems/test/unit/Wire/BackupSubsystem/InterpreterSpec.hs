@@ -28,7 +28,7 @@ import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, addUTCTime)
 import Data.UUID qualified as UUID
 import Imports
 import Polysemy
@@ -114,7 +114,15 @@ runBackup ::
   PutBehaviour ->
   Sem TestStack a ->
   IO (a, BackupState, Map BackupFileId ByteString)
-runBackup fx behaviour action = do
+runBackup fx behaviour = runBackupWith fx behaviour DeleteSucceeds
+
+runBackupWith ::
+  Fixture ->
+  PutBehaviour ->
+  DeleteBehaviour ->
+  Sem TestStack a ->
+  IO (a, BackupState, Map BackupFileId ByteString)
+runBackupWith fx behaviour deleteBehaviour action = do
   (_, (objects, (state, result))) <-
     runM
       . runState defaultTime
@@ -128,7 +136,7 @@ runBackup fx behaviour action = do
       . runInputConst testConfig
       . miniGalleyAPIAccess teams features
       . brigStub
-      . inMemoryBackupObjectStore behaviour
+      . inMemoryBackupObjectStore behaviour deleteBehaviour
       . inMemoryBackupStore
       . interpretBackupSubsystem
       $ action
@@ -203,6 +211,23 @@ uploadInc zClient cid epoch full bytes =
 uploadIncA :: (Upload r) => BackupFileId -> ByteString -> Sem r (Either BackupError BackupFile)
 uploadIncA = uploadInc clientA clientA 1
 
+-- | A file id for store-level tests.
+fileN :: Word32 -> BackupFileId
+fileN n = BackupFileId (UUID.fromWords 0 0 0 n)
+
+-- | Commits a full of client A at store level (no object): epoch, id. Returns the file and the
+-- ids orphaned by the commit.
+storeFull :: (Member BackupStore r) => Word32 -> Word32 -> Sem r (BackupFile, [BackupFileId])
+storeFull epoch n = do
+  reserveUpload testUser clientA (BackupEpoch epoch) (fileN n)
+  commitFull testUser clientA (BackupEpoch epoch) (fileN n) 5 >>= orFail
+
+-- | Commits an incremental of client A at store level (no object): epoch, full, id.
+storeInc :: (Member BackupStore r) => Word32 -> BackupFileId -> Word32 -> Sem r BackupFile
+storeInc epoch full n = do
+  reserveUpload testUser clientA (BackupEpoch epoch) (fileN n)
+  commitIncremental 10 testUser clientA (BackupEpoch epoch) full (fileN n) 3 >>= orFail
+
 -- | Fails the test on 'Left'.
 orFail :: (Show e) => Either e a -> Sem r a
 orFail = either (error . ("unexpected error: " <>) . show) pure
@@ -262,39 +287,37 @@ spec = describe "BackupSubsystem" $ do
     empty `shouldBe` Left BackupErrorInvalidLength
 
   it "epochRules" $ do
-    ((r2, r1, r1', r2', orphansAfterReplace, r3, e1, e2, r5), state, _) <-
+    ((r2, r1, r1', r2', r3, e1, e2, r5), state, objects) <-
       runBackup defaultFixture PutSucceeds $ do
         r2 <- uploadA 2
         r1 <- uploadA 1
         r1' <- uploadA 1
-        orphansAfterReplace <- gets @BackupState (.orphans)
         r2' <- uploadA 2
         r3 <- uploadA 3
         e1 <- readEpoch clientA 1
         e2 <- readEpoch clientA 2
         r5 <- uploadA 5
-        pure (r2, r1, r1', r2', orphansAfterReplace, r3, e1, e2, r5)
+        pure (r2, r1, r1', r2', r3, e1, e2, r5)
     r2 `shouldBe` Left BackupErrorEpochInvalid
     for_ [r1, r1', r2', r3] $ \r -> r `shouldSatisfy` isRight
-    -- re-uploading epoch 1 orphaned the first full, keeping its creation time
-    fmap (\f -> Map.lookup f.id orphansAfterReplace) r1 `shouldBe` Right (Just (Just defaultTime))
-    -- epoch 3 removed epoch 1 and orphaned its (replacing) full
+    -- the replaced full and the full of the removed epoch 1 are deleted right away
     e1 `shouldBe` Left BackupErrorNotFound
-    fmap (\f -> Map.member f.id state.orphans) r1' `shouldBe` Right True
+    for_ [r1, r1'] $ \r -> fmap (\f -> Map.member f.id objects) r `shouldBe` Right False
+    state.orphans `shouldBe` mempty
     e2 `shouldSatisfy` isRight
     r5 `shouldBe` Left BackupErrorEpochInvalid
 
   it "putFailureKeepsReservation" $ do
     (r, state, _) <- runBackup defaultFixture (PutFailsWith PutIncompleteBody) (uploadA 1)
     r `shouldBe` Left BackupErrorIncompleteBody
-    Map.elems state.orphans `shouldBe` [Nothing]
+    map (.fileCreatedAt) (Map.elems state.orphans) `shouldBe` [Nothing]
     state.epochs `shouldBe` mempty
 
   it "deadlineExceededDoesNotCommit" $ do
     (r, state, _) <- runBackup defaultFixture (PutTakes (testConfig.uploadTimeout + 1)) (uploadA 1)
     r `shouldBe` Left BackupErrorUploadFailed
     state.epochs `shouldBe` mempty
-    Map.elems state.orphans `shouldBe` [Nothing]
+    map (.fileCreatedAt) (Map.elems state.orphans) `shouldBe` [Nothing]
 
   it "readOtherClientOfSameUser" $ do
     (r, _, _) <- runBackup defaultFixture PutSucceeds (uploadA 1 *> readEpoch clientB 1)
@@ -353,7 +376,7 @@ spec = describe "BackupSubsystem" $ do
       r `shouldBe` Left BackupErrorFullMissing
       -- pre-check: no reservation was made
       orphansAfter `shouldBe` orphansBefore
-      Map.elems state.orphans `shouldNotContain` [Nothing]
+      map (.fileCreatedAt) (Map.elems state.orphans) `shouldNotContain` [Nothing]
 
     it "incrementalToStaleEpochFull" $ do
       (r, _, _) <- runBackup defaultFixture PutSucceeds $ do
@@ -380,7 +403,7 @@ spec = describe "BackupSubsystem" $ do
         r <- commitIncremental 3 testUser clientA (BackupEpoch 1) a.id inc 3
         pure (r, inc)
       fst r `shouldBe` Left CommitFullMissing
-      Map.lookup (snd r) state.orphans `shouldBe` Just Nothing
+      (.fileCreatedAt) <$> Map.lookup (snd r) state.orphans `shouldBe` Just Nothing
       state.incrementals `shouldBe` mempty
 
     it "maxFilesPerEpochBoundary" $ do
@@ -398,7 +421,7 @@ spec = describe "BackupSubsystem" $ do
       -- full + 2 incrementals are within the limit of 3
       third `shouldBe` Left BackupErrorEpochFull
       fst storeLevel `shouldBe` Left CommitEpochFull
-      Map.lookup (snd storeLevel) state.orphans `shouldBe` Just Nothing
+      (.fileCreatedAt) <$> Map.lookup (snd storeLevel) state.orphans `shouldBe` Just Nothing
       Map.size state.incrementals `shouldBe` 2
 
     it "incrementalTooLarge" $ do
@@ -419,32 +442,36 @@ spec = describe "BackupSubsystem" $ do
       r `shouldBe` Left BackupErrorForbidden
 
     it "replaceFullOrphansIncrementals" $ do
-      ((a, i1, i2, files), state, _) <- runBackup defaultFixture PutSucceeds $ do
-        a <- uploadA 1 >>= orFail
+      ((a, i1, i2, orphaned, files), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        (a, _) <- storeFull 1 1
         passTime 1
-        i1 <- uploadIncA a.id "abc" >>= orFail
+        i1 <- storeInc 1 a.id 2
         passTime 1
-        i2 <- uploadIncA a.id "def" >>= orFail
+        i2 <- storeInc 1 a.id 3
         passTime 1
-        _ <- uploadA 1
-        files <- readEpoch clientA 1 >>= orFail
-        pure (a, i1, i2, files)
-      files.incrementals `shouldBe` []
+        (_, orphaned) <- storeFull 1 4
+        files <- lookupEpochFiles testUser clientA (BackupEpoch 1)
+        pure (a, i1, i2, orphaned, files)
+      fmap (.incrementals) files `shouldBe` Just []
       state.incrementals `shouldBe` mempty
+      sort orphaned `shouldBe` sort [a.id, i1.id, i2.id]
       for_ [a, i1, i2] $ \f ->
-        Map.lookup f.id state.orphans `shouldBe` Just (Just (fromUTCTimeMillis f.createdAt))
+        (.fileCreatedAt) <$> Map.lookup f.id state.orphans
+          `shouldBe` Just (Just (fromUTCTimeMillis f.createdAt))
 
     it "staleEpochOrphansIncrementals" $ do
-      ((e1, i1), state, _) <- runBackup defaultFixture PutSucceeds $ do
-        e1 <- uploadA 1 >>= orFail
+      ((e1, i1, orphaned), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        (e1, _) <- storeFull 1 1
         passTime 1
-        i1 <- uploadIncA e1.id "abc" >>= orFail
-        _ <- uploadA 2
-        _ <- uploadA 3
-        pure (e1, i1)
+        i1 <- storeInc 1 e1.id 2
+        _ <- storeFull 2 3
+        (_, orphaned) <- storeFull 3 4
+        pure (e1, i1, orphaned)
       state.incrementals `shouldBe` mempty
+      sort orphaned `shouldBe` sort [e1.id, i1.id]
       for_ [e1, i1] $ \f ->
-        Map.lookup f.id state.orphans `shouldBe` Just (Just (fromUTCTimeMillis f.createdAt))
+        (.fileCreatedAt) <$> Map.lookup f.id state.orphans
+          `shouldBe` Just (Just (fromUTCTimeMillis f.createdAt))
 
     it "downloadIncremental" $ do
       ((inc, ok, wrongFull, otherUser'), _, _) <- runBackup defaultFixture PutSucceeds $ do
@@ -556,6 +583,122 @@ spec = describe "BackupSubsystem" $ do
       (noTeam, _, _) <- runBackup defaultFixture {inTeam = False} PutSucceeds both
       fst noTeam `shouldBe` Left BackupErrorDisabled
       snd noTeam `shouldBe` Left BackupErrorDisabled
+
+  describe "deleteClientBackups" $ do
+    let deleteA zClient cid = try (deleteClientBackups caller zClient cid)
+        deleteOwn = deleteA clientA clientA
+
+    it "deleteClientBackupsOrphansAndDeletes" $ do
+      ((r, e1, e2), state, objects) <- runBackup defaultFixture PutSucceeds $ do
+        a <- uploadA 1 >>= orFail
+        passTime 1
+        _ <- uploadIncA a.id "abc" >>= orFail
+        _ <- uploadA 2 >>= orFail
+        r <- deleteOwn
+        e1 <- readEpoch clientA 1
+        e2 <- readEpoch clientA 2
+        pure (r, e1, e2)
+      r `shouldBe` Right ()
+      e1 `shouldBe` Left BackupErrorNotFound
+      e2 `shouldBe` Left BackupErrorNotFound
+      objects `shouldBe` mempty
+      state.orphans `shouldBe` mempty
+
+    it "deleteForbiddenForOtherClient" $ do
+      ((r, e1), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- uploadA 1 >>= orFail
+        r <- deleteA clientA clientB
+        e1 <- readEpoch clientA 1
+        pure (r, e1)
+      r `shouldBe` Left BackupErrorForbidden
+      e1 `shouldSatisfy` isRight
+
+    it "deleteForbiddenForRemovedClient" $ do
+      (r, _, _) <-
+        runBackup defaultFixture {existingClients = Set.singleton clientB} PutSucceeds deleteOwn
+      r `shouldBe` Left BackupErrorForbidden
+
+    it "deleteAllowedWhenFeatureOff" $ do
+      -- the feature is switched off after the upload: the stub reads the fixture, so the
+      -- upload is committed at store level
+      (r, state, _) <- runBackup defaultFixture {featureEnabled = False} PutSucceeds $ do
+        (full, _) <- storeFull 1 1
+        putObject full.id 5 (body "hello") >>= orFail
+        deleteOwn
+      r `shouldBe` Right ()
+      state.epochs `shouldBe` mempty
+      state.orphans `shouldBe` mempty
+
+    it "deleteAllowedWithoutTeam" $ do
+      (r, _, _) <- runBackup defaultFixture {inTeam = False} PutSucceeds deleteOwn
+      r `shouldBe` Right ()
+
+    it "deleteKeepsOtherClients" $ do
+      ((r, b1, b), _, objects) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- uploadA 1 >>= orFail
+        b <- upload clientB clientB 1 "other" >>= orFail
+        r <- deleteOwn
+        b1 <- try (getEpochFiles caller clientB clientB (BackupEpoch 1))
+        pure (r, b1, b)
+      r `shouldBe` Right ()
+      fmap (.full.id) b1 `shouldBe` Right b.id
+      Map.lookup b.id objects `shouldBe` Just "other"
+
+    it "deleteKeepsReservations" $ do
+      (r, state, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- uploadA 1 >>= orFail
+        reserveUpload testUser clientA (BackupEpoch 2) (fileN 9)
+        deleteOwn
+      r `shouldBe` Right ()
+      map (.fileCreatedAt) (Map.elems state.orphans) `shouldBe` [Nothing]
+      Map.keys state.orphans `shouldBe` [fileN 9]
+
+    it "deleteObjectFailureMarksTried" $ do
+      let failing = fileN 1
+      ((r, others), state, objects) <-
+        runBackupWith defaultFixture PutSucceeds (DeleteFailsFor (Set.singleton failing)) $ do
+          (e1, _) <- storeFull 1 1
+          i1 <- storeInc 1 e1.id 2
+          (e2, _) <- storeFull 2 3
+          for_ [e1.id, i1.id, e2.id] $ \f -> putObject f 5 (body "hello") >>= orFail
+          passTime 5
+          r <- deleteOwn
+          pure (r, [i1.id, e2.id])
+      r `shouldBe` Right ()
+      Map.keys state.orphans `shouldBe` [failing]
+      (.deletionLastTried) <$> Map.lookup failing state.orphans `shouldBe` Just (Just (addUTCTime 5 defaultTime))
+      (.fileCreatedAt) <$> Map.lookup failing state.orphans `shouldBe` Just (Just defaultTime)
+      Map.keys objects `shouldBe` [failing]
+      for_ others $ \f -> Map.member f objects `shouldBe` False
+
+    it "commitAfterOrphanClientFails" $ do
+      r <- fmap (\(x, _, _) -> x) . runBackup defaultFixture PutSucceeds $ do
+        _ <- storeFull 1 1
+        reserveUpload testUser clientA (BackupEpoch 2) (fileN 2)
+        _ <- orphanClient testUser clientA
+        commitFull testUser clientA (BackupEpoch 2) (fileN 2) 5
+      r `shouldBe` Left CommitEpochInvalid
+
+    it "replaceFullDeletesOldObjectInline" $ do
+      ((first, second), state, objects) <- runBackup defaultFixture PutSucceeds $ do
+        a <- uploadA 1 >>= orFail
+        b <- uploadA 1 >>= orFail
+        pure (a, b)
+      Map.keys objects `shouldBe` [second.id]
+      Map.member first.id objects `shouldBe` False
+      state.orphans `shouldBe` mempty
+
+    it "staleEpochDeletedInline" $ do
+      ((e1, i1, others), state, objects) <- runBackup defaultFixture PutSucceeds $ do
+        e1 <- uploadA 1 >>= orFail
+        passTime 1
+        i1 <- uploadIncA e1.id "abc" >>= orFail
+        e2 <- uploadA 2 >>= orFail
+        e3 <- uploadA 3 >>= orFail
+        pure (e1, i1, [e2.id, e3.id])
+      for_ [e1.id, i1.id] $ \f -> Map.member f objects `shouldBe` False
+      Map.keys objects `shouldMatchList` others
+      state.orphans `shouldBe` mempty
 
 listAs :: (Upload r) => Local UserId -> Sem r (Either BackupError BackupList)
 listAs lusr = try (listBackups lusr clientA)
