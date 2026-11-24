@@ -3641,25 +3641,74 @@ specMeetingEmails =
       hiddenMeetingInviteeChanges $ \convId ->
         modify @(Map ConvId StoredConversation) (Map.delete convId)
 
-    it "rejects invitation-sending invited-email changes on a meeting whose owning team has meetings disabled" $ do
-      -- The creator is a personal user (not gated by the caller-team check),
-      -- while the meeting's conversation belongs to a team that disables
-      -- meetings.
-      let ownerTeam = Id $ read "00000000-0000-0000-0000-000000000100"
-          meetingsDisabled =
-            npUpdate @MeetingsConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def) def
-          ownedBy :: StoredConversation -> StoredConversation
-          ownedBy c =
-            StoredConversation
-              { id_ = c.id_,
-                localMembers = c.localMembers,
-                remoteMembers = c.remoteMembers,
-                metadata = c.metadata {cnvmTeam = Just ownerTeam},
-                protocol = c.protocol
-              }
-      hiddenMeetingInviteeChanges $ \convId -> do
-        modify @(Map ConvId StoredConversation) (Map.adjust ownedBy convId)
-        put meetingsDisabled
+    -- The creator is a personal user (not gated by the caller-team check),
+    -- while the meeting's conversation is moved under a team that disables
+    -- meetings: the meeting is hidden by its owning team only.
+    let disableOwnerTeam :: ConvId -> Sem TestStack ()
+        disableOwnerTeam convId = do
+          let ownerTeam = Id $ read "00000000-0000-0000-0000-000000000100"
+              ownedBy c =
+                StoredConversation
+                  { id_ = c.id_,
+                    localMembers = c.localMembers,
+                    remoteMembers = c.remoteMembers,
+                    metadata = c.metadata {cnvmTeam = Just ownerTeam},
+                    protocol = c.protocol
+                  }
+          modify @(Map ConvId StoredConversation) (Map.adjust ownedBy convId)
+          put $ npUpdate @MeetingsConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def) def
+
+    it "rejects invitation-sending invited-email changes on a meeting whose owning team has meetings disabled" $
+      hiddenMeetingInviteeChanges disableOwnerTeam
+
+    it "rejects update and link refresh, but not delete, of a meeting whose owning team has meetings disabled" $ do
+      result <- runTestStack now0 gen0 Map.empty def $ do
+        plantHost uid1 (Just hostEmail) hostLocale
+        meeting <- createMeeting zUser1 (Just testConnId) Nothing (mkNewMeeting API.Scheduled [addrA])
+        let mid = meeting.meeting.id
+            convId = qUnqualified meeting.meeting.conversationId
+        codeBefore <- meetingCode (qUnqualified mid)
+        disableOwnerTeam convId
+        rpcsBefore <- length <$> sentRpcs
+        eventsBefore <- length . extractMeetingEvents <$> gets @[Push] id
+        updated <- updateMeeting zUser1 (Just testConnId) Nothing mid (titleUpdate (unsafeRange "Renamed"))
+        refreshed <- refreshMeetingLink zUser1 (Just testConnId) Nothing mid (API.RefreshMeetingLinkRequest Nothing)
+        rpcsAfter <- length <$> sentRpcs
+        eventsAfter <- length . extractMeetingEvents <$> gets @[Push] id
+        titleAfter <- fmap (.title) <$> gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified mid))
+        codeAfter <- meetingCode (qUnqualified mid)
+        -- Positive control: once the owning team re-enables meetings, the
+        -- same update and refresh go through, so the owning team is what
+        -- blocked them.
+        put $ npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        updatedWhileEnabled <- updateMeeting zUser1 (Just testConnId) Nothing mid (titleUpdate (unsafeRange "Renamed"))
+        refreshedWhileEnabled <- refreshMeetingLink zUser1 (Just testConnId) Nothing mid (API.RefreshMeetingLinkRequest Nothing)
+        rpcsWhileEnabled <- length <$> sentRpcs
+        -- Delete is not gated: the creator can still remove a hidden meeting.
+        disableOwnerTeam convId
+        deleted <- deleteMeeting zUser1 (Just testConnId) Nothing mid
+        pure
+          ( (updated, refreshed),
+            (rpcsAfter - rpcsBefore, eventsAfter - eventsBefore),
+            (titleAfter, meeting.meeting.title),
+            (codeBefore, codeAfter),
+            (isJust updatedWhileEnabled, isJust refreshedWhileEnabled, rpcsWhileEnabled - rpcsAfter),
+            deleted
+          )
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right ((updated, refreshed), sideEffects, (titleAfter, originalTitle), (codeBefore, codeAfter), whileEnabled, deleted) -> do
+          (.meeting.id) <$> updated `shouldBe` Nothing
+          (.meeting.id) <$> refreshed `shouldBe` Nothing
+          -- No email RPC and no meeting event.
+          sideEffects `shouldBe` (0, 0)
+          -- No row write, no link rotation.
+          titleAfter `shouldBe` Just originalTitle
+          codeAfter `shouldBe` codeBefore
+          -- Both succeed once enabled, sending an update and a "Join link
+          -- changed" email (so the zero-RPC check above can fail).
+          whileEnabled `shouldBe` (True, True, 2)
+          deleted `shouldBe` True
 
 -- | Plant a brig user record for the meeting creator in the mock brig state.
 plantHost :: UserId -> Maybe EmailAddress -> Locale -> Sem TestStack ()

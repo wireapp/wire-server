@@ -516,7 +516,7 @@ updateMeetingImpl zUser mConn caller meetingId update validityPeriod pastEditPer
     -- conversation (404) nor a 'LinkUnavailable' at render time can follow
     -- the row update and the notification. The conversation id never changes
     -- on update.
-    conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
+    conv <- getVisibleMeetingConversation meetingId meeting
     base <- lift $ codeURIBase (tDomain zUser)
     mCode <- lift $ CodeStore.getMeetingCode (qUnqualified meetingId)
     when (isNothing base || isNothing mCode) $ lift $ throw LinkUnavailable
@@ -726,7 +726,7 @@ refreshMeetingLinkImpl zUser mConn caller meetingId req validityPeriod emailsEna
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
     lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
-    conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
+    conv <- getVisibleMeetingConversation meetingId meeting
     mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
     -- Rotation + guest-code revocation are one CodeStore op (see
     -- 'CodeStore.RotateMeetingCode' for why they must not be split). The fresh
@@ -978,6 +978,33 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "conversationId" (toByteString' convId)
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
+
+-- | Resolve the conversation of a meeting the creator mutates, applying the
+-- same visibility rule as get/list/join ('ownerMeetingsEnabled'): fails
+-- (404) when the conversation is missing (logged by
+-- 'getMeetingConversationOrFail') or the meeting's owning team has meetings
+-- disabled. Call it before any write, event or email. Used by update,
+-- link refresh and adding/replacing invited emails.
+--
+-- Deliberately not used by removing invited emails (it only drops
+-- addresses) nor by delete, so the creator stays able to tear down a meeting
+-- hidden by its owning team. Delete still notifies conversation members
+-- (meeting.delete) and sends cancellation emails to invitees, which is the
+-- wanted outcome for a cancelled meeting. The owning-team part only matters
+-- when the creator's current team differs from the meeting conversation's
+-- team: otherwise 'checkMeetingsEnabled' on the caller's team rejects first.
+getVisibleMeetingConversation ::
+  ( Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member TinyLog r
+  ) =>
+  Qualified MeetingId ->
+  Store.StoredMeeting ->
+  MaybeT (Sem r) StoredConversation
+getVisibleMeetingConversation meetingId meeting = do
+  conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
+  guard =<< lift (teamMeetingsEnabled conv.metadata.cnvmTeam)
+  pure conv
 
 -- | Pure meeting-record construction given the already-produced join link
 -- and the live code's password flag.
@@ -1345,24 +1372,6 @@ getAllMemberMeetings zUser cutoff = do
     isMeetingConv :: StoredConversation -> Bool
     isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
 
--- | Visibility gate for invited-email changes that send invitations: same
--- rule as get/list/join ('ownerMeetingsEnabled'), applied before any write or
--- email. A missing conversation (orphaned meeting) is logged, like the other
--- mutation paths. Removing invited emails is deliberately not gated: it
--- sends nothing, and the creator must stay able to drop invitees' addresses
--- from a meeting hidden this way.
-guardInviteeEmailMutation ::
-  ( Member ConversationSubsystem r,
-    Member FeaturesConfigSubsystem r,
-    Member TinyLog r
-  ) =>
-  Qualified MeetingId ->
-  Store.StoredMeeting ->
-  MaybeT (Sem r) ()
-guardInviteeEmailMutation meetingId meeting = do
-  conv <- MaybeT $ getMeetingConversationOrFail meetingId meeting.conversationId
-  guard . not . null =<< lift (keepOwnerEnabled [conv] [meeting])
-
 addInvitedEmailsImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
@@ -1400,7 +1409,7 @@ addInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPeriod 
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
-      guardInviteeEmailMutation meetingId storedMeeting
+      void $ getVisibleMeetingConversation meetingId storedMeeting
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
       -- The store unions into 'invited_emails', so only addresses not
       -- already invited get an invitation: re-adding an address is a
@@ -1478,7 +1487,7 @@ replaceInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPer
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
-      guardInviteeEmailMutation meetingId storedMeeting
+      void $ getVisibleMeetingConversation meetingId storedMeeting
       lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
       -- Only newly-added addresses get an invitation; removed addresses get
       -- no email (removal emails are a separate ticket, WPB-27179).
