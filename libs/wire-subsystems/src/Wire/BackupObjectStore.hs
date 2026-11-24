@@ -30,9 +30,8 @@ import Wire.API.Backup
 data PutObjectError
   = -- | The body was shorter than announced.
     PutIncompleteBody
-  | -- | The upload took longer than allowed.
-    PutTimedOut
-  | PutFailed
+  | -- | Any other failure (also a timeout), logged by the interpreter.
+    PutFailed
   deriving (Eq, Show)
 
 data BackupObjectStore m a where

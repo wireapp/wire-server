@@ -241,7 +241,6 @@ storeUpload uid cid epoch len body = do
   pure fid
   where
     putError PutIncompleteBody = BackupErrorIncompleteBody
-    putError PutTimedOut = BackupErrorUploadFailed
     putError PutFailed = BackupErrorUploadFailed
 
 reservationGone :: (Member TinyLog r, Member (Error BackupError) r) => BackupFileId -> Sem r a

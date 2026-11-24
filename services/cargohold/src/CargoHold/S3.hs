@@ -26,6 +26,7 @@ module CargoHold.S3
     getAmzAuditLogMetadata,
     uploadV3,
     streamUploadObject,
+    StreamUploadError (..),
     downloadV3,
     getMetadataV3,
     updateMetadataV3,
@@ -57,6 +58,7 @@ import qualified Codec.MIME.Type as MIME
 import Conduit
 import Control.Error (throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
+import qualified Control.Monad.Catch as Catch
 import qualified Data.Aeson as A
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
@@ -81,14 +83,12 @@ import qualified Data.UUID as UUID
 import Imports
 import qualified Network.HTTP.Types.URI as HTTPURI
 import qualified Network.Wai.Utilities.Error as Wai
-import qualified System.Logger as Logger
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
-import UnliftIO.Exception (onException, tryAny)
+import UnliftIO.Exception (tryAny)
 import Wire.API.Asset (AssetMIMEType)
-import Wire.BackupObjectStore (PutObjectError (..))
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
@@ -156,11 +156,17 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src
           & createMultipartUpload_contentType ?~ MIME.showType ct
           & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
 
-  result <- liftIO $ streamUploadObject awsEnv createReq (fromIntegral cl) src
+  -- also catches asynchronous exceptions (e.g. the thread being killed)
+  result <-
+    liftIO $
+      Catch.catch (streamUploadObject awsEnv createReq (fromIntegral cl) src) $
+        \(e :: SomeException) ->
+          pure . Left . StreamUploadFailed $
+            "Unhandled error while uploading asset: " <> Text.pack (show e)
 
   case result of
-    Left (PutIncompleteBody, _) -> throwE incompleteBody
-    Left (_, details) -> do
+    Left StreamIncompleteBody -> throwE incompleteBody
+    Left (StreamUploadFailed details) -> do
       Log.err $
         "remote" .= val "S3"
           ~~ "asset.owner" .= toByteString prc
@@ -173,20 +179,26 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src
   where
     ct = octets -- see note “overrideMimeTypeAsOctetStream”
 
+data StreamUploadError
+  = -- | The body was shorter than announced.
+    StreamIncompleteBody
+  | -- | Any other failure, with details meant for logging only.
+    StreamUploadFailed Text
+  deriving (Eq, Show)
+
 -- | Stream a body of announced size @len@ into a new S3 object (multipart upload).
 --
--- A body shorter than @len@ is reported as 'PutIncompleteBody' (the object was completed
--- nonetheless and is left to the caller to clean up). The 'Text' of a failure is meant for
--- logging only. Unfinished multipart uploads are aborted on every failure, so that no parts
--- are left behind that are invisible to object deletion.
+-- A body shorter than @len@ is reported as 'StreamIncompleteBody' (the object was completed
+-- nonetheless and is left to the caller to clean up).
 --
--- Async exceptions (e.g. a timeout) are not swallowed.
+-- Async exceptions (e.g. a timeout) are not swallowed. Then the multipart upload is not
+-- aborted.
 streamUploadObject ::
   AWS.Env ->
   CreateMultipartUpload ->
   Word64 ->
   ConduitM () ByteString (ResourceT IO) () ->
-  IO (Either (PutObjectError, Text) ())
+  IO (Either StreamUploadError ())
 streamUploadObject awsEnv createReq len src = do
   cntRef <- newIORef (0 :: Int)
 
@@ -196,55 +208,25 @@ streamUploadObject awsEnv createReq len src = do
         yield bs
 
   result <-
-    ( tryAny . runResourceT . runConduit $
-        src
-          .| chunksOfCE (fromIntegral defaultChunkSize)
-          .| isolate (fromIntegral len)
-          .| countC
-          .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
-    )
-      `onException` abortLeftovers
+    tryAny . runResourceT . runConduit $
+      src
+        .| chunksOfCE (fromIntegral defaultChunkSize)
+        .| isolate (fromIntegral len)
+        .| countC
+        .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
 
   case result of
-    Left e -> do
-      abortLeftovers
-      pure (Left (PutFailed, "Unhandled error while uploading asset: " <> Text.pack (show e)))
+    Left e ->
+      pure . Left . StreamUploadFailed $
+        "Unhandled error while uploading asset: " <> Text.pack (show e)
     Right uploadResult -> do
       bytesSeen <- readIORef cntRef
       case uploadResult of
-        _ | bytesSeen /= fromIntegral len -> pure (Left (PutIncompleteBody, ""))
+        _ | bytesSeen /= fromIntegral len -> pure (Left StreamIncompleteBody)
         Right (_ :: CompleteMultipartUploadResponse) -> pure (Right ())
         Left ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) ->
-          pure . Left . (PutFailed,) $
+          pure . Left . StreamUploadFailed $
             "Multipart upload failed – aborted: " <> Text.pack (show (abortResponse, exception))
-  where
-    bucket = createReq ^. createMultipartUpload_bucket
-    key = createReq ^. createMultipartUpload_key
-
-    -- Best effort. The uploads of this key are only ours, as keys are unique per upload.
-    abortLeftovers :: IO ()
-    abortLeftovers =
-      tryAny abortLeftoversUnsafe >>= \case
-        Left e ->
-          Logger.err awsEnv.logger $
-            msg
-              ( "Aborting leftover multipart uploads failed (parts may leak; needs "
-                  <> "s3:ListBucketMultipartUploads and s3:AbortMultipartUpload): "
-                  <> show e
-              )
-        Right () -> pure ()
-
-    abortLeftoversUnsafe :: IO ()
-    abortLeftoversUnsafe = do
-      let env = awsEnv.amazonkaEnv
-      listed <-
-        runResourceT . send env $
-          newListMultipartUploads bucket & listMultipartUploads_prefix ?~ (\(ObjectKey k) -> k) key
-      for_ (fromMaybe [] (listed ^. listMultipartUploadsResponse_uploads)) $ \u ->
-        for_ (u ^. multipartUpload_uploadId) $ \uploadId ->
-          when (u ^. multipartUpload_key == Just key) $
-            runResourceT . void . send env $
-              newAbortMultipartUpload bucket key uploadId
 
 -- | Turn a 'ResourceT IO' action into a pure @Conduit@.
 --

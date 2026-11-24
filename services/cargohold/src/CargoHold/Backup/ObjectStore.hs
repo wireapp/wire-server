@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module CargoHold.Backup.ObjectStore (interpretBackupObjectStoreS3, deleteBackupObjects) where
+module CargoHold.Backup.ObjectStore (interpretBackupObjectStoreS3) where
 
 import qualified Amazonka
 import Amazonka.S3
@@ -39,6 +39,7 @@ import Amazonka.S3.Lens
     delete_quiet,
     getBucketVersioningResponse_status,
     listObjectVersionsResponse_deleteMarkers,
+    listObjectVersionsResponse_isTruncated,
     listObjectVersionsResponse_versions,
     listObjectVersions_prefix,
     objectIdentifier_versionId,
@@ -50,7 +51,7 @@ import Amazonka.S3.Lens
 import CargoHold.API.Error (serverError)
 import qualified CargoHold.AWS as AWS
 import CargoHold.Backup.Deletion
-import CargoHold.S3 (presignGetObject, selectAwsEnv, streamUploadObject)
+import CargoHold.S3 (StreamUploadError (..), presignGetObject, selectAwsEnv, streamUploadObject)
 import Conduit (fuseBoth, runConduit, runResourceT, sinkList)
 import Control.Lens ((.~), (?~), (^.))
 import Data.Domain (Domain, domainText)
@@ -73,8 +74,16 @@ import UnliftIO.Exception (tryAny)
 import Wire.API.Backup (BackupFileId (..))
 import Wire.BackupObjectStore
 
--- | The upload is cancelled after the given time. Unfinished multipart uploads are
--- aborted by 'streamUploadObject'.
+-- | The upload is cancelled after the given time.
+--
+-- TODO: Stale multipart uploads. On a timeout (an async exception) the S3 multipart upload
+-- is not aborted ('streamUploadObject' only aborts on synchronous errors), like for assets
+-- ('CargoHold.S3.uploadV3'). The same happens when cargohold dies during an upload. The
+-- already uploaded parts stay in S3 (invisible, but stored and billed). Deleting the key
+-- ('DeleteObjects') does not remove them. Currently, we rely on operators configuring an
+-- @AbortIncompleteMultipartUpload@ lifecycle rule (see release notes). Reconsider this
+-- choice: abort in code (needs the UploadId, which 'SU.streamUpload' hides), or a cleanup
+-- via @ListMultipartUploads@ in the cleanup job.
 interpretBackupObjectStoreS3 ::
   ( Member (Embed IO) r,
     Member TinyLog r,
@@ -94,11 +103,11 @@ interpretBackupObjectStoreS3 env multiIngress uploadTimeout downloadLinkTTL = in
     embed (timeout micros (streamUploadObject env createReq len body)) >>= \case
       Nothing -> do
         Log.err $ Log.msg (Log.val "Backup upload timed out") . Log.field "file" (backupKey fid)
-        pure (Left PutTimedOut)
-      Just (Left (PutIncompleteBody, _)) -> pure (Left PutIncompleteBody)
-      Just (Left (err, details)) -> do
+        pure (Left PutFailed)
+      Just (Left StreamIncompleteBody) -> pure (Left PutIncompleteBody)
+      Just (Left (StreamUploadFailed details)) -> do
         Log.err $ Log.msg details
-        pure (Left err)
+        pure (Left PutFailed)
       Just (Right ()) -> pure (Right ())
   DeleteObjects ids -> embed (deleteBackupObjects env ids)
   PresignGet host fid -> do
@@ -128,13 +137,11 @@ deleteBackupObjects env ids = do
     VersioningMaybeOn -> do
       noListing <- newIORef False
       Map.fromList
-        <$> pooledMapConcurrentlyN listingParallelism (\i -> (i,) <$> listFile env noListing i) ids
+        <$> pooledMapConcurrentlyN s3Parallelism (\i -> (i,) <$> listFile env noListing i) ids
   let plan = planDeletion ids versioning listings
-  failed <- Set.unions <$> traverse (deleteBatch env) (deleteBatches plan)
-  -- An error for a key fails every target of that key, also in other batches.
-  let failedKeys = Set.map (.key) failed
-      allFailed = Set.fromList [t | ts <- Map.elems plan.targets, t <- ts, t.key `Set.member` failedKeys]
-  pure (goneIds plan allFailed)
+  failed <-
+    Set.unions <$> pooledMapConcurrentlyN s3Parallelism (deleteBatch env) (deleteBatches plan)
+  pure (goneIds plan failed)
 
 -- | An error (also an exception) means unknown: 'VersioningMaybeOn'.
 getVersioning :: AWS.Env -> IO Versioning
@@ -153,9 +160,9 @@ getVersioning env = do
           . field "details" details
       pure VersioningMaybeOn
 
--- | How many files are listed concurrently.
-listingParallelism :: Int
-listingParallelism = 8
+-- | How many S3 requests (listings of files, deletions of batches) run concurrently.
+s3Parallelism :: Int
+s3Parallelism = 8
 
 -- | All versions and delete markers with the prefix of the file ('planDeletion' keeps the exact
 -- key). If the store does not implement listing, the plain key is the only target and the
@@ -173,18 +180,31 @@ listFile env noListing fid = do
           source = Amazonka.paginateEither env.amazonkaEnv req
       tryAny (runResourceT (runConduit (fuseBoth source sinkList))) >>= \case
         Left e -> failed "exception" (show e)
-        Right (Left (Amazonka.ServiceError se), _)
-          | classifyListError
-              (statusCode (se ^. Amazonka.serviceError_status))
-              (errorCodeText (se ^. Amazonka.serviceError_code))
-              == ListNotImplemented -> do
+        Right (Left e, _)
+          | classifyError e == ListNotImplemented -> do
               writeIORef noListing True
               Logger.warn env.logger $
                 msg (val "Store does not support listing object versions, deleting plain keys")
               pure plainKey
-        Right (Left e, _) -> failed "error" (show e)
-        Right (Right (), pages) -> pure (Listed (concatMap pageTargets pages))
+          | otherwise -> failed "error" (show e)
+        Right (Right (), pages)
+          -- the pager stops silently if the continuation markers are missing
+          | (listToMaybe (reverse pages) >>= (^. listObjectVersionsResponse_isTruncated)) == Just True ->
+              failed "truncated" "last page is truncated"
+          | any (isNothing . (.versionId)) exact -> failed "no version id" "entry without version id"
+          | otherwise -> pure (Listed targets)
+          where
+            targets = concatMap pageTargets pages
+            exact = filter ((== backupKey fid) . (.key)) targets
   where
+    -- a non-AWS answer (e.g. a proxy's plain 501) is a SerializeError: classify by status only
+    classifyError (Amazonka.ServiceError se) =
+      classifyListError
+        (statusCode (se ^. Amazonka.serviceError_status))
+        (errorCodeText (se ^. Amazonka.serviceError_code))
+    classifyError (Amazonka.SerializeError se) =
+      classifyListError (statusCode (se ^. Amazonka.serializeError_status)) ""
+    classifyError _ = ListOtherError
     pageTargets page =
       [ ObjectTarget k (fromVersion <$> (v ^. objectVersion_versionId))
       | v <- fromMaybe [] (page ^. listObjectVersionsResponse_versions),

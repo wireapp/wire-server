@@ -92,7 +92,12 @@ tests =
       testCase "classifyNotImplemented" $ do
         classifyListError 501 "" @?= ListNotImplemented
         classifyListError 400 "NotImplemented" @?= ListNotImplemented
-        classifyListError 403 "AccessDenied" @?= ListOtherError,
+        classifyListError 403 "AccessDenied" @?= ListOtherError
+        classifyListError 502 "" @?= ListOtherError,
+      testCase "id missing from listings is unlisted and not gone" $ do
+        let plan = planDeletion [a] VersioningMaybeOn mempty
+        plan.unlisted @?= Set.singleton a
+        goneIds plan Set.empty @?= [],
       QC.testProperty "versionedBatchesBounded" $
         QC.forAll (QC.choose (0, 2500)) propVersionedBatchesBounded
     ]
