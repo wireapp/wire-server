@@ -422,12 +422,16 @@ updateSSOIdImpl u ssoid = do
   mteamid <- getUserTeamImpl u
   case mteamid of
     Just _ -> do
-      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      let update = if maybe False isUserSSOId ssoid then userSAMLIdUpdate else userSSOIdUpdate
+      retry x5 $ write update (params LocalQuorum (ssoid, u))
       pure True
     Nothing -> pure False
   where
     userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
     userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+    -- Remove the local credential atomically with assigning SAML, but preserve SCIM-only passwords.
+    userSAMLIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
+    userSAMLIdUpdate = "UPDATE user SET sso_id = ?, password = null WHERE id = ?"
 
 updateManagedByImpl :: UserId -> ManagedBy -> Client ()
 updateManagedByImpl u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))

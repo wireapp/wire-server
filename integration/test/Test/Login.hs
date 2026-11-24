@@ -225,7 +225,8 @@ testLoginSamlRejectsPasswordEvenWithEmailVerificationCode = do
 
 testLoginSamlAssignmentRemovesPasswordHash :: (HasCallStack) => App ()
 testLoginSamlAssignmentRemovesPasswordHash = do
-  -- TODO: make this a unit test in /libs/wire-subsystems/
+  -- Verify physical hash removal in both stores; a mock-based unit test
+  -- cannot detect a database implementation retaining the credential.
   pool <- asks (.resourcePool)
   for_ ["cassandra", "postgresql"] $ \storage ->
     runCodensity (acquireResources 1 pool) $ \[backend] -> do
