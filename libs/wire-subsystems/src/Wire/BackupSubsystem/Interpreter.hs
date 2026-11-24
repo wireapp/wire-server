@@ -71,6 +71,15 @@ interpretBackupSubsystem = interpret $ \case
     found <- lookupFull uid cid epoch fid
     unless found $ throw BackupErrorNotFound
     presignGet host fid
+  UploadIncremental caller zClient cid epoch full len body ->
+    uploadIncrementalImpl (tUnqualified caller) zClient cid epoch full len body
+  DownloadIncremental caller zClient host cid epoch full fid -> do
+    let uid = tUnqualified caller
+    ensureClientExists uid zClient
+    ensureEnabled uid
+    found <- lookupIncremental uid cid epoch full fid
+    unless found $ throw BackupErrorNotFound
+    presignGet host fid
 
 uploadFullImpl ::
   ( Member BackupStore r,
@@ -100,6 +109,70 @@ uploadFullImpl uid zClient cid epoch len body = do
   -- cheap, non-authoritative pre-check; 'commitFull' checks again under the lock
   maxEpoch <- lookupMaxEpoch uid cid
   unless (epochAccepted maxEpoch epoch) $ throw BackupErrorEpochInvalid
+  fid <- storeUpload uid cid epoch len body
+  commitFull uid cid epoch fid len >>= \case
+    Left CommitEpochInvalid -> throw BackupErrorEpochInvalid
+    Left CommitReservationGone -> reservationGone fid
+    Right file -> pure file
+
+uploadIncrementalImpl ::
+  ( Member BackupStore r,
+    Member BackupObjectStore r,
+    Member BrigAPIAccess r,
+    Member GalleyAPIAccess r,
+    Member Now r,
+    Member Random r,
+    Member TinyLog r,
+    Member (Input BackupConfig) r,
+    Member (Error BackupError) r
+  ) =>
+  UserId ->
+  ClientId ->
+  ClientId ->
+  BackupEpoch ->
+  BackupFileId ->
+  Word64 ->
+  ConduitT () ByteString (ResourceT IO) () ->
+  Sem r BackupFile
+uploadIncrementalImpl uid zClient cid epoch full len body = do
+  config <- input
+  when (zClient /= cid) $ throw BackupErrorForbidden
+  ensureClientExists uid zClient
+  ensureEnabled uid
+  when (len == 0) $ throw BackupErrorInvalidLength
+  when (len > config.maxIncrementalBytes) $ throw BackupErrorTooLarge
+  -- cheap, non-authoritative pre-checks; 'commitIncremental' checks again under the lock
+  isCurrentFull <- lookupFull uid cid epoch full
+  unless isCurrentFull $ throw BackupErrorFullMissing
+  countEpochFiles uid cid epoch >>= \case
+    Just n | n >= config.maxFilesPerEpoch -> throw BackupErrorEpochFull
+    _ -> pure ()
+  fid <- storeUpload uid cid epoch len body
+  commitIncremental config.maxFilesPerEpoch uid cid epoch full fid len >>= \case
+    Left CommitFullMissing -> throw BackupErrorFullMissing
+    Left CommitEpochFull -> throw BackupErrorEpochFull
+    Left CommitIncrementalReservationGone -> reservationGone fid
+    Right file -> pure file
+
+-- | Reserves a new file, uploads the body to it and checks the upload deadline. The file is
+-- not part of an epoch yet.
+storeUpload ::
+  ( Member BackupStore r,
+    Member BackupObjectStore r,
+    Member Now r,
+    Member Random r,
+    Member TinyLog r,
+    Member (Input BackupConfig) r,
+    Member (Error BackupError) r
+  ) =>
+  UserId ->
+  ClientId ->
+  BackupEpoch ->
+  Word64 ->
+  ConduitT () ByteString (ResourceT IO) () ->
+  Sem r BackupFileId
+storeUpload uid cid epoch len body = do
+  config <- input
   start <- Now.get
   fid <- BackupFileId <$> Random.uuid
   reserveUpload uid cid epoch fid
@@ -109,16 +182,16 @@ uploadFullImpl uid zClient cid epoch len body = do
   when (end > addUTCTime config.uploadTimeout start) $ do
     Log.err $ Log.msg (Log.val "Backup upload exceeded the upload timeout, not committing") . Log.field "file" (show fid)
     throw BackupErrorUploadFailed
-  commitFull uid cid epoch fid len >>= \case
-    Left CommitEpochInvalid -> throw BackupErrorEpochInvalid
-    Left CommitReservationGone -> do
-      Log.err $ Log.msg (Log.val "Backup upload reservation vanished before commit") . Log.field "file" (show fid)
-      throw BackupErrorUploadFailed
-    Right file -> pure file
+  pure fid
   where
     putError PutIncompleteBody = BackupErrorIncompleteBody
     putError PutTimedOut = BackupErrorUploadFailed
     putError PutFailed = BackupErrorUploadFailed
+
+reservationGone :: (Member TinyLog r, Member (Error BackupError) r) => BackupFileId -> Sem r a
+reservationGone fid = do
+  Log.err $ Log.msg (Log.val "Backup upload reservation vanished before commit") . Log.field "file" (show fid)
+  throw BackupErrorUploadFailed
 
 -- | The calling client must still exist.
 ensureClientExists ::

@@ -91,6 +91,47 @@ downloadBackupFull user zClientId clientId epoch fullId = do
       $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full", fullId]
   submit "GET" $ req & zUser uid & zClient zClientId & noRedirect
 
+-- | Upload an incremental. Arguments: caller, Z-Client, client in the path, epoch, full id, body.
+uploadBackupIncremental ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Int ->
+  String ->
+  ByteString ->
+  App Response
+uploadBackupIncremental user zClientId clientId epoch fullId bytes = do
+  uid <- user & objId
+  req <-
+    rawBaseRequest user Cargohold Versioned
+      $ joinHttpPath
+        ["backups", "clients", clientId, "epochs", show epoch, "full", fullId, "incremental"]
+  submit "POST"
+    $ req
+    & zUser uid
+    & zClient zClientId
+    & addBody (HTTP.RequestBodyBS bytes) "application/octet-stream"
+
+-- | Arguments: caller, Z-Client, client in the path, epoch, full id, incremental id. Does not
+-- follow the redirect.
+downloadBackupIncremental ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Int ->
+  String ->
+  String ->
+  App Response
+downloadBackupIncremental user zClientId clientId epoch fullId incId = do
+  uid <- user & objId
+  req <-
+    rawBaseRequest user Cargohold Versioned
+      $ joinHttpPath
+        ["backups", "clients", clientId, "epochs", show epoch, "full", fullId, "incremental", incId]
+  submit "GET" $ req & zUser uid & zClient zClientId & noRedirect
+
 -- UPLOAD
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> String -> App Response

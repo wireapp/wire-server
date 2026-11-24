@@ -407,6 +407,41 @@ type BackupAPI =
                         :> MultiVerb 'GET '[JSON] '[BackupRedirect] (AssetLocation Absolute)
                     )
            )
+    :<|> Named
+           "backup-upload-incremental"
+           ( Summary "Upload an incremental backup file under the current full of an epoch"
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupDisabled
+               :> CanThrow 'BackupFullMissing
+               :> CanThrow 'BackupEpochFull
+               :> CanThrow 'BackupTooLarge
+               :> CanThrow 'InvalidLength
+               :> CanThrow 'IncompleteBody
+               :> BackupEpochPath
+                    ( "full"
+                        :> Capture "fullId" BackupFileId
+                        :> "incremental"
+                        :> Header' '[Required, Strict] "Content-Length" Word64
+                        :> BackupBody
+                        :> Post '[JSON] BackupFile
+                    )
+           )
+    :<|> Named
+           "backup-download-incremental"
+           ( Summary "Download an incremental backup file via a presigned redirect"
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupDisabled
+               :> CanThrow 'BackupNotFound
+               :> CanThrow 'NoMatchingAssetEndpoint
+               :> BackupEpochPath
+                    ( "full"
+                        :> Capture "fullId" BackupFileId
+                        :> "incremental"
+                        :> Capture "incrementalId" BackupFileId
+                        :> ZHostOpt
+                        :> MultiVerb 'GET '[JSON] '[BackupRedirect] (AssetLocation Absolute)
+                    )
+           )
 
 data CargoholdAPITag
 

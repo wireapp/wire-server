@@ -35,6 +35,8 @@ data CargoholdError
   | BackupEpochInvalid
   | BackupTooLarge
   | BackupNotFound
+  | BackupFullMissing
+  | BackupEpochFull
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -67,3 +69,7 @@ type instance MapError 'BackupEpochInvalid = 'StaticError 409 "backup-epoch-inva
 type instance MapError 'BackupTooLarge = 'StaticError 413 "backup-too-large" "Backup file too large"
 
 type instance MapError 'BackupNotFound = 'StaticError 404 "backup-not-found" "Backup not found"
+
+type instance MapError 'BackupFullMissing = 'StaticError 409 "backup-full-missing" "Backup full not found or replaced"
+
+type instance MapError 'BackupEpochFull = 'StaticError 409 "backup-epoch-full" "Backup epoch has too many files"

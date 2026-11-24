@@ -34,6 +34,10 @@ import Wire.API.Backup
 data BackupConfig = BackupConfig
   { -- | Maximal size of a full backup file in bytes.
     maxFullBytes :: Word64,
+    -- | Maximal size of an incremental backup file in bytes.
+    maxIncrementalBytes :: Word64,
+    -- | Maximal number of files of an epoch, counting the full.
+    maxFilesPerEpoch :: Word32,
     -- | Maximal duration of an upload.
     uploadTimeout :: NominalDiffTime
   }
@@ -44,7 +48,14 @@ instance FromJSON BackupConfig where
   parseJSON = withObject "BackupConfig" $ \o ->
     BackupConfig
       <$> o .: "maxFullBytes"
+      <*> o .: "maxIncrementalBytes"
+      <*> (o .: "maxFilesPerEpoch" >>= atLeastOne)
       <*> (fromInteger <$> o .: "uploadTimeout")
+    where
+      -- the full counts as a file of its epoch
+      atLeastOne n
+        | n < 1 = fail "maxFilesPerEpoch must be at least 1"
+        | otherwise = pure n
 
 data BackupError
   = BackupErrorForbidden
@@ -55,6 +66,8 @@ data BackupError
   | BackupErrorInvalidLength
   | BackupErrorIncompleteBody
   | BackupErrorUploadFailed
+  | BackupErrorFullMissing
+  | BackupErrorEpochFull
   deriving (Eq, Show)
 
 data BackupSubsystem m a where
@@ -78,6 +91,28 @@ data BackupSubsystem m a where
     Maybe Domain ->
     ClientId ->
     BackupEpoch ->
+    BackupFileId ->
+    BackupSubsystem m URI
+  -- | Arguments: caller, calling client (Z-Client), client of the path, epoch, full,
+  -- Content-Length and body.
+  UploadIncremental ::
+    Local UserId ->
+    ClientId ->
+    ClientId ->
+    BackupEpoch ->
+    BackupFileId ->
+    Word64 ->
+    ConduitT () ByteString (ResourceT IO) () ->
+    BackupSubsystem m BackupFile
+  -- | Arguments: caller, calling client (Z-Client), Z-Host, client of the path, epoch, full,
+  -- incremental. Returns a presigned download URL.
+  DownloadIncremental ::
+    Local UserId ->
+    ClientId ->
+    Maybe Domain ->
+    ClientId ->
+    BackupEpoch ->
+    BackupFileId ->
     BackupFileId ->
     BackupSubsystem m URI
 

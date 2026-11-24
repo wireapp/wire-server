@@ -1570,6 +1570,8 @@ PostgreSQL. Make sure that no lifecycle rules (e.g. TTL) apply to this prefix.
   database of brig and galley, but does not run migrations (brig's `migrate-postgres` does).
 - `galley` (endpoint): used to check the team feature `automaticBackups`.
 - `backups.maxFullBytes` (integer, bytes): maximum size of a full backup file.
+- `backups.maxIncrementalBytes` (integer, bytes): maximum size of an incremental backup file.
+- `backups.maxFilesPerEpoch` (integer, at least 1): maximum number of files of an epoch, including its full.
 - `backups.uploadTimeout` (integer, seconds): maximum duration of a backup upload.
 
 ## Settings in cannon

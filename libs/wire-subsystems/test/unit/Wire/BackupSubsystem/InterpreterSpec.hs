@@ -23,6 +23,7 @@ import Data.ByteString.Char8 qualified as BS
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
@@ -99,7 +100,13 @@ caller :: Local UserId
 caller = toLocalUnsafe (Domain "example.com") testUser
 
 testConfig :: BackupConfig
-testConfig = BackupConfig {maxFullBytes = 100, uploadTimeout = 60}
+testConfig =
+  BackupConfig
+    { maxFullBytes = 100,
+      maxIncrementalBytes = 10,
+      maxFilesPerEpoch = 3,
+      uploadTimeout = 60
+    }
 
 -- | Runs the action; an error that escapes it fails the test.
 runBackup ::
@@ -171,6 +178,53 @@ download ::
   Sem r (Either BackupError URI)
 download uid cid epoch fid =
   try (downloadFull (toLocalUnsafe (Domain "example.com") uid) clientA Nothing cid (BackupEpoch epoch) fid)
+
+uploadInc ::
+  (Upload r) =>
+  ClientId ->
+  ClientId ->
+  Word32 ->
+  BackupFileId ->
+  ByteString ->
+  Sem r (Either BackupError BackupFile)
+uploadInc zClient cid epoch full bytes =
+  try
+    ( uploadIncremental
+        caller
+        zClient
+        cid
+        (BackupEpoch epoch)
+        full
+        (fromIntegral (BS.length bytes))
+        (body bytes)
+    )
+
+-- | Upload an incremental of epoch 1 under the given full as client A.
+uploadIncA :: (Upload r) => BackupFileId -> ByteString -> Sem r (Either BackupError BackupFile)
+uploadIncA = uploadInc clientA clientA 1
+
+-- | Fails the test on 'Left'.
+orFail :: (Show e) => Either e a -> Sem r a
+orFail = either (error . ("unexpected error: " <>) . show) pure
+
+downloadInc ::
+  (Upload r) =>
+  UserId ->
+  Word32 ->
+  BackupFileId ->
+  BackupFileId ->
+  Sem r (Either BackupError URI)
+downloadInc uid epoch full inc =
+  try
+    ( downloadIncremental
+        (toLocalUnsafe (Domain "example.com") uid)
+        clientA
+        Nothing
+        clientA
+        (BackupEpoch epoch)
+        full
+        inc
+    )
 
 spec :: Spec
 spec = describe "BackupSubsystem" $ do
@@ -272,3 +326,137 @@ spec = describe "BackupSubsystem" $ do
       pure (up, dl)
     up `shouldSatisfy` isRight
     dl `shouldBe` Left BackupErrorNotFound
+
+  describe "incrementals" $ do
+    it "uploadIncrementalListed" $ do
+      ((files, i1, i2), _, objects) <- runBackup defaultFixture PutSucceeds $ do
+        full <- uploadA 1 >>= orFail
+        passTime 1
+        i1 <- uploadIncA full.id "abc" >>= orFail
+        passTime 1
+        i2 <- uploadIncA full.id "defgh" >>= orFail
+        files <- readEpoch clientA 1 >>= orFail
+        pure (files, i1, i2)
+      map (.id) files.incrementals `shouldBe` [i1.id, i2.id]
+      map (.size) files.incrementals `shouldBe` [3, 5]
+      Map.lookup i1.id objects `shouldBe` Just "abc"
+      Map.lookup i2.id objects `shouldBe` Just "defgh"
+
+    it "incrementalToReplacedFull" $ do
+      ((r, orphansBefore, orphansAfter), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        a <- uploadA 1 >>= orFail
+        _ <- uploadA 1
+        pre <- gets @BackupState (.orphans)
+        r <- uploadIncA a.id "abc"
+        post <- gets @BackupState (.orphans)
+        pure (r, pre, post)
+      r `shouldBe` Left BackupErrorFullMissing
+      -- pre-check: no reservation was made
+      orphansAfter `shouldBe` orphansBefore
+      Map.elems state.orphans `shouldNotContain` [Nothing]
+
+    it "incrementalToStaleEpochFull" $ do
+      (r, _, _) <- runBackup defaultFixture PutSucceeds $ do
+        e1 <- uploadA 1 >>= orFail
+        _ <- uploadA 2
+        _ <- uploadA 3
+        uploadIncA e1.id "abc"
+      r `shouldBe` Left BackupErrorFullMissing
+
+    it "incrementalUnknownFull" $ do
+      (r, _, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- uploadA 1
+        uploadIncA (BackupFileId (UUID.fromWords 1 2 3 4)) "abc"
+      r `shouldBe` Left BackupErrorFullMissing
+
+    it "commitIncrementalAfterReplacement" $ do
+      (r, state, _) <- runBackup defaultFixture PutSucceeds $ do
+        a <- uploadA 1 >>= orFail
+        let inc = BackupFileId (UUID.fromWords 5 6 7 8)
+            b = BackupFileId (UUID.fromWords 9 10 11 12)
+        reserveUpload testUser clientA (BackupEpoch 1) inc
+        reserveUpload testUser clientA (BackupEpoch 1) b
+        _ <- commitFull testUser clientA (BackupEpoch 1) b 5
+        r <- commitIncremental 3 testUser clientA (BackupEpoch 1) a.id inc 3
+        pure (r, inc)
+      fst r `shouldBe` Left CommitFullMissing
+      Map.lookup (snd r) state.orphans `shouldBe` Just Nothing
+      state.incrementals `shouldBe` mempty
+
+    it "maxFilesPerEpochBoundary" $ do
+      ((third, storeLevel), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        full <- uploadA 1 >>= orFail
+        passTime 1
+        _ <- uploadIncA full.id "a" >>= orFail
+        passTime 1
+        _ <- uploadIncA full.id "b" >>= orFail
+        third <- uploadIncA full.id "c"
+        let inc = BackupFileId (UUID.fromWords 5 6 7 8)
+        reserveUpload testUser clientA (BackupEpoch 1) inc
+        storeLevel <- commitIncremental 3 testUser clientA (BackupEpoch 1) full.id inc 1
+        pure (third, (storeLevel, inc))
+      -- full + 2 incrementals are within the limit of 3
+      third `shouldBe` Left BackupErrorEpochFull
+      fst storeLevel `shouldBe` Left CommitEpochFull
+      Map.lookup (snd storeLevel) state.orphans `shouldBe` Just Nothing
+      Map.size state.incrementals `shouldBe` 2
+
+    it "incrementalTooLarge" $ do
+      ((large, ok, empty), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        full <- uploadA 1 >>= orFail
+        large <- uploadIncA full.id (BS.replicate 11 'x')
+        ok <- uploadIncA full.id (BS.replicate 10 'x')
+        empty <- uploadIncA full.id ""
+        pure (large, ok, empty)
+      large `shouldBe` Left BackupErrorTooLarge
+      ok `shouldSatisfy` isRight
+      empty `shouldBe` Left BackupErrorInvalidLength
+
+    it "incrementalForbiddenOtherClient" $ do
+      (r, _, _) <- runBackup defaultFixture PutSucceeds $ do
+        full <- uploadA 1 >>= orFail
+        uploadInc clientA clientB 1 full.id "abc"
+      r `shouldBe` Left BackupErrorForbidden
+
+    it "replaceFullOrphansIncrementals" $ do
+      ((a, i1, i2, files), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        a <- uploadA 1 >>= orFail
+        passTime 1
+        i1 <- uploadIncA a.id "abc" >>= orFail
+        passTime 1
+        i2 <- uploadIncA a.id "def" >>= orFail
+        passTime 1
+        _ <- uploadA 1
+        files <- readEpoch clientA 1 >>= orFail
+        pure (a, i1, i2, files)
+      files.incrementals `shouldBe` []
+      state.incrementals `shouldBe` mempty
+      for_ [a, i1, i2] $ \f ->
+        Map.lookup f.id state.orphans `shouldBe` Just (Just (fromUTCTimeMillis f.createdAt))
+
+    it "staleEpochOrphansIncrementals" $ do
+      ((e1, i1), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        e1 <- uploadA 1 >>= orFail
+        passTime 1
+        i1 <- uploadIncA e1.id "abc" >>= orFail
+        _ <- uploadA 2
+        _ <- uploadA 3
+        pure (e1, i1)
+      state.incrementals `shouldBe` mempty
+      for_ [e1, i1] $ \f ->
+        Map.lookup f.id state.orphans `shouldBe` Just (Just (fromUTCTimeMillis f.createdAt))
+
+    it "downloadIncremental" $ do
+      ((inc, ok, wrongFull, otherUser'), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        e1 <- uploadA 1 >>= orFail
+        inc <- uploadIncA e1.id "abc" >>= orFail
+        e2 <- uploadA 2 >>= orFail
+        ok <- downloadInc testUser 1 e1.id inc.id
+        wrongFull <- downloadInc testUser 1 e2.id inc.id
+        otherUser' <- downloadInc otherUser 1 e1.id inc.id
+        pure (inc, ok, wrongFull, otherUser')
+      url <- either (fail . show) pure ok
+      let BackupFileId incUuid = inc.id
+      BS.unpack (serializeURIRef' url) `shouldSatisfy` isSuffixOf (UUID.toString incUuid)
+      wrongFull `shouldBe` Left BackupErrorNotFound
+      otherUser' `shouldBe` Left BackupErrorNotFound

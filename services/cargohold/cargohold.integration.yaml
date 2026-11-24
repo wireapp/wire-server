@@ -28,6 +28,8 @@ postgresqlPool:
 
 backups:
   maxFullBytes: 1048576
+  maxIncrementalBytes: 65536
+  maxFilesPerEpoch: 3 # counts the full
   uploadTimeout: 2700 # Seconds
 
 aws:

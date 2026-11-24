@@ -21,6 +21,7 @@ module Wire.MockInterpreters.BackupStore where
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
@@ -34,12 +35,14 @@ data BackupState = BackupState
   { -- | Epoch creation time and full of each epoch.
     epochs :: Map (UserId, ClientId, BackupEpoch) (UTCTime, BackupFile),
     -- | Orphans with their @file_created_at@ ('Nothing' for upload reservations).
-    orphans :: Map BackupFileId (Maybe UTCTime)
+    orphans :: Map BackupFileId (Maybe UTCTime),
+    -- | Incrementals with the full they belong to.
+    incrementals :: Map BackupFileId (BackupFileId, BackupFile)
   }
   deriving (Eq, Show)
 
 emptyBackupState :: BackupState
-emptyBackupState = BackupState {epochs = mempty, orphans = mempty}
+emptyBackupState = BackupState {epochs = mempty, orphans = mempty, incrementals = mempty}
 
 -- | Mirrors the transaction of "Wire.BackupStore.Postgres".
 inMemoryBackupStore ::
@@ -60,6 +63,7 @@ inMemoryBackupStore = interpret $ \case
         | otherwise -> do
             let key = (uid, cid, epoch)
                 withoutReservation = Map.delete fid s.orphans
+                replacedFull = (.id) . snd <$> Map.lookup key s.epochs
                 replaced = case Map.lookup key s.epochs of
                   Nothing -> mempty
                   Just (_, old) -> Map.singleton old.id (Just (fromUTCTimeMillis old.createdAt))
@@ -68,14 +72,54 @@ inMemoryBackupStore = interpret $ \case
                 (stale, kept) = Map.partitionWithKey (\k _ -> isStale k) inserted
                 staleOrphans =
                   Map.fromList [(f.id, Just (fromUTCTimeMillis f.createdAt)) | (_, f) <- Map.elems stale]
-            put BackupState {epochs = kept, orphans = withoutReservation <> replaced <> staleOrphans}
+                -- the incrementals of replaced and stale fulls are orphaned as well
+                orphanedFulls = Set.fromList (toList replacedFull <> [f.id | (_, f) <- Map.elems stale])
+                (goneIncs, keptIncs) = Map.partition ((`Set.member` orphanedFulls) . fst) s.incrementals
+                incOrphans = Map.map (Just . fromUTCTimeMillis . (.createdAt) . snd) goneIncs
+            put
+              BackupState
+                { epochs = kept,
+                  orphans = withoutReservation <> replaced <> staleOrphans <> incOrphans,
+                  incrementals = keptIncs
+                }
+            pure (Right file)
+  CommitIncremental maxFiles uid cid epoch full fid size -> do
+    s <- get
+    now <- Now.get
+    let file = BackupFile {id = fid, size = size, createdAt = toUTCTimeMillis now}
+        current = (.id) . snd <$> Map.lookup (uid, cid, epoch) s.epochs
+        count = 1 + fromIntegral (Map.size (Map.filter ((== full) . fst) s.incrementals))
+    case () of
+      _
+        | current /= Just full -> pure (Left CommitFullMissing)
+        | count >= maxFiles -> pure (Left CommitEpochFull)
+        | Map.lookup fid s.orphans /= Just Nothing -> pure (Left CommitIncrementalReservationGone)
+        | otherwise -> do
+            put
+              s
+                { orphans = Map.delete fid s.orphans,
+                  incrementals = Map.insert fid (full, file) s.incrementals
+                }
             pure (Right file)
   LookupMaxEpoch uid cid -> gets (\s -> maxEpochOf s uid cid)
   LookupEpochFiles uid cid epoch ->
     gets $ \s ->
-      (\(_, f) -> BackupFiles {full = f, incrementals = []}) <$> Map.lookup (uid, cid, epoch) s.epochs
+      (\(_, f) -> BackupFiles {full = f, incrementals = incrementalsOf s f.id})
+        <$> Map.lookup (uid, cid, epoch) s.epochs
   LookupFull uid cid epoch fid ->
     gets $ \s -> fmap ((.id) . snd) (Map.lookup (uid, cid, epoch) s.epochs) == Just fid
+  LookupIncremental uid cid epoch full fid ->
+    gets $ \s ->
+      fmap ((.id) . snd) (Map.lookup (uid, cid, epoch) s.epochs) == Just full
+        && fmap fst (Map.lookup fid s.incrementals) == Just full
+  CountEpochFiles uid cid epoch ->
+    gets $ \s ->
+      (\(_, f) -> 1 + fromIntegral (length (incrementalsOf s f.id))) <$> Map.lookup (uid, cid, epoch) s.epochs
+
+-- | The incrementals of a full, oldest first.
+incrementalsOf :: BackupState -> BackupFileId -> [BackupFile]
+incrementalsOf s full =
+  sortOn (\f -> (f.createdAt, f.id)) [f | (full', f) <- Map.elems s.incrementals, full' == full]
 
 maxEpochOf :: BackupState -> UserId -> ClientId -> Maybe BackupEpoch
 maxEpochOf s uid cid =

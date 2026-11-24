@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull) where
+module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull, uploadIncremental, downloadIncremental) where
 
 import CargoHold.API.Error (incompleteBody, invalidLength, serverError)
 import CargoHold.App
@@ -110,6 +110,32 @@ downloadFull ::
 downloadFull lusr zClient cid epoch fid host =
   AssetLocation <$> runBackupEffects (Backup.downloadFull lusr zClient host cid epoch fid)
 
+uploadIncremental ::
+  Local UserId ->
+  ClientId ->
+  ClientId ->
+  BackupEpoch ->
+  BackupFileId ->
+  Word64 ->
+  BackupSource ->
+  Handler BackupFile
+uploadIncremental lusr zClient cid epoch full len body =
+  runBackupEffects $
+    Backup.uploadIncremental lusr zClient cid epoch full len body.getBackupSource
+
+downloadIncremental ::
+  Local UserId ->
+  ClientId ->
+  ClientId ->
+  BackupEpoch ->
+  BackupFileId ->
+  BackupFileId ->
+  Maybe Domain ->
+  Handler (AssetLocation Absolute)
+downloadIncremental lusr zClient cid epoch full fid host =
+  AssetLocation
+    <$> runBackupEffects (Backup.downloadIncremental lusr zClient host cid epoch full fid)
+
 runBackupEffects :: Sem BackupEffects a -> Handler a
 runBackupEffects action = do
   env <- ask
@@ -164,3 +190,5 @@ backupErrorToWai = \case
   BackupErrorInvalidLength -> invalidLength
   BackupErrorIncompleteBody -> incompleteBody
   BackupErrorUploadFailed -> serverError
+  BackupErrorFullMissing -> errorToWai @'BackupFullMissing
+  BackupErrorEpochFull -> errorToWai @'BackupEpochFull

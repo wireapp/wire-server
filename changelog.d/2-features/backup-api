@@ -1,1 +1,1 @@
-Add the Backup API (`/v20/backups/...`): clients of teams with the `automaticBackups` feature can upload the full backup file of an epoch and list the files of an epoch. Files are stored in S3 (prefix `backups/`) and tracked in PostgreSQL.
+Add the Backup API (`/v20/backups/...`): clients of teams with the `automaticBackups` feature can upload the full backup file of an epoch and upload incremental files under the full of an epoch, and list and download the files of an epoch. Files are stored in S3 (prefix `backups/`) and tracked in PostgreSQL.

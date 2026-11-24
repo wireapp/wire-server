@@ -519,6 +519,8 @@ cargohold:
     # Backup API
     backups:
       maxFullBytes: 1073741824 # 1 GiB
+      maxIncrementalBytes: 104857600 # 100 MiB
+      maxFilesPerEpoch: 1000 # including the full
       uploadTimeout: 2700 # Seconds (45 min); must stay below the grace period of unfinished uploads
     settings:
       maxTotalBytes: 104857632 # limit to 100 MiB + 32 bytes

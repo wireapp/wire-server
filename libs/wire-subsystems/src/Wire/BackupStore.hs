@@ -31,12 +31,21 @@ data CommitFullError
     CommitReservationGone
   deriving (Eq, Show)
 
+data CommitIncrementalError
+  = -- | The epoch does not exist or its current full is another one.
+    CommitFullMissing
+  | -- | The epoch already holds the maximal number of files.
+    CommitEpochFull
+  | -- | The reservation was already removed, e.g. by the cleanup.
+    CommitIncrementalReservationGone
+  deriving (Eq, Show)
+
 data BackupStore m a where
   -- | Insert an upload reservation (an orphan with @file_created_at NULL@).
   ReserveUpload :: UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupStore m ()
   -- | One transaction under the per-client lock: re-check the epoch rule, claim the
-  -- reservation, add the full to the epoch (orphaning a replaced full) and orphan the
-  -- fulls of stale epochs.
+  -- reservation, add the full to the epoch (orphaning a replaced full and its
+  -- incrementals) and orphan the fulls and incrementals of stale epochs.
   CommitFull ::
     UserId ->
     ClientId ->
@@ -44,9 +53,27 @@ data BackupStore m a where
     BackupFileId ->
     Word64 ->
     BackupStore m (Either CommitFullError BackupFile)
+  -- | One transaction under the per-client lock: re-check that the full is the epoch's
+  -- current one and that the epoch has room for another file (the first argument is
+  -- @maxFilesPerEpoch@, counting the full), claim the reservation and add the incremental.
+  -- Arguments: limit, user, client, epoch, full, new file, size.
+  CommitIncremental ::
+    Word32 ->
+    UserId ->
+    ClientId ->
+    BackupEpoch ->
+    BackupFileId ->
+    BackupFileId ->
+    Word64 ->
+    BackupStore m (Either CommitIncrementalError BackupFile)
   LookupMaxEpoch :: UserId -> ClientId -> BackupStore m (Maybe BackupEpoch)
   LookupEpochFiles :: UserId -> ClientId -> BackupEpoch -> BackupStore m (Maybe BackupFiles)
   -- | Is the file the full of the epoch?
   LookupFull :: UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupStore m Bool
+  -- | Is the incremental (last argument) one of the full (second to last) of the epoch?
+  LookupIncremental ::
+    UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupFileId -> BackupStore m Bool
+  -- | Number of current files of the epoch including the full; 'Nothing' if there is no epoch.
+  CountEpochFiles :: UserId -> ClientId -> BackupEpoch -> BackupStore m (Maybe Word32)
 
 makeSem ''BackupStore
