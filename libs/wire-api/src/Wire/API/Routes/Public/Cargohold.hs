@@ -357,16 +357,21 @@ type BackupRedirect =
     (AssetLocation Absolute)
     (RespondEmpty 302 "Presigned download URL")
 
-type BackupEpochPath api =
+type BackupPath api =
   From 'V20
     :> ZLocalUser
     :> ZClient
     :> "backups"
-    :> "clients"
-    :> Capture "cid" ClientId
-    :> "epochs"
-    :> Capture "epoch" BackupEpoch
     :> api
+
+type BackupEpochPath api =
+  BackupPath
+    ( "clients"
+        :> Capture "cid" ClientId
+        :> "epochs"
+        :> Capture "epoch" BackupEpoch
+        :> api
+    )
 
 type BackupAPI =
   Named
@@ -441,6 +446,20 @@ type BackupAPI =
                         :> ZHostOpt
                         :> MultiVerb 'GET '[JSON] '[BackupRedirect] (AssetLocation Absolute)
                     )
+           )
+    :<|> Named
+           "backup-list"
+           ( Summary "List the restorable epochs of all clients of the user"
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupDisabled
+               :> BackupPath (Get '[JSON] BackupList)
+           )
+    :<|> Named
+           "backup-get-client"
+           ( Summary "List the restorable epochs of a client of the user"
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupDisabled
+               :> BackupPath ("clients" :> Capture "cid" ClientId :> Get '[JSON] ClientBackups)
            )
 
 data CargoholdAPITag

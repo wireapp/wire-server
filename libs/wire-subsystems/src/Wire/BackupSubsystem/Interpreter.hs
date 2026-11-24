@@ -80,6 +80,18 @@ interpretBackupSubsystem = interpret $ \case
     found <- lookupIncremental uid cid epoch full fid
     unless found $ throw BackupErrorNotFound
     presignGet host fid
+  ListBackups caller zClient -> do
+    let uid = tUnqualified caller
+    ensureClientExists uid zClient
+    ensureEnabled uid
+    BackupList <$> listClientBackups uid Nothing
+  GetClientBackups caller zClient cid -> do
+    let uid = tUnqualified caller
+    ensureClientExists uid zClient
+    ensureEnabled uid
+    listClientBackups uid (Just cid) <&> \case
+      [] -> ClientBackups {client = cid, epochs = []}
+      entry : _ -> entry
 
 uploadFullImpl ::
   ( Member BackupStore r,

@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull, uploadIncremental, downloadIncremental) where
+module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull, uploadIncremental, downloadIncremental, listBackups, getClientBackups) where
 
 import CargoHold.API.Error (incompleteBody, invalidLength, serverError)
 import CargoHold.App
@@ -135,6 +135,12 @@ downloadIncremental ::
 downloadIncremental lusr zClient cid epoch full fid host =
   AssetLocation
     <$> runBackupEffects (Backup.downloadIncremental lusr zClient host cid epoch full fid)
+
+listBackups :: Local UserId -> ClientId -> Handler BackupList
+listBackups lusr zClient = runBackupEffects $ Backup.listBackups lusr zClient
+
+getClientBackups :: Local UserId -> ClientId -> ClientId -> Handler ClientBackups
+getClientBackups lusr zClient cid = runBackupEffects $ Backup.getClientBackups lusr zClient cid
 
 runBackupEffects :: Sem BackupEffects a -> Handler a
 runBackupEffects action = do

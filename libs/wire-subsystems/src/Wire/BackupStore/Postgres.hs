@@ -20,6 +20,7 @@ module Wire.BackupStore.Postgres (interpretBackupStoreToPostgres) where
 
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
+import Data.Map qualified as Map
 import Data.Profunctor (lmap)
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
@@ -30,11 +31,17 @@ import Hasql.Transaction qualified as Tx
 import Hasql.Transaction.Sessions (IsolationLevel (..), Mode (..))
 import Imports
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
+import System.Logger.Message qualified as Log
 import Wire.API.Backup
+import Wire.API.PostgresMarshall (postgresUnmarshall)
 import Wire.BackupStore
 import Wire.Postgres
 
-interpretBackupStoreToPostgres :: (PGConstraints r) => InterpreterFor BackupStore r
+interpretBackupStoreToPostgres ::
+  (PGConstraints r, Member TinyLog r) =>
+  InterpreterFor BackupStore r
 interpretBackupStoreToPostgres = interpret $ \case
   ReserveUpload uid cid epoch fid ->
     runStatement (toUUID uid, clientToText cid, epochToInt epoch, fileIdToUUID fid) insertReservation
@@ -65,6 +72,38 @@ interpretBackupStoreToPostgres = interpret $ \case
       existsIncremental
   CountEpochFiles uid cid epoch ->
     fmap fromIntegral <$> runStatement (toUUID uid, clientToText cid, epochToInt epoch) selectFileCount
+  ListClientBackups uid mcid -> do
+    rows <- runStatement (toUUID uid, clientToText <$> mcid) selectBackupSummaries
+    groupSummaries . catMaybes <$> for (toList rows) parseRow
+
+-- | Client ids are written from 'ClientId's, so a row that does not parse is a bug: log and
+-- skip it.
+parseRow ::
+  (Member TinyLog r) =>
+  (Text, Int64, UTCTime, Int64, Int64) ->
+  Sem r (Maybe (ClientId, EpochSummary))
+parseRow (client, epochNo, created, count, size) =
+  case postgresUnmarshall client of
+    Left err -> do
+      Log.err $ Log.msg (Log.val "Invalid client id in backup_epochs") . Log.field "error" err
+      pure Nothing
+    Right cid ->
+      pure . Just $
+        ( cid,
+          EpochSummary
+            { epoch = intToEpoch epochNo,
+              createdAt = toUTCTimeMillis created,
+              fileCount = fromIntegral count,
+              size = fromIntegral size
+            }
+        )
+
+-- | Rows are ordered by epoch, which the grouping keeps.
+groupSummaries :: [(ClientId, EpochSummary)] -> [ClientBackups]
+groupSummaries rows =
+  [ ClientBackups {client = cid, epochs = es}
+  | (cid, es) <- Map.toAscList (Map.fromListWith (flip (<>)) [(cid, [e]) | (cid, e) <- rows])
+  ]
 
 commitFullTx ::
   UserId ->
@@ -321,4 +360,22 @@ orphanStaleIncrementals =
     )
     INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
     SELECT id, $1 :: uuid, $2 :: text, epoch_no, created_at FROM moved
+  |]
+
+-- | One row per epoch of the user (of the client, if given); an epoch without incrementals
+-- counts only its full. @SUM@ of @int8@ is @numeric@, hence the casts. (user, client)
+selectBackupSummaries :: Statement (UUID, Maybe Text) (Vector (Text, Int64, UTCTime, Int64, Int64))
+selectBackupSummaries =
+  [vectorStatement|
+    SELECT
+      e.client_id :: text,
+      e.epoch_no :: int8,
+      GREATEST(e.full_created_at, max(i.created_at)) :: timestamptz,
+      (1 + count(i.id)) :: int8,
+      (e.full_size + coalesce(sum(i.size), 0)) :: int8
+    FROM backup_epochs e
+    LEFT JOIN backup_incrementals i ON i.full_id = e.full_id
+    WHERE e.user_id = $1 :: uuid AND e.client_id = coalesce($2 :: text?, e.client_id)
+    GROUP BY e.client_id, e.epoch_no, e.full_created_at, e.full_size
+    ORDER BY e.client_id, e.epoch_no
   |]

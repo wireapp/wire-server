@@ -307,3 +307,106 @@ testBackupDownloadIncrementalOtherUser = do
   bindResponse (downloadBackupIncremental bob bobCid aliceCid 1 fullId incId) $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "backup-not-found"
+
+-- | An epoch with a full of 1024 bytes and an incremental of 512 bytes; returns the creation time
+-- of the incremental.
+uploadFullAndIncremental :: (HasCallStack) => Value -> String -> App String
+uploadFullAndIncremental owner cid = do
+  fullId <- bindResponse (uploadBackupFull owner cid cid 1 (BC.replicate 1024 'x')) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" & asString
+  bindResponse (uploadBackupIncremental owner cid cid 1 fullId (BC.replicate 512 'i')) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "createdAt" & asString
+
+testBackupList :: (HasCallStack) => App ()
+testBackupList = do
+  (owner, cid) <- setupBackupUser
+  createdAt <- uploadFullAndIncremental owner cid
+  bindResponse (listBackups owner cid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    clients <- resp.json %. "clients" & asList
+    entry <- assertOne clients
+    entry %. "client" `shouldMatch` cid
+    epochs <- entry %. "epochs" & asList
+    epoch <- assertOne epochs
+    epoch %. "epoch" `shouldMatchInt` 1
+    epoch %. "createdAt" `shouldMatch` createdAt
+    epoch %. "fileCount" `shouldMatchInt` 2
+    epoch %. "size" `shouldMatchInt` 1536
+
+testBackupGetClient :: (HasCallStack) => App ()
+testBackupGetClient = do
+  (owner, cid) <- setupBackupUser
+  createdAt <- uploadFullAndIncremental owner cid
+  cid2 <- newClientId owner
+  bindResponse (getClientBackups owner cid cid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "client" `shouldMatch` cid
+    epoch <- resp.json %. "epochs" >>= asList >>= assertOne
+    epoch %. "epoch" `shouldMatchInt` 1
+    epoch %. "createdAt" `shouldMatch` createdAt
+    epoch %. "fileCount" `shouldMatchInt` 2
+    epoch %. "size" `shouldMatchInt` 1536
+  bindResponse (getClientBackups owner cid cid2) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "client" `shouldMatch` cid2
+    resp.json %. "epochs" `shouldMatch` ([] :: [Value])
+
+testBackupListFromOtherClient :: (HasCallStack) => App ()
+testBackupListFromOtherClient = do
+  (owner, cid) <- setupBackupUser
+  _ <- uploadFullAndIncremental owner cid
+  cid2 <- newClientId owner
+  bindResponse (listBackups owner cid2) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    entry <- resp.json %. "clients" >>= asList >>= assertOne
+    entry %. "client" `shouldMatch` cid
+
+testBackupListOtherUser :: (HasCallStack) => App ()
+testBackupListOtherUser = do
+  (alice, aliceCid) <- setupBackupUser
+  _ <- uploadFullAndIncremental alice aliceCid
+  (bob, bobCid) <- setupBackupUser
+  bindResponse (listBackups bob bobCid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "clients" `shouldMatch` ([] :: [Value])
+  bindResponse (getClientBackups bob bobCid aliceCid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "client" `shouldMatch` aliceCid
+    resp.json %. "epochs" `shouldMatch` ([] :: [Value])
+
+testBackupListAfterReplace :: (HasCallStack) => App ()
+testBackupListAfterReplace = do
+  (owner, cid) <- setupBackupUser
+  _ <- uploadFullAndIncremental owner cid
+  bindResponse (uploadBackupFull owner cid cid 1 (BC.replicate 2048 'y')) $ \resp ->
+    resp.status `shouldMatchInt` 200
+  bindResponse (listBackups owner cid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    entry <- resp.json %. "clients" >>= asList >>= assertOne
+    epoch <- entry %. "epochs" >>= asList >>= assertOne
+    epoch %. "fileCount" `shouldMatchInt` 1
+    epoch %. "size" `shouldMatchInt` 2048
+
+testBackupListDisabled :: (HasCallStack) => App ()
+testBackupListDisabled = do
+  -- feature not enabled
+  (owner, tid, _) <- createTeam OwnDomain 0
+  Internal.setTeamFeatureLockStatus owner tid "automaticBackups" "unlocked"
+  cid <- newClientId owner
+  bindResponse (listBackups owner cid) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "backup-disabled"
+  bindResponse (getClientBackups owner cid cid) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "backup-disabled"
+  -- removed Z-Client
+  (owner', removed) <- setupBackupUser
+  deleteClient owner' removed >>= assertSuccess
+  bindResponse (listBackups owner' removed) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  bindResponse (getClientBackups owner' removed removed) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "backup-forbidden"

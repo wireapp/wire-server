@@ -460,3 +460,102 @@ spec = describe "BackupSubsystem" $ do
       BS.unpack (serializeURIRef' url) `shouldSatisfy` isSuffixOf (UUID.toString incUuid)
       wrongFull `shouldBe` Left BackupErrorNotFound
       otherUser' `shouldBe` Left BackupErrorNotFound
+
+  describe "listings" $ do
+    it "listAggregates" $ do
+      (r, _, _) <- runBackup defaultFixture PutSucceeds $ do
+        full1 <- uploadA 1 >>= orFail
+        passTime 1
+        _ <- uploadIncA full1.id "abc" >>= orFail
+        passTime 1
+        inc2 <- uploadIncA full1.id "defg" >>= orFail
+        passTime 1
+        full2 <- upload clientA clientA 2 "sixsix" >>= orFail
+        l <- listAs caller
+        pure (l, inc2, full2)
+      let (l, inc2, full2) = r
+      fmap (.clients) l
+        `shouldBe` Right
+          [ ClientBackups
+              { client = clientA,
+                epochs =
+                  [ EpochSummary
+                      { epoch = BackupEpoch 1,
+                        createdAt = inc2.createdAt,
+                        fileCount = 3,
+                        size = 12
+                      },
+                    EpochSummary
+                      { epoch = BackupEpoch 2,
+                        createdAt = full2.createdAt,
+                        fileCount = 1,
+                        size = 6
+                      }
+                  ]
+              }
+          ]
+
+    it "listMultipleClients" $ do
+      ((l, one), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- upload clientB clientB 1 "bbb" >>= orFail
+        _ <- uploadA 1 >>= orFail
+        l <- listAs caller
+        one <- try (getClientBackups caller clientA clientA)
+        pure (l, one)
+      fmap (map (.client) . (.clients)) l `shouldBe` Right [clientA, clientB]
+      fmap (.clients) l `shouldSatisfy` either (const False) ((== 2) . length)
+      let entryA = either (error . show) (take 1 . (.clients)) l
+      fmap (: []) one `shouldBe` Right entryA
+
+    it "listNeverShowsOtherUsers" $ do
+      ((l, one), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        let other = toLocalUnsafe (Domain "example.com") otherUser
+        _ <- try @BackupError (uploadFull other clientB clientB (BackupEpoch 1) 3 (body "abc")) >>= orFail
+        l <- listAs caller
+        one <- try (getClientBackups caller clientA clientB)
+        pure (l, one)
+      l `shouldBe` Right (BackupList [])
+      one `shouldBe` Right (ClientBackups clientB [])
+
+    it "getClientBackupsEmpty" $ do
+      (r, _, _) <-
+        runBackup defaultFixture PutSucceeds $
+          try (getClientBackups caller clientA clientA)
+      r `shouldBe` Right (ClientBackups clientA [])
+
+    it "listExcludesOrphans" $ do
+      (r, _, _) <- runBackup defaultFixture PutSucceeds $ do
+        full <- uploadA 1 >>= orFail
+        passTime 1
+        _ <- uploadIncA full.id "abc" >>= orFail
+        passTime 1
+        full' <- upload clientA clientA 1 "sevenby" >>= orFail
+        reserveUpload testUser clientA (BackupEpoch 1) (BackupFileId (UUID.fromWords 9 9 9 9))
+        l <- listAs caller
+        pure (l, full')
+      let (l, full') = r
+      fmap (.clients) l
+        `shouldBe` Right
+          [ ClientBackups
+              clientA
+              [EpochSummary {epoch = BackupEpoch 1, createdAt = full'.createdAt, fileCount = 1, size = 7}]
+          ]
+
+    it "listChecks" $ do
+      let both = do
+            a <- listAs caller
+            b <- try (getClientBackups caller clientA clientA)
+            pure (a, b)
+      (gone, _, _) <-
+        runBackup defaultFixture {existingClients = Set.singleton clientB} PutSucceeds both
+      fst gone `shouldBe` Left BackupErrorForbidden
+      snd gone `shouldBe` Left BackupErrorForbidden
+      (off, _, _) <- runBackup defaultFixture {featureEnabled = False} PutSucceeds both
+      fst off `shouldBe` Left BackupErrorDisabled
+      snd off `shouldBe` Left BackupErrorDisabled
+      (noTeam, _, _) <- runBackup defaultFixture {inTeam = False} PutSucceeds both
+      fst noTeam `shouldBe` Left BackupErrorDisabled
+      snd noTeam `shouldBe` Left BackupErrorDisabled
+
+listAs :: (Upload r) => Local UserId -> Sem r (Either BackupError BackupList)
+listAs lusr = try (listBackups lusr clientA)

@@ -115,6 +115,29 @@ inMemoryBackupStore = interpret $ \case
   CountEpochFiles uid cid epoch ->
     gets $ \s ->
       (\(_, f) -> 1 + fromIntegral (length (incrementalsOf s f.id))) <$> Map.lookup (uid, cid, epoch) s.epochs
+  ListClientBackups uid mcid ->
+    gets $ \s ->
+      [ ClientBackups {client = cid, epochs = es}
+      | (cid, es) <- Map.toAscList (Map.fromListWith (flip (<>)) (summaries s))
+      ]
+    where
+      summaries s =
+        [ (cid, [summaryOf s epoch full])
+        | ((u, cid, epoch), (_, full)) <- Map.toAscList s.epochs,
+          u == uid,
+          maybe True (== cid) mcid
+        ]
+
+-- | Mirrors the aggregate query of "Wire.BackupStore.Postgres".
+summaryOf :: BackupState -> BackupEpoch -> BackupFile -> EpochSummary
+summaryOf s epoch full =
+  let incs = incrementalsOf s full.id
+   in EpochSummary
+        { epoch = epoch,
+          createdAt = maximum (full.createdAt : map (.createdAt) incs),
+          fileCount = 1 + fromIntegral (length incs),
+          size = full.size + sum (map (.size) incs)
+        }
 
 -- | The incrementals of a full, oldest first.
 incrementalsOf :: BackupState -> BackupFileId -> [BackupFile]

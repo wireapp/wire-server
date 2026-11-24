@@ -75,5 +75,8 @@ data BackupStore m a where
     UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupFileId -> BackupStore m Bool
   -- | Number of current files of the epoch including the full; 'Nothing' if there is no epoch.
   CountEpochFiles :: UserId -> ClientId -> BackupEpoch -> BackupStore m (Maybe Word32)
+  -- | Summaries of the current files of the epochs of the user, of one client or of all
+  -- (no lock, read only). Ascending by client and epoch; clients without epochs are absent.
+  ListClientBackups :: UserId -> Maybe ClientId -> BackupStore m [ClientBackups]
 
 makeSem ''BackupStore

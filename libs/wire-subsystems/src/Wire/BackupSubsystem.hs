@@ -115,5 +115,10 @@ data BackupSubsystem m a where
     BackupFileId ->
     BackupFileId ->
     BackupSubsystem m URI
+  -- | Arguments: caller, calling client (Z-Client).
+  ListBackups :: Local UserId -> ClientId -> BackupSubsystem m BackupList
+  -- | Arguments: caller, calling client (Z-Client), client of the path. Unknown clients, also
+  -- those of other users, have no epochs.
+  GetClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ClientBackups
 
 makeSem ''BackupSubsystem

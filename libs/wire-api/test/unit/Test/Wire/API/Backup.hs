@@ -19,6 +19,7 @@
 module Test.Wire.API.Backup (tests) where
 
 import Data.Aeson (object, toJSON, (.=))
+import Data.Id (ClientId)
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
@@ -63,5 +64,31 @@ tests =
             [ "id" .= ("99db9768-04e3-4b5d-9268-831b6a25c4ab" :: Text),
               "size" .= (1048576 :: Int),
               "createdAt" .= ("2026-11-12T10:15:30.123Z" :: Text)
+            ],
+      testCase "BackupList JSON matches RFC example" $ do
+        let t = UTCTime (fromGregorian 2026 11 12) (secondsToDiffTime (10 * 3600 + 35 * 60 + 30) + 0.456)
+            summary =
+              EpochSummary
+                { epoch = BackupEpoch 2,
+                  createdAt = toUTCTimeMillis t,
+                  fileCount = 2,
+                  size = 1050624
+                }
+            cid = fromRight (error "bad client id") (parseUrlPiece @ClientId "4b2f7a9c1d3e5f60")
+        toJSON (BackupList [ClientBackups {client = cid, epochs = [summary]}])
+          @?= object
+            [ "clients"
+                .= [ object
+                       [ "client" .= ("4b2f7a9c1d3e5f60" :: Text),
+                         "epochs"
+                           .= [ object
+                                  [ "epoch" .= (2 :: Int),
+                                    "createdAt" .= ("2026-11-12T10:35:30.456Z" :: Text),
+                                    "fileCount" .= (2 :: Int),
+                                    "size" .= (1050624 :: Int)
+                                  ]
+                              ]
+                       ]
+                   ]
             ]
     ]

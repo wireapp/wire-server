@@ -92,6 +92,8 @@ servantSitemap =
         :<|> Named @"backup-download-full" Backup.downloadFull
         :<|> Named @"backup-upload-incremental" Backup.uploadIncremental
         :<|> Named @"backup-download-incremental" Backup.downloadIncremental
+        :<|> Named @"backup-list" Backup.listBackups
+        :<|> Named @"backup-get-client" Backup.getClientBackups
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
       Named @"tokens-renew" renewTokenV3

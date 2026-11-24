@@ -21,6 +21,9 @@ module Wire.API.Backup
     BackupFileId (..),
     BackupFile (..),
     BackupFiles (..),
+    EpochSummary (..),
+    ClientBackups (..),
+    BackupList (..),
     BackupSource (..),
     BackupBody,
     epochAccepted,
@@ -31,7 +34,7 @@ where
 import Conduit
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (ToByteString (..))
-import Data.Id (uuidSchema)
+import Data.Id (ClientId, uuidSchema)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
 import Data.OpenApi.Internal.Schema qualified as OpenApi
@@ -124,6 +127,59 @@ instance ToSchema BackupFiles where
       BackupFiles
         <$> (.full) .= field "full" schema
         <*> (.incrementals) .= field "incrementals" (array schema)
+
+-- | Summary of the current files of an epoch.
+data EpochSummary = EpochSummary
+  { epoch :: BackupEpoch,
+    -- | Creation time of the newest current file.
+    createdAt :: UTCTimeMillis,
+    -- | Number of current files, including the full.
+    fileCount :: Word32,
+    -- | Total size of the current files in bytes.
+    size :: Word64
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EpochSummary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema EpochSummary
+
+instance ToSchema EpochSummary where
+  schema =
+    object $
+      EpochSummary
+        <$> (.epoch) .= field "epoch" schema
+        <*> (.createdAt) .= field "createdAt" schema
+        <*> (.fileCount) .= field "fileCount" schema
+        <*> (.size) .= field "size" schema
+
+data ClientBackups = ClientBackups
+  { client :: ClientId,
+    -- | Ascending by epoch.
+    epochs :: [EpochSummary]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientBackups)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ClientBackups
+
+instance ToSchema ClientBackups where
+  schema =
+    object $
+      ClientBackups
+        <$> (.client) .= field "client" schema
+        <*> (.epochs) .= field "epochs" (array schema)
+
+newtype BackupList = BackupList
+  { -- | Ascending by client id; clients without epochs are absent.
+    clients :: [ClientBackups]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BackupList)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BackupList
+
+instance ToSchema BackupList where
+  schema =
+    object $
+      BackupList
+        <$> (.clients) .= field "clients" (array schema)
 
 -- | Raw request body, streamed (never buffered).
 newtype BackupSource = BackupSource

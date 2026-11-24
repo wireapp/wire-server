@@ -132,6 +132,20 @@ downloadBackupIncremental user zClientId clientId epoch fullId incId = do
         ["backups", "clients", clientId, "epochs", show epoch, "full", fullId, "incremental", incId]
   submit "GET" $ req & zUser uid & zClient zClientId & noRedirect
 
+-- | List the epochs of all clients of the user. Arguments: caller, Z-Client.
+listBackups :: (HasCallStack, MakesValue user) => user -> String -> App Response
+listBackups user zClientId = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups"]
+  submit "GET" $ req & zUser uid & zClient zClientId
+
+-- | List the epochs of one client. Arguments: caller, Z-Client, client in the path.
+getClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getClientBackups user zClientId clientId = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId]
+  submit "GET" $ req & zUser uid & zClient zClientId
+
 -- UPLOAD
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> String -> App Response
