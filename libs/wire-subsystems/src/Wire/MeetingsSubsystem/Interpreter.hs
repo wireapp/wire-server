@@ -24,7 +24,7 @@ module Wire.MeetingsSubsystem.Interpreter
   )
 where
 
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT), hoistMaybe)
 import Data.ByteArray (constEq)
 import Data.ByteString.Conversion (toByteString')
 import Data.Code (Key, Timeout (..), Value)
@@ -793,21 +793,19 @@ resolveLiveMeetingByKey ::
   Sem r (Maybe (Maybe Password, Store.StoredMeeting))
 resolveLiveMeetingByKey localDomain domain key presentedValue validityPeriod
   | domain /= localDomain = pure Nothing
-  | otherwise = do
-      mCode <- CodeStore.getMeetingCodeByKey key
-      case mCode of
-        Just (code, mHashedPw) | CodeReferentMeeting mid <- code.codeReferent -> do
-          cutoff <- addUTCTime (negate validityPeriod) <$> Now.get
-          mMeeting <- Store.getMeeting mid
-          case mMeeting of
-            -- The presented value is the rotating capability: a value from a
-            -- link superseded by a refresh no longer matches and yields 404.
-            Just meeting
-              | isAlive cutoff meeting,
-                toByteString' code.codeValue `constEq` toByteString' presentedValue ->
-                  bool Nothing (Just (mHashedPw, meeting)) <$> ownerMeetingsEnabled meeting
-            _ -> pure Nothing
-        _ -> pure Nothing
+  | otherwise = runMaybeT $ do
+      (code, mHashedPw) <- MaybeT $ CodeStore.getMeetingCodeByKey key
+      mid <- hoistMaybe $ case code.codeReferent of
+        CodeReferentMeeting mid -> Just mid
+        _ -> Nothing
+      cutoff <- lift $ addUTCTime (negate validityPeriod) <$> Now.get
+      meeting <- MaybeT $ Store.getMeeting mid
+      guard $ isAlive cutoff meeting
+      -- The presented value is the rotating capability: a value from a
+      -- link superseded by a refresh no longer matches and yields 404.
+      guard $ toByteString' code.codeValue `constEq` toByteString' presentedValue
+      guard =<< lift (ownerMeetingsEnabled meeting)
+      pure (mHashedPw, meeting)
 
 -- | Fetch a meeting the user created or whose conversation they are a member
 -- of. Hidden when the meeting's owning team has meetings disabled, see
