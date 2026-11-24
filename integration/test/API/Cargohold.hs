@@ -45,6 +45,13 @@ type LByteString = LBS.ByteString
 
 -- BACKUPS
 
+-- | A request to @/backups/<segments>@ as the caller from the Z-Client.
+backupRequest :: (HasCallStack, MakesValue user) => user -> String -> [String] -> App HTTP.Request
+backupRequest user zClientId segments = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ("backups" : segments)
+  pure $ req & zUser uid & zClient zClientId
+
 -- | Upload the full backup of an epoch. Arguments: caller, Z-Client, client in the path, epoch,
 -- body. The request body has a known size, so http-client sets @Content-Length@.
 uploadBackupFull ::
@@ -56,13 +63,8 @@ uploadBackupFull ::
   ByteString ->
   App Response
 uploadBackupFull user zClientId clientId epoch bytes = do
-  uid <- user & objId
-  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full"]
-  submit "POST"
-    $ req
-    & zUser uid
-    & zClient zClientId
-    & addBody (HTTP.RequestBodyBS bytes) "application/octet-stream"
+  req <- backupRequest user zClientId ["clients", clientId, "epochs", show epoch, "full"]
+  submit "POST" $ req & addBody (HTTP.RequestBodyBS bytes) "application/octet-stream"
 
 -- | Arguments: caller, Z-Client, client in the path, epoch.
 getBackupEpoch ::
@@ -72,10 +74,8 @@ getBackupEpoch ::
   String ->
   Int ->
   App Response
-getBackupEpoch user zClientId clientId epoch = do
-  uid <- user & objId
-  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch]
-  submit "GET" $ req & zUser uid & zClient zClientId
+getBackupEpoch user zClientId clientId epoch =
+  backupRequest user zClientId ["clients", clientId, "epochs", show epoch] >>= submit "GET"
 
 -- | Arguments: caller, Z-Client, client in the path, epoch, full id. Does not follow the redirect.
 downloadBackupFull ::
@@ -87,11 +87,8 @@ downloadBackupFull ::
   String ->
   App Response
 downloadBackupFull user zClientId clientId epoch fullId = do
-  uid <- user & objId
-  req <-
-    rawBaseRequest user Cargohold Versioned
-      $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full", fullId]
-  submit "GET" $ req & zUser uid & zClient zClientId & noRedirect
+  req <- backupRequest user zClientId ["clients", clientId, "epochs", show epoch, "full", fullId]
+  submit "GET" $ req & noRedirect
 
 -- | Upload an incremental. Arguments: caller, Z-Client, client in the path, epoch, full id, body.
 uploadBackupIncremental ::
@@ -104,16 +101,10 @@ uploadBackupIncremental ::
   ByteString ->
   App Response
 uploadBackupIncremental user zClientId clientId epoch fullId bytes = do
-  uid <- user & objId
   req <-
-    rawBaseRequest user Cargohold Versioned
-      $ joinHttpPath
-        ["backups", "clients", clientId, "epochs", show epoch, "full", fullId, "incremental"]
-  submit "POST"
-    $ req
-    & zUser uid
-    & zClient zClientId
-    & addBody (HTTP.RequestBodyBS bytes) "application/octet-stream"
+    backupRequest user zClientId
+      $ ["clients", clientId, "epochs", show epoch, "full", fullId, "incremental"]
+  submit "POST" $ req & addBody (HTTP.RequestBodyBS bytes) "application/octet-stream"
 
 -- | Arguments: caller, Z-Client, client in the path, epoch, full id, incremental id. Does not
 -- follow the redirect.
@@ -127,26 +118,19 @@ downloadBackupIncremental ::
   String ->
   App Response
 downloadBackupIncremental user zClientId clientId epoch fullId incId = do
-  uid <- user & objId
   req <-
-    rawBaseRequest user Cargohold Versioned
-      $ joinHttpPath
-        ["backups", "clients", clientId, "epochs", show epoch, "full", fullId, "incremental", incId]
-  submit "GET" $ req & zUser uid & zClient zClientId & noRedirect
+    backupRequest user zClientId
+      $ ["clients", clientId, "epochs", show epoch, "full", fullId, "incremental", incId]
+  submit "GET" $ req & noRedirect
 
 -- | List the epochs of all clients of the user. Arguments: caller, Z-Client.
 listBackups :: (HasCallStack, MakesValue user) => user -> String -> App Response
-listBackups user zClientId = do
-  uid <- user & objId
-  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups"]
-  submit "GET" $ req & zUser uid & zClient zClientId
+listBackups user zClientId = backupRequest user zClientId [] >>= submit "GET"
 
 -- | List the epochs of one client. Arguments: caller, Z-Client, client in the path.
 getClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-getClientBackups user zClientId clientId = do
-  uid <- user & objId
-  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId]
-  submit "GET" $ req & zUser uid & zClient zClientId
+getClientBackups user zClientId clientId =
+  backupRequest user zClientId ["clients", clientId] >>= submit "GET"
 
 -- | Internal: one batch of the cleanup of orphaned backup files.
 postBackupsCleanup :: (HasCallStack, MakesValue domain) => domain -> App Response
@@ -154,7 +138,7 @@ postBackupsCleanup domain = do
   req <- baseRequest domain Cargohold Unversioned "/i/backups/cleanup"
   submit "POST" req
 
--- | Upload a full that promises 1024 bytes, sends 512, stalls for 3 seconds and ends. The upload
+-- | Upload a full that promises 1024 bytes, sends 512, stalls for 1 second and ends. The upload
 -- fails and leaves its reservation. Arguments: caller, Z-Client = client in the path, epoch.
 uploadBackupFullStalled ::
   (HasCallStack, MakesValue user) =>
@@ -163,12 +147,9 @@ uploadBackupFullStalled ::
   Int ->
   App Response
 uploadBackupFullStalled user clientId epoch = do
-  uid <- user & objId
-  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full"]
+  req <- backupRequest user clientId ["clients", clientId, "epochs", show epoch, "full"]
   submit "POST"
     $ req
-    & zUser uid
-    & zClient clientId
     & addBody (HTTP.RequestBodyStream 1024 stalledPopper) "application/octet-stream"
   where
     stalledPopper needsPopper = do
@@ -177,7 +158,7 @@ uploadBackupFullStalled user clientId epoch = do
         n <- atomicModifyIORef' sent (\k -> (k + 1, k))
         case n of
           0 -> pure (BC.replicate 512 'x')
-          1 -> threadDelay 3_000_000 $> mempty
+          1 -> threadDelay 1_000_000 $> mempty
           _ -> pure mempty
 
 -- UPLOAD
@@ -569,7 +550,5 @@ endMultipartBody' = byteString $ cs "\r\n--frontier--\r\n"
 
 -- | Delete all backups of a client. Arguments: caller, Z-Client, client in the path.
 deleteClientBackups :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-deleteClientBackups user zClientId clientId = do
-  uid <- user & objId
-  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId]
-  submit "DELETE" $ req & zUser uid & zClient zClientId
+deleteClientBackups user zClientId clientId =
+  backupRequest user zClientId ["clients", clientId] >>= submit "DELETE"

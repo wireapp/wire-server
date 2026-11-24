@@ -794,9 +794,11 @@ spec = describe "BackupSubsystem" $ do
         reserved 1
         stored (fileN 1)
         _ <- orphanClient testUser clientA
+        early <- cleanupOrphans
         expire
-        cleanupOrphans
-      n `shouldBe` 1
+        late <- cleanupOrphans
+        pure (early, late)
+      n `shouldBe` (0, 1)
       state.orphans `shouldBe` mempty
       objects `shouldBe` mempty
 

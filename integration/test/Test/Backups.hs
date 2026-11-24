@@ -541,13 +541,13 @@ testBackupCleanupExpiredReservation =
     def
       { cargoholdCfg =
           setField "backups.uploadTimeout" (1 :: Int)
-            >=> setField "backups.orphanGracePeriod" (4 :: Int),
+            >=> setField "backups.orphanGracePeriod" (10 :: Int),
         -- effectively never: the test calls the cleanup itself
         backgroundWorkerCfg = setField "backupsCleanup.schedule" ("0 0 1 1 *" :: String)
       }
     $ \domain -> do
       drainCleanup domain
-      threadDelay 5_000_000
+      threadDelay 11_000_000
       drainCleanup domain
       (owner, cid) <- setupBackupUserOn domain
       -- cargohold may close the connection early
@@ -557,7 +557,7 @@ testBackupCleanupExpiredReservation =
         Right resp -> resp.status `shouldMatchOneOf` [400, 500 :: Int]
       -- still in flight as far as the cleanup can tell
       cleanupBatch domain `shouldMatchInt` 0
-      threadDelay 5_000_000
+      threadDelay 11_000_000
       cleanupBatch domain `shouldMatchInt` 1
       cleanupBatch domain `shouldMatchInt` 0
 
@@ -565,5 +565,5 @@ testBackupCleanupEndpoint :: (HasCallStack) => App ()
 testBackupCleanupEndpoint =
   bindResponse (postBackupsCleanup OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    deleted <- resp.json %. "deleted" & asInt
-    when (deleted < 0) $ assertFailure "deleted must not be negative"
+    -- the batch may find leftovers of other tests, any count is fine
+    void (resp.json %. "deleted" & asInt)

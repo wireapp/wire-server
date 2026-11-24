@@ -15,10 +15,13 @@
 
 module Test.Wire.BackupsCleanupWorkerSpec (spec) where
 
+import Control.Exception (throwIO)
 import Data.Aeson (eitherDecode)
+import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.State
+import System.IO.Error (userError)
 import Test.Hspec
 import Wire.API.Backup (BackupCleanupResult (..))
 import Wire.BackgroundWorker.Options (BackupsCleanupConfig)
@@ -49,6 +52,38 @@ spec = do
 
     it "calls at least once" $
       runCleanups [] (cleanupBackupsLoop backupsCleanupMaxCalls) `shouldBe` (0, 1)
+
+  describe "guardedCleanup" $ do
+    -- the first call deletes 5, the second throws an IO exception like the Rpc layer
+    let runFailing = do
+          calls <- newIORef (0 :: Int)
+          guardedCleanup
+            ( fmap Right
+                . runM
+                . interpret
+                  ( \CleanupBackups -> do
+                      n <- embed @IO (atomicModifyIORef' calls (\k -> (k + 1, k)))
+                      if n == 0
+                        then pure (BackupCleanupResult 5)
+                        else embed @IO (throwIO (userError "connection refused"))
+                  )
+            )
+            backupsCleanupMaxCalls
+
+    it "ends the run with the failure and the progress, without rethrowing" $ do
+      result <- runFailing
+      case result of
+        Left (err, progress) -> do
+          err `shouldSatisfy` T.isInfixOf "connection refused"
+          progress `shouldBe` (5, 1)
+        Right done -> expectationFailure ("expected a failure, got " <> show done)
+
+    it "returns the totals when nothing fails" $ do
+      result <-
+        guardedCleanup
+          (fmap Right . runM . interpret (\CleanupBackups -> pure (BackupCleanupResult 0)))
+          backupsCleanupMaxCalls
+      result `shouldBe` Right (0, 1)
 
   describe "BackupsCleanupConfig" $
     it "parses backupsCleanup" $ do
