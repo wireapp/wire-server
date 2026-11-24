@@ -44,6 +44,9 @@ interpretBackupStoreToPostgres = interpret $ \case
   LookupEpochFiles uid cid epoch -> do
     row <- runStatement (toUUID uid, clientToText cid, epochToInt epoch) selectEpochFull
     pure $ (\(i, s, c) -> BackupFiles {full = mkFile i s c, incrementals = []}) <$> row
+  LookupFull uid cid epoch fid -> do
+    row <- runStatement (toUUID uid, clientToText cid, epochToInt epoch) selectEpochFull
+    pure $ fmap (\(i, _, _) -> i) row == Just (fileIdToUUID fid)
 
 commitFullTx ::
   UserId ->

@@ -30,6 +30,7 @@ import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
 import Data.UUID qualified as UUID
 import Imports
+import URI.ByteString (URI, serializeURIRef')
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -127,14 +128,19 @@ runBackup fx behaviour action = do
   pure (result, state, objects)
   where
     teams
-      | fx.inTeam = Map.singleton teamId [mkTeamMember testUser fullPermissions Nothing UserLegalHoldDisabled]
+      | fx.inTeam =
+          Map.singleton
+            teamId
+            [ mkTeamMember u fullPermissions Nothing UserLegalHoldDisabled
+              | u <- [testUser, otherUser]
+            ]
       | otherwise = mempty
     features
       | fx.featureEnabled =
           npUpdate @AutomaticBackupsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
       | otherwise = def
     brigStub = interpret $ \case
-      LookupClients _ -> pure (UserClients (Map.singleton testUser fx.existingClients))
+      LookupClients uids -> pure (UserClients (Map.fromList [(u, fx.existingClients) | u <- uids]))
       _ -> error "unexpected BrigAPIAccess call"
 
 body :: ByteString -> ConduitT () ByteString (ResourceT IO) ()
@@ -151,6 +157,20 @@ uploadA epoch = upload clientA clientA epoch "hello"
 
 readEpoch :: (Upload r) => ClientId -> Word32 -> Sem r (Either BackupError BackupFiles)
 readEpoch zClient epoch = try (getEpochFiles caller zClient clientA (BackupEpoch epoch))
+
+otherUser :: UserId
+otherUser = Id (fromJust (UUID.fromString "22222222-2222-4222-8222-222222222222"))
+
+-- | Download as the given user; the fixture gives every user the same clients and feature.
+download ::
+  (Upload r) =>
+  UserId ->
+  ClientId ->
+  Word32 ->
+  BackupFileId ->
+  Sem r (Either BackupError URI)
+download uid cid epoch fid =
+  try (downloadFull (toLocalUnsafe (Domain "example.com") uid) clientA Nothing cid (BackupEpoch epoch) fid)
 
 spec :: Spec
 spec = describe "BackupSubsystem" $ do
@@ -225,3 +245,30 @@ spec = describe "BackupSubsystem" $ do
   it "readOtherClientOfSameUser" $ do
     (r, _, _) <- runBackup defaultFixture PutSucceeds (uploadA 1 *> readEpoch clientB 1)
     r `shouldSatisfy` isRight
+
+  it "downloadFullReturnsPresignedUrl" $ do
+    ((up, dl), _, _) <- runBackup defaultFixture PutSucceeds $ do
+      up <- uploadA 1
+      dl <- either (pure . Left) (download testUser clientA 1 . (.id)) up
+      pure (up, dl)
+    file <- either (fail . show) pure up
+    url <- either (fail . show) pure dl
+    let BackupFileId fileUuid = file.id
+    BS.unpack (serializeURIRef' url) `shouldSatisfy` isSuffixOf (UUID.toString fileUuid)
+
+  it "downloadReplacedFullNotFound" $ do
+    ((old, dl), _, _) <- runBackup defaultFixture PutSucceeds $ do
+      old <- uploadA 1
+      _ <- uploadA 1
+      dl <- either (pure . Left) (download testUser clientA 1 . (.id)) old
+      pure (old, dl)
+    old `shouldSatisfy` isRight
+    dl `shouldBe` Left BackupErrorNotFound
+
+  it "downloadOtherUserNotFound" $ do
+    ((up, dl), _, _) <- runBackup defaultFixture PutSucceeds $ do
+      up <- uploadA 1
+      dl <- either (pure . Left) (download otherUser clientA 1 . (.id)) up
+      pure (up, dl)
+    up `shouldSatisfy` isRight
+    dl `shouldBe` Left BackupErrorNotFound

@@ -22,9 +22,11 @@ import Conduit (runConduitRes, sinkList, (.|))
 import Data.ByteString qualified as BS
 import Data.Map qualified as Map
 import Data.Time.Clock (NominalDiffTime)
+import Data.UUID qualified as UUID
 import Imports
 import Polysemy
 import Polysemy.State
+import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Backup
 import Wire.BackupObjectStore
 import Wire.MockInterpreters.Now (MockNow, passTime)
@@ -48,3 +50,6 @@ inMemoryBackupObjectStore behaviour = interpret $ \case
       PutTakes d -> passTime d
       _ -> pure ()
     pure (Right ())
+  PresignGet _ (BackupFileId u) ->
+    pure $ either (error . show) Imports.id $
+      parseURI strictURIParserOptions ("https://s3.example/backups/" <> UUID.toASCIIBytes u)

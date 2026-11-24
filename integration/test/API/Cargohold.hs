@@ -75,6 +75,22 @@ getBackupEpoch user zClientId clientId epoch = do
   req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch]
   submit "GET" $ req & zUser uid & zClient zClientId
 
+-- | Arguments: caller, Z-Client, client in the path, epoch, full id. Does not follow the redirect.
+downloadBackupFull ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  String ->
+  Int ->
+  String ->
+  App Response
+downloadBackupFull user zClientId clientId epoch fullId = do
+  uid <- user & objId
+  req <-
+    rawBaseRequest user Cargohold Versioned
+      $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full", fullId]
+  submit "GET" $ req & zUser uid & zClient zClientId & noRedirect
+
 -- UPLOAD
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> String -> App Response

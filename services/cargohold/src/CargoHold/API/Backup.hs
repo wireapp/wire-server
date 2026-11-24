@@ -16,13 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module CargoHold.API.Backup (uploadFull, getEpochFiles) where
+module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull) where
 
 import CargoHold.API.Error (incompleteBody, invalidLength, serverError)
 import CargoHold.App
 import CargoHold.Backup.ObjectStore (interpretBackupObjectStoreS3)
 import CargoHold.Options (Opts (..), Settings (..))
 import Control.Monad.Trans.Except (except)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified
 import qualified Hasql.Pool as Hasql
@@ -35,6 +36,8 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
+import URI.ByteString (Absolute)
+import Wire.API.Asset (AssetLocation (..))
 import Wire.API.Backup
 import Wire.API.Error
 import Wire.API.Error.Cargohold
@@ -96,6 +99,17 @@ getEpochFiles :: Local UserId -> ClientId -> ClientId -> BackupEpoch -> Handler 
 getEpochFiles lusr zClient cid epoch =
   runBackupEffects $ Backup.getEpochFiles lusr zClient cid epoch
 
+downloadFull ::
+  Local UserId ->
+  ClientId ->
+  ClientId ->
+  BackupEpoch ->
+  BackupFileId ->
+  Maybe Domain ->
+  Handler (AssetLocation Absolute)
+downloadFull lusr zClient cid epoch fid host =
+  AssetLocation <$> runBackupEffects (Backup.downloadFull lusr zClient host cid epoch fid)
+
 runBackupEffects :: Sem BackupEffects a -> Handler a
 runBackupEffects action = do
   env <- ask
@@ -117,7 +131,11 @@ runBackupEffects action = do
       . runRpcWithHttp env.httpManager env.requestId
       . interpretGalleyAPIAccessToRpc (foldMap expandVersionExp opts.settings.disabledAPIVersions) opts.galley
       . interpretBrigAccess opts.brig
-      . interpretBackupObjectStoreS3 env.aws opts.backups.uploadTimeout
+      . interpretBackupObjectStoreS3
+          env.aws
+          env.multiIngress
+          opts.backups.uploadTimeout
+          opts.settings.downloadLinkTTL
       . interpretBackupStoreToPostgres
       . interpretBackupSubsystem
       $ action

@@ -21,8 +21,10 @@ module Wire.BackupObjectStore where
 
 import Conduit (ResourceT)
 import Data.Conduit (ConduitT)
+import Data.Domain (Domain)
 import Imports
 import Polysemy
+import URI.ByteString (URI)
 import Wire.API.Backup
 
 data PutObjectError
@@ -40,5 +42,8 @@ data BackupObjectStore m a where
     Word64 ->
     ConduitT () ByteString (ResourceT IO) () ->
     BackupObjectStore m (Either PutObjectError ())
+  -- | Presigned download URL of the object of the given file. The 'Domain' selects the
+  -- ingress (multi-ingress setups).
+  PresignGet :: Maybe Domain -> BackupFileId -> BackupObjectStore m URI
 
 makeSem ''BackupObjectStore

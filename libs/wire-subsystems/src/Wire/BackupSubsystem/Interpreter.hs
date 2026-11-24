@@ -64,6 +64,13 @@ interpretBackupSubsystem = interpret $ \case
     ensureClientExists uid zClient
     ensureEnabled uid
     lookupEpochFiles uid cid epoch >>= maybe (throw BackupErrorNotFound) pure
+  DownloadFull caller zClient host cid epoch fid -> do
+    let uid = tUnqualified caller
+    ensureClientExists uid zClient
+    ensureEnabled uid
+    found <- lookupFull uid cid epoch fid
+    unless found $ throw BackupErrorNotFound
+    presignGet host fid
 
 uploadFullImpl ::
   ( Member BackupStore r,

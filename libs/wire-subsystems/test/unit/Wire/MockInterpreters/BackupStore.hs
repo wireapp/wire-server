@@ -74,6 +74,8 @@ inMemoryBackupStore = interpret $ \case
   LookupEpochFiles uid cid epoch ->
     gets $ \s ->
       (\(_, f) -> BackupFiles {full = f, incrementals = []}) <$> Map.lookup (uid, cid, epoch) s.epochs
+  LookupFull uid cid epoch fid ->
+    gets $ \s -> fmap ((.id) . snd) (Map.lookup (uid, cid, epoch) s.epochs) == Just fid
 
 maxEpochOf :: BackupState -> UserId -> ClientId -> Maybe BackupEpoch
 maxEpochOf s uid cid =

@@ -22,11 +22,13 @@ module Wire.BackupSubsystem where
 import Conduit (ResourceT)
 import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.Conduit (ConduitT)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Polysemy
+import URI.ByteString (URI)
 import Wire.API.Backup
 
 data BackupConfig = BackupConfig
@@ -68,5 +70,15 @@ data BackupSubsystem m a where
     BackupSubsystem m BackupFile
   -- | Arguments: caller, calling client (Z-Client), client of the path, epoch.
   GetEpochFiles :: Local UserId -> ClientId -> ClientId -> BackupEpoch -> BackupSubsystem m BackupFiles
+  -- | Arguments: caller, calling client (Z-Client), Z-Host, client of the path, epoch, full.
+  -- Returns a presigned download URL.
+  DownloadFull ::
+    Local UserId ->
+    ClientId ->
+    Maybe Domain ->
+    ClientId ->
+    BackupEpoch ->
+    BackupFileId ->
+    BackupSubsystem m URI
 
 makeSem ''BackupSubsystem

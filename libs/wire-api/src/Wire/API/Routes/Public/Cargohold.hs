@@ -351,6 +351,12 @@ type MainAPI =
                     ()
            )
 
+type BackupRedirect =
+  WithHeaders
+    (AssetLocationHeader Absolute)
+    (AssetLocation Absolute)
+    (RespondEmpty 302 "Presigned download URL")
+
 type BackupEpochPath api =
   From 'V20
     :> ZLocalUser
@@ -386,6 +392,20 @@ type BackupAPI =
                :> CanThrow 'BackupDisabled
                :> CanThrow 'BackupNotFound
                :> BackupEpochPath (Get '[JSON] BackupFiles)
+           )
+    :<|> Named
+           "backup-download-full"
+           ( Summary "Download the full backup file of an epoch via a presigned redirect"
+               :> CanThrow 'BackupForbidden
+               :> CanThrow 'BackupDisabled
+               :> CanThrow 'BackupNotFound
+               :> CanThrow 'NoMatchingAssetEndpoint
+               :> BackupEpochPath
+                    ( "full"
+                        :> Capture "fullId" BackupFileId
+                        :> ZHostOpt
+                        :> MultiVerb 'GET '[JSON] '[BackupRedirect] (AssetLocation Absolute)
+                    )
            )
 
 data CargoholdAPITag

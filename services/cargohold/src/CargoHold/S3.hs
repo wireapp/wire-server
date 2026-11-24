@@ -32,6 +32,8 @@ module CargoHold.S3
     deleteV3,
     mkKey,
     signedURL,
+    selectAwsEnv,
+    presignGetObject,
     -- Legacy
     plainKey,
     otrKey,
@@ -64,8 +66,9 @@ import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import qualified Data.HashMap.Lazy as HML
+import qualified Data.Map.Strict as Map
 import Data.Id
 import Data.Qualified (Qualified)
 import qualified Data.Schema as S
@@ -77,6 +80,7 @@ import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
 import qualified Network.HTTP.Types.URI as HTTPURI
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified System.Logger as Logger
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
@@ -328,55 +332,32 @@ updateMetadataV3 (s3Key . mkKey -> key) meta = do
 -- environment with @aws.s3DownloadEndpoint@.
 signedURL :: (ToByteString p) => p -> Maybe Domain -> Handler URI
 signedURL path mbHost = do
-  e <- awsEnvForHost
-  now <- liftIO getCurrentTime
+  multiIngressConf <- asks (.multiIngress)
+  defaultEnv <- asks (.aws)
+  e <- either throwE pure (selectAwsEnv defaultEnv multiIngressConf mbHost)
   ttl <- asks (.options.settings.downloadLinkTTL)
-  let req = newGetObject (BucketName e.s3Bucket) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
-  signed <-
-    presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req
-  toUri signed
-  where
-    toUri x = case parseURI strictURIParserOptions x of
-      Left e -> do
-        Log.err $
-          "remote" .= val "S3"
-            ~~ "error" .= show e
-            ~~ msg (val "Failed to generate a signed URI")
-        throwE serverError
-      Right u -> pure u
+  presignGetObject e ttl (Text.decodeLatin1 $ toByteString' path) >>= \case
+    Left err -> do
+      Log.err $
+        "remote" .= val "S3"
+          ~~ "error" .= err
+          ~~ msg (val "Failed to generate a signed URI")
+      throwE serverError
+    Right u -> pure u
 
-    awsEnvForHost :: Handler AWS.Env
-    awsEnvForHost = do
-      multiIngressConf <- asks (.multiIngress)
-      if null multiIngressConf
-        then asks (.aws)
-        else awsEnvForHost' mbHost multiIngressConf
-      where
-        awsEnvForHost' :: Maybe Domain -> Map Domain AWS.Env -> Handler AWS.Env
-        awsEnvForHost' Nothing _ = do
-          Log.debug $
-            msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
-          throwE noMatchingAssetEndpoint
-        awsEnvForHost' (Just host) multiIngressConf = do
-          Log.debug $
-            "host"
-              .= domainText host
-              ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
-          case multiIngressConf ^. at host of
-            Nothing -> do
-              Log.debug $
-                "host"
-                  .= domainText host
-                  ~~ msg (val "awsEnvForHost - multiIngress lookup failed, no config for provided Z-Host header.")
-              throwE noMatchingAssetEndpoint
-            Just hostAwsEnv -> do
-              Log.debug $
-                "host"
-                  .= domainText host
-                  ~~ "s3DownloadEndpoint"
-                    .= show hostAwsEnv.amazonkaDownloadEndpoint
-                  ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
-              pure hostAwsEnv
+-- | Pick the AWS environment for the @Z-Host@ header's value, see 'signedURL'.
+selectAwsEnv :: AWS.Env -> Map Domain AWS.Env -> Maybe Domain -> Either Wai.Error AWS.Env
+selectAwsEnv defaultEnv multiIngressConf mbHost
+  | null multiIngressConf = Right defaultEnv
+  | otherwise = maybe (Left noMatchingAssetEndpoint) Right (mbHost >>= (`Map.lookup` multiIngressConf))
+
+-- | Presign a GET of the object with the given key, valid for the given number of seconds.
+presignGetObject :: (MonadIO m) => AWS.Env -> Word -> Text -> m (Either String URI)
+presignGetObject e ttl key = liftIO $ do
+  now <- getCurrentTime
+  let req = newGetObject (BucketName e.s3Bucket) (ObjectKey key)
+  signed <- presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req
+  pure . first show $ parseURI strictURIParserOptions signed
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key

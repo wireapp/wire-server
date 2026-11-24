@@ -22,6 +22,8 @@ import API.Brig (addClient, deleteClient)
 import API.Cargohold
 import qualified API.GalleyInternal as Internal
 import qualified Data.ByteString.Char8 as BC
+import Data.CaseInsensitive (mk)
+import qualified Network.HTTP.Client as HTTP
 import SetupHelpers
 import Testlib.Prelude
 
@@ -120,5 +122,46 @@ testBackupOtherUserCannotRead = do
     resp.status `shouldMatchInt` 200
   (bob, bobCid) <- setupBackupUser
   bindResponse (getBackupEpoch bob bobCid aliceCid 1) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "backup-not-found"
+
+testBackupDownloadFull :: (HasCallStack) => App ()
+testBackupDownloadFull = do
+  (owner, cid) <- setupBackupUser
+  let bytes = BC.replicate 1024 'x'
+  fileId <- bindResponse (uploadBackupFull owner cid cid 1 bytes) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" & asString
+  bindResponse (downloadBackupFull owner cid cid 1 fileId) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    let location = BC.unpack (getHeader' (mk (BC.pack "Location")) resp)
+    req <- liftIO $ HTTP.parseRequest location
+    -- the presigned URL needs no authentication
+    s3Resp <- submit "GET" req
+    s3Resp.status `shouldMatchInt` 200
+    assertBool "downloaded bytes equal the uploaded ones" (s3Resp.body == bytes)
+
+testBackupDownloadReplacedFull :: (HasCallStack) => App ()
+testBackupDownloadReplacedFull = do
+  (owner, cid) <- setupBackupUser
+  let upload = bindResponse (uploadBackupFull owner cid cid 1 (BC.replicate 16 'x')) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "id" & asString
+  oldId <- upload
+  newId <- upload
+  bindResponse (downloadBackupFull owner cid cid 1 oldId) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "backup-not-found"
+  bindResponse (downloadBackupFull owner cid cid 1 newId) $ \resp ->
+    resp.status `shouldMatchInt` 302
+
+testBackupDownloadOtherUser :: (HasCallStack) => App ()
+testBackupDownloadOtherUser = do
+  (alice, aliceCid) <- setupBackupUser
+  fileId <- bindResponse (uploadBackupFull alice aliceCid aliceCid 1 (BC.replicate 16 'x')) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" & asString
+  (bob, bobCid) <- setupBackupUser
+  bindResponse (downloadBackupFull bob bobCid aliceCid 1 fileId) $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "backup-not-found"

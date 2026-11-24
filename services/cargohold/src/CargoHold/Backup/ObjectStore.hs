@@ -21,12 +21,16 @@ module CargoHold.Backup.ObjectStore (interpretBackupObjectStoreS3, backupKey) wh
 import Amazonka.S3 (BucketName (..), ObjectKey (..), newCreateMultipartUpload)
 import Amazonka.S3.Lens (createMultipartUpload_contentType)
 import qualified CargoHold.AWS as AWS
-import CargoHold.S3 (streamUploadObject)
+import CargoHold.API.Error (serverError)
+import CargoHold.S3 (presignGetObject, selectAwsEnv, streamUploadObject)
 import Control.Lens ((?~))
+import Data.Domain (Domain)
 import Data.Time.Clock (NominalDiffTime)
 import qualified Data.UUID as UUID
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
+import Polysemy.Error
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
@@ -41,11 +45,16 @@ backupKey (BackupFileId u) = "backups/" <> UUID.toText u
 -- | The upload is cancelled after the given time. Unfinished multipart uploads are
 -- aborted by 'streamUploadObject'.
 interpretBackupObjectStoreS3 ::
-  (Member (Embed IO) r, Member TinyLog r) =>
+  ( Member (Embed IO) r,
+    Member TinyLog r,
+    Member (Error Wai.Error) r
+  ) =>
   AWS.Env ->
+  Map Domain AWS.Env ->
   NominalDiffTime ->
+  Word ->
   InterpreterFor BackupObjectStore r
-interpretBackupObjectStoreS3 env uploadTimeout = interpret $ \case
+interpretBackupObjectStoreS3 env multiIngress uploadTimeout downloadLinkTTL = interpret $ \case
   PutObject fid len body -> do
     let createReq =
           newCreateMultipartUpload (BucketName env.s3Bucket) (ObjectKey (backupKey fid))
@@ -60,3 +69,10 @@ interpretBackupObjectStoreS3 env uploadTimeout = interpret $ \case
         Log.err $ Log.msg details
         pure (Left err)
       Just (Right ()) -> pure (Right ())
+  PresignGet host fid -> do
+    presignEnv <- either throw pure (selectAwsEnv env multiIngress host)
+    presignGetObject presignEnv downloadLinkTTL (backupKey fid) >>= \case
+      Right uri -> pure uri
+      Left err -> do
+        Log.err $ Log.msg (Log.val "Failed to presign backup download") . Log.field "error" err
+        throw serverError

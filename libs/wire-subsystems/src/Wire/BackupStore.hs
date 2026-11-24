@@ -46,5 +46,7 @@ data BackupStore m a where
     BackupStore m (Either CommitFullError BackupFile)
   LookupMaxEpoch :: UserId -> ClientId -> BackupStore m (Maybe BackupEpoch)
   LookupEpochFiles :: UserId -> ClientId -> BackupEpoch -> BackupStore m (Maybe BackupFiles)
+  -- | Is the file the full of the epoch?
+  LookupFull :: UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupStore m Bool
 
 makeSem ''BackupStore
