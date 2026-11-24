@@ -157,11 +157,11 @@
 - Create: `services/cargohold/src/CargoHold/Backup/ObjectStore.hs` — `interpretBackupObjectStoreS3 :: (Member (Embed IO) r) => AWS.Env -> NominalDiffTime -> InterpreterFor BackupObjectStore r`; key `"backups/" <> UUID.toText uuid`; wraps `streamUploadObject` in `System.Timeout.timeout` → `PutTimedOut`. Verify amazonka-s3-streaming aborts the multipart upload on async exceptions (timeout, client disconnect); if not, catch and call `AbortMultipartUpload`, otherwise unfinished multipart parts leak (invisible to `DeleteObjects` and cleanup).
 - Create: `services/cargohold/src/CargoHold/API/Backup.hs` — handlers `uploadFull`, `getEpochFiles`; `runBackupEffects :: Sem BackupEffects a -> Handler a` interpreting (outermost last): `BackupSubsystem`, `BackupStore` (Postgres), `BackupObjectStore` (S3), `BrigAPIAccess` (`interpretBrigAccess opts.brig`), `GalleyAPIAccess` (`interpretGalleyAPIAccessToRpc (foldMap expandVersionExp opts.settings.disabledAPIVersions) opts.galley`), `Rpc` (`runRpcWithHttp env.httpManager env.requestId`), `Now` (`nowToIO`), `Random` (`randomToIO`), `Input BackupConfig`, `Input Pool`, `TinyLog` (`loggerToTinyLogReqId`), errors, `Embed IO`. `BackupError` → `errorToWai @'Backup…` / existing `invalidLength`, `incompleteBody`, `serverError`; every other error (`UsageError`, `RpcException`, `ParseException`, `ClientError`) → log + `serverError`.
 - Modify: `services/cargohold/src/CargoHold/API/Public.hs` (`servantSitemap` gets `:<|> backupAPI`)
-- Modify: `services/cargohold/cargohold.integration.yaml` (`postgresql` + `postgresqlPool` copied from `brig.integration.yaml:22-32`, `galley: {host: 127.0.0.1, port: 8085}`, `backups: {maxFullBytes: 1048576, uploadTimeout: 1800}`)
+- Modify: `services/cargohold/cargohold.integration.yaml` (`postgresql` + `postgresqlPool` copied from `brig.integration.yaml:22-32`, `galley: {host: 127.0.0.1, port: 8085}`, `backups: {maxFullBytes: 1048576, uploadTimeout: 2700}`)
 - Modify: `integration/test/Testlib/ModService.hs:257-259` (`cargoholdCfg = setField "postgresql.dbname" resource.berPostgresqlDBName`)
-- Modify: `charts/wire-server/templates/cargohold/configmap.yaml`, `.../cargohold/deployment.yaml`, `.../cargohold/secret.yaml` (pg password mount like galley: `/etc/wire/cargohold/secrets/pgPassword`), `charts/wire-server/values.yaml` (`cargohold.config.postgresql`, `postgresqlPool`, `backups: {maxFullBytes: 1073741824, uploadTimeout: 1800}`)
+- Modify: `charts/wire-server/templates/cargohold/configmap.yaml`, `.../cargohold/deployment.yaml`, `.../cargohold/secret.yaml` (pg password mount like galley: `/etc/wire/cargohold/secrets/pgPassword`), `charts/wire-server/values.yaml` (`cargohold.config.postgresql`, `postgresqlPool`, `backups: {maxFullBytes: 1073741824, uploadTimeout: 2700}`)
 - Modify: `charts/nginz/values.yaml` (cargohold upstream `- path: /backups`, `envs: [all]`, `max_body_size: "0"`, `disable_request_buffering: true`), `services/nginz/integration-test/conf/nginz/nginx.conf` (`location ~* ^(/v[0-9]+)?/backups { include common_response_with_zauth.conf; proxy_pass http://cargohold; }`). Skip `deploy/dockerephemeral/federation-v*` (old-version backends never serve backups).
-- Modify: `docs/src/developer/reference/config-options.md` (cargohold `postgresql*`, `galley`, `backups`), `changelog.d/2-features/backup-api`
+- Modify: `docs/src/developer/reference/config-options.md` (cargohold `postgresql*`, `galley`, `backups`), `changelog.d/2-features/backup-api`, `changelog.d/0-release-notes/WPB-25648-cargohold-postgres` (upgrade note: cargohold now requires `postgresql`, `postgresqlPool`, optional `postgresqlPassword` and a `galley` endpoint in its helm values)
 
 **Interfaces:**
 - Consumes: Task 1 routes/errors, Task 2 effects and interpreters.
@@ -219,4 +219,4 @@
 
 ## Unresolved questions
 
-- None blocking. Defaults (`maxFullBytes` 1 GiB, `uploadTimeout` 30 min) adjustable later.
+- None blocking. Defaults (`maxFullBytes` 1 GiB, `uploadTimeout` 45 min) adjustable later.

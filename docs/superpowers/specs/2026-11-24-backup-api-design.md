@@ -136,7 +136,7 @@ user/team deletion.
   | `maxFullBytes` | 1 GiB |
   | `maxIncrementalBytes` | 100 MiB |
   | `maxFilesPerEpoch` | 1000 (includes the full) |
-  | `uploadTimeout` | 30 min |
+  | `uploadTimeout` | 45 min |
   | `orphanGracePeriod` | 60 min; startup fails unless `> uploadTimeout` |
   | `cleanupBatchSize` | 100 (a versioned batch must finish within background-worker's 30 s HTTP timeout) |
 
