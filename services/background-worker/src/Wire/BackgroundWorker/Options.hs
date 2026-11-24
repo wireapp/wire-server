@@ -42,6 +42,7 @@ data Opts = Opts
     brig :: Endpoint,
     gundeck :: Endpoint,
     spar :: Endpoint,
+    cargohold :: Endpoint,
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
@@ -63,6 +64,7 @@ data Opts = Opts
     migrateConnections :: !Bool,
     jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
+    backupsCleanup :: BackupsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig,
     -- | Raw licence payload: base64url-encoded JSON 'LicenceSpec' as produced by
     --   @wire-licensing encode@ / @example@. Unset means unlicensed.
@@ -185,6 +187,20 @@ instance FromJSON JobConfig where
         parserThrowError [Key "backoffBase"] $
           "backoffBase must be greater than 0, got: " <> show backoffBase
       pure JobConfig {..}
+
+-- | Cron schedule of the cleanup of orphaned backup files.
+newtype BackupsCleanupConfig = BackupsCleanupConfig
+  { schedule :: CronSchedule
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BackupsCleanupConfig where
+  parseJSON =
+    withObject "BackupsCleanupConfig" $ \o -> do
+      scheduleRaw <- o .: "schedule"
+      case parseCronSchedule scheduleRaw of
+        Left e -> parserThrowError [Key "schedule"] $ "Cannot parse cronjob syntax: " <> e
+        Right schedule -> pure BackupsCleanupConfig {..}
 
 data MeetingsCleanupConfig = MeetingsCleanupConfig
   { -- | Delete meetings older than this many hours

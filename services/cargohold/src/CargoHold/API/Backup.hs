@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull, uploadIncremental, downloadIncremental, listBackups, getClientBackups, deleteClientBackups) where
+module CargoHold.API.Backup (uploadFull, getEpochFiles, downloadFull, uploadIncremental, downloadIncremental, listBackups, getClientBackups, deleteClientBackups, cleanupBackups) where
 
 import CargoHold.API.Error (incompleteBody, invalidLength, serverError)
 import CargoHold.App
@@ -144,6 +144,10 @@ getClientBackups lusr zClient cid = runBackupEffects $ Backup.getClientBackups l
 
 deleteClientBackups :: Local UserId -> ClientId -> ClientId -> Handler ()
 deleteClientBackups lusr zClient cid = runBackupEffects $ Backup.deleteClientBackups lusr zClient cid
+
+-- | One batch of the orphan cleanup (internal).
+cleanupBackups :: Handler BackupCleanupResult
+cleanupBackups = runBackupEffects $ BackupCleanupResult <$> Backup.cleanupOrphans
 
 runBackupEffects :: Sem BackupEffects a -> Handler a
 runBackupEffects action = do

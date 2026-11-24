@@ -19,6 +19,7 @@
 module Wire.BackupSubsystem.InterpreterSpec (spec) where
 
 import Conduit (ConduitT, ResourceT, yield)
+import Data.Aeson (eitherDecode)
 import Data.ByteString.Char8 qualified as BS
 import Data.Default (def)
 import Data.Domain (Domain (..))
@@ -105,7 +106,9 @@ testConfig =
     { maxFullBytes = 100,
       maxIncrementalBytes = 10,
       maxFilesPerEpoch = 3,
-      uploadTimeout = 60
+      uploadTimeout = 60,
+      orphanGracePeriod = 120,
+      cleanupBatchSize = 100
     }
 
 -- | Runs the action; an error that escapes it fails the test.
@@ -122,18 +125,30 @@ runBackupWith ::
   DeleteBehaviour ->
   Sem TestStack a ->
   IO (a, BackupState, Map BackupFileId ByteString)
-runBackupWith fx behaviour deleteBehaviour action = do
+runBackupWith fx behaviour deleteBehaviour =
+  runBackupFrom testConfig fx behaviour deleteBehaviour (emptyBackupState, Map.empty)
+
+-- | Starts from the given store and object store.
+runBackupFrom ::
+  BackupConfig ->
+  Fixture ->
+  PutBehaviour ->
+  DeleteBehaviour ->
+  (BackupState, Map BackupFileId ByteString) ->
+  Sem TestStack a ->
+  IO (a, BackupState, Map BackupFileId ByteString)
+runBackupFrom config fx behaviour deleteBehaviour (initialState, initialObjects) action = do
   (_, (objects, (state, result))) <-
     runM
       . runState defaultTime
-      . runState Map.empty
-      . runState emptyBackupState
+      . runState initialObjects
+      . runState initialState
       . fmap (either (error . ("unexpected error: " <>) . show) Imports.id)
       . runError @BackupError
       . interpretNowAsState
       . discardTinyLogs
       . runRandomPure
-      . runInputConst testConfig
+      . runInputConst config
       . miniGalleyAPIAccess teams features
       . brigStub
       . inMemoryBackupObjectStore behaviour deleteBehaviour
@@ -733,6 +748,131 @@ spec = describe "BackupSubsystem" $ do
       for_ [e1.id, i1.id] $ \f -> Map.member f objects `shouldBe` False
       Map.keys objects `shouldMatchList` others
       state.orphans `shouldBe` mempty
+
+  describe "cleanup" $ do
+    let grace = testConfig.orphanGracePeriod
+        expire = passTime (grace + 1)
+        runClean = runBackup defaultFixture PutSucceeds
+        stored fid = putObject fid 5 (body "hello") >>= orFail
+        reserved n = reserveUpload testUser clientA (BackupEpoch 1) (fileN n)
+        withBatchSize n = runBackupFrom testConfig {cleanupBatchSize = n} defaultFixture PutSucceeds DeleteSucceeds
+        configJson timeout' extra =
+          "{\"maxFullBytes\": 1, \"maxIncrementalBytes\": 1, \"maxFilesPerEpoch\": 1, \"uploadTimeout\": "
+            <> timeout'
+            <> extra
+            <> "}"
+
+    it "backupConfigGraceMustExceedTimeout" $ do
+      let decode' = eitherDecode @BackupConfig
+          grace' = fmap (.orphanGracePeriod)
+      isLeft (decode' (configJson "1800" ", \"orphanGracePeriod\": 1800")) `shouldBe` True
+      grace' (decode' (configJson "1800" ", \"orphanGracePeriod\": 1801")) `shouldBe` Right 1801
+      let omitted = decode' (configJson "1800" "")
+      grace' omitted `shouldBe` Right 3600
+      fmap (.cleanupBatchSize) omitted `shouldBe` Right 100
+      isLeft (decode' (configJson "1800" ", \"cleanupBatchSize\": 0")) `shouldBe` True
+      isLeft (decode' (configJson "0" "")) `shouldBe` True
+      isLeft (decode' (configJson "-1" "")) `shouldBe` True
+
+    it "cleanupSkipsFreshReservation" $ do
+      (n, state, _) <- runClean $ reserved 1 *> passTime 1 *> cleanupOrphans
+      n `shouldBe` 0
+      Map.keys state.orphans `shouldBe` [fileN 1]
+
+    it "cleanupDeletesExpiredReservation" $ do
+      (n, state, objects) <- runClean $ do
+        reserved 1
+        stored (fileN 1)
+        expire
+        cleanupOrphans
+      n `shouldBe` 1
+      state.orphans `shouldBe` mempty
+      objects `shouldBe` mempty
+
+    it "cleanupCollectsReservationsBlockedByClientDeletion" $ do
+      (n, state, objects) <- runClean $ do
+        reserved 1
+        stored (fileN 1)
+        _ <- orphanClient testUser clientA
+        expire
+        cleanupOrphans
+      n `shouldBe` 1
+      state.orphans `shouldBe` mempty
+      objects `shouldBe` mempty
+
+    it "cleanupDeletesFailedDeletions" $ do
+      let failing = fileN 1
+      (_, state1, objects1) <-
+        runBackupWith defaultFixture PutSucceeds (DeleteFailsFor (Set.singleton failing)) $ do
+          (e1, _) <- storeFull 1 1
+          stored e1.id
+          (_, orphaned) <- storeFull 1 2
+          deleteOrphansNow orphaned
+      Map.keys state1.orphans `shouldBe` [failing]
+      Map.keys objects1 `shouldBe` [failing]
+      -- no waiting for the grace period: the file was created
+      (n, state2, objects2) <-
+        runBackupFrom testConfig defaultFixture PutSucceeds DeleteSucceeds (state1, objects1) cleanupOrphans
+      n `shouldBe` 1
+      state2.orphans `shouldBe` mempty
+      objects2 `shouldBe` mempty
+
+    it "cleanupKeepsFailedRows" $ do
+      let failing = fileN 1
+      (n, state, objects) <-
+        runBackupWith defaultFixture PutSucceeds (DeleteFailsFor (Set.singleton failing)) $ do
+          (e1, _) <- storeFull 1 1
+          stored e1.id
+          (_, orphaned) <- storeFull 1 2
+          deleteOrphansNow orphaned
+          passTime 5
+          cleanupOrphans
+      n `shouldBe` 0
+      Map.keys objects `shouldBe` [failing]
+      (.deletionLastTried) <$> Map.lookup failing state.orphans
+        `shouldBe` Just (Just (addUTCTime 5 defaultTime))
+
+    it "cleanupPrefersNeverTried" $ do
+      let orphan n tried =
+            MockOrphan
+              { userId = testUser,
+                clientId = clientA,
+                fileCreatedAt = Just defaultTime,
+                orphanedAt = addUTCTime n defaultTime,
+                deletionLastTried = tried
+              }
+          initial =
+            emptyBackupState
+              { orphans =
+                  Map.fromList
+                    [ (fileN 1, orphan 0 (Just defaultTime)),
+                      (fileN 2, orphan 1 Nothing)
+                    ]
+              }
+      (n, state, _) <- withBatchSize 1 (initial, Map.empty) cleanupOrphans
+      n `shouldBe` 1
+      Map.keys state.orphans `shouldBe` [fileN 1]
+
+    it "commitFailsAfterCleanupSelected" $ do
+      ((full, inc, picked), _, _) <- runClean $ do
+        _ <- storeFull 1 1
+        reserved 2
+        reserved 3
+        expire
+        picked <- selectCleanupBatch grace 100
+        full <- commitFull testUser clientA (BackupEpoch 2) (fileN 2) 5
+        inc <- commitIncremental 10 testUser clientA (BackupEpoch 1) (fileN 1) (fileN 3) 3
+        pure (void full, void inc, picked)
+      full `shouldBe` Left CommitReservationGone
+      inc `shouldBe` Left CommitIncrementalReservationGone
+      sort picked `shouldBe` [fileN 2, fileN 3]
+
+    it "cleanupRespectsBatchSize" $ do
+      (ns, _, _) <- withBatchSize 2 (emptyBackupState, Map.empty) $ do
+        for_ [1, 2, 3] reserved
+        expire
+        replicateM 3 cleanupOrphans
+      ns `shouldBe` [2, 1, 0]
 
 listAs :: (Upload r) => Local UserId -> Sem r (Either BackupError BackupList)
 listAs lusr = try (listBackups lusr clientA)

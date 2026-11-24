@@ -22,7 +22,7 @@ import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Profunctor (lmap)
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (DiffTime, UTCTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
@@ -78,6 +78,9 @@ interpretBackupStoreToPostgres = interpret $ \case
     groupSummaries . catMaybes <$> for (toList rows) parseRow
   OrphanClient uid cid ->
     runTransaction ReadCommitted Write (orphanClientTx uid cid)
+  SelectCleanupBatch grace batchSize ->
+    fmap (map BackupFileId . toList) . runTransaction ReadCommitted Write $
+      Tx.statement (realToFrac grace, fromIntegral batchSize) selectCleanupBatchStmt
   DeleteOrphanRows [] -> pure ()
   DeleteOrphanRows ids -> runStatement (map fileIdToUUID ids) deleteOrphanRowsStmt
   MarkDeletionTried [] -> pure ()
@@ -431,6 +434,22 @@ blockReservations =
     UPDATE backup_orphans SET deletion_last_tried = now()
     WHERE user_id = $1 :: uuid AND client_id = $2 :: text
       AND file_created_at IS NULL AND deletion_last_tried IS NULL
+  |]
+
+-- | Marks and returns the orphans to delete: (grace period, batch size). @kind@ is
+-- @'deletion'@ for rows of committed files. Rows locked by another cleanup are skipped.
+selectCleanupBatchStmt :: Statement (DiffTime, Int64) (Vector UUID)
+selectCleanupBatchStmt =
+  [vectorStatement|
+    UPDATE backup_orphans SET deletion_last_tried = now()
+    WHERE id IN (
+      SELECT id FROM backup_orphans
+      WHERE kind = 'deletion' OR orphaned_at < now() - $1 :: interval
+      ORDER BY deletion_last_tried NULLS FIRST, orphaned_at
+      LIMIT $2 :: int8
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id :: uuid
   |]
 
 -- | Removes orphan rows: (ids)

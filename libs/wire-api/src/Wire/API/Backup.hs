@@ -24,6 +24,7 @@ module Wire.API.Backup
     EpochSummary (..),
     ClientBackups (..),
     BackupList (..),
+    BackupCleanupResult (..),
     BackupSource (..),
     BackupBody,
     epochAccepted,
@@ -39,6 +40,7 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
 import Data.OpenApi.Internal.Schema qualified as OpenApi
 import Data.Schema
+import Data.Text qualified as Text
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Imports
@@ -51,14 +53,21 @@ import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 -- | Epoch number of a client's backup, in @[1, maxBound]@.
 newtype BackupEpoch = BackupEpoch Word32
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Bounded)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema BackupEpoch
 
+-- | Not derived: @0@ is no epoch.
+instance Bounded BackupEpoch where
+  minBound = BackupEpoch 1
+  maxBound = BackupEpoch maxBound
+
+mkBackupEpoch :: Word32 -> Either Text BackupEpoch
+mkBackupEpoch 0 = Left "backup epoch must be at least 1"
+mkBackupEpoch w = Right (BackupEpoch w)
+
 instance ToSchema BackupEpoch where
-  schema = (\(BackupEpoch w) -> w) .= withParser schema parseEpoch
-    where
-      parseEpoch 0 = fail "backup epoch must be at least 1"
-      parseEpoch w = pure (BackupEpoch w)
+  schema =
+    (\(BackupEpoch w) -> w)
+      .= withParser schema (either (fail . Text.unpack) pure . mkBackupEpoch)
 
 instance Arbitrary BackupEpoch where
   arbitrary = BackupEpoch <$> choose (1, maxBound)
@@ -67,10 +76,7 @@ instance S.ToParamSchema BackupEpoch where
   toParamSchema _ = S.toParamSchema (Proxy @Word32)
 
 instance FromHttpApiData BackupEpoch where
-  parseUrlPiece t =
-    parseUrlPiece t >>= \case
-      0 -> Left "backup epoch must be at least 1"
-      w -> Right (BackupEpoch w)
+  parseUrlPiece t = parseUrlPiece t >>= mkBackupEpoch
 
 instance ToHttpApiData BackupEpoch where
   toUrlPiece (BackupEpoch w) = toUrlPiece w
@@ -180,6 +186,18 @@ instance ToSchema BackupList where
     object $
       BackupList
         <$> (.clients) .= field "clients" (array schema)
+
+-- | Result of one cleanup batch: number of orphaned files deleted.
+newtype BackupCleanupResult = BackupCleanupResult {deleted :: Word32}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BackupCleanupResult)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BackupCleanupResult
+
+instance ToSchema BackupCleanupResult where
+  schema =
+    object $
+      BackupCleanupResult
+        <$> (.deleted) .= field "deleted" schema
 
 -- | Raw request body, streamed (never buffered).
 newtype BackupSource = BackupSource

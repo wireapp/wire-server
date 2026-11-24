@@ -146,6 +146,10 @@ tests =
         testObjects
           [ (testObject_MeetingsJobPayload_MeetingsCleanup_1, "testObject_MeetingsJobPayload_MeetingsCleanup_1.json")
           ],
+      testGroup "BackupsJobPayload" $
+        testObjects
+          [ (testObject_BackupsJobPayload_BackupsCleanup_1, "testObject_BackupsJobPayload_BackupsCleanup_1.json")
+          ],
       testGroup "ConversationsJobPayload" $
         testObjects
           [ (testObject_ConversationsJobPayload_AdminlessDeletion_1, "testObject_ConversationsJobPayload_AdminlessDeletion_1.json"),

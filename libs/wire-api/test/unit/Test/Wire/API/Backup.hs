@@ -39,7 +39,8 @@ tests =
         assertBool "0 must be rejected" (isLeft (parseUrlPiece @BackupEpoch "0"))
         parseUrlPiece @BackupEpoch "1" @?= Right (BackupEpoch 1)
         parseUrlPiece @BackupEpoch "4294967295" @?= Right (BackupEpoch maxBound)
-        assertBool "2^32 must be rejected" (isLeft (parseUrlPiece @BackupEpoch "4294967296")),
+        assertBool "2^32 must be rejected" (isLeft (parseUrlPiece @BackupEpoch "4294967296"))
+        minBound @?= BackupEpoch 1,
       testCase "epochAccepted without epochs only accepts 1" $ do
         assertBool "1" (epochAccepted Nothing (BackupEpoch 1))
         assertBool "2" (not (epochAccepted Nothing (BackupEpoch 2))),
@@ -65,6 +66,8 @@ tests =
               "size" .= (1048576 :: Int),
               "createdAt" .= ("2026-11-12T10:15:30.123Z" :: Text)
             ],
+      testCase "BackupCleanupResult JSON" $
+        toJSON (BackupCleanupResult 3) @?= object ["deleted" .= (3 :: Int)],
       testCase "BackupList JSON matches RFC example" $ do
         let t = UTCTime (fromGregorian 2026 11 12) (secondsToDiffTime (10 * 3600 + 35 * 60 + 30) + 0.456)
             summary =

@@ -128,7 +128,7 @@ run opts galleyOpts = do
   cleanupJobRunner <-
     runAppT env $
       withNamedLogger "job-runner" $
-        Workers.startWorker opts.jobs opts.meetingsCleanup
+        Workers.startWorker opts.jobs opts.meetingsCleanup opts.backupsCleanup
   let cleanup =
         void $
           runConcurrently $

@@ -107,6 +107,7 @@ internalSitemap :: ServerT InternalAPI Handler
 internalSitemap =
   Named @"i_status" (pure ())
     :<|> Named @"i_get_asset" iDownloadAssetV3
+    :<|> Named @"i_backups_cleanup" Backup.cleanupBackups
 
 -- | Like 'downloadAssetV3' below, but it works without user session token, and has a
 -- different route type.

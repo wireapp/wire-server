@@ -131,6 +131,7 @@ mkDerivation {
     http-media
     http-types
     imports
+    polysemy
     prometheus-client
     QuickCheck
     servant

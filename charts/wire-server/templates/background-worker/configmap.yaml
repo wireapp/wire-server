@@ -35,6 +35,11 @@ data:
     spar:
       host: {{ .spar.host }}
       port: {{ .spar.port }}
+    cargohold:
+      host: {{ .cargohold.host }}
+      port: {{ .cargohold.port }}
+    backupsCleanup:
+      schedule: {{ .backupsCleanup.schedule | quote }}
 
     {{- if $.Values.license }}
     license: {{ $.Values.license | quote }}

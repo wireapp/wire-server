@@ -39,8 +39,9 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Jobs
 import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob, runAdminlessSetupJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
-import Wire.BackgroundWorker.Options (JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
+import Wire.BackgroundWorker.Options (BackupsCleanupConfig (..), JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util
+import Wire.BackupsCleanupWorker (runBackupsCleanup)
 import Wire.ExternalAccess.External
 import Wire.JobSubsystem (arbiterSchemaName)
 import Wire.JobSubsystem.ArbiterAdapter
@@ -70,12 +71,17 @@ data JobWorkerSettings = JobWorkerSettings
 data JobRunnerConfig registry = JobRunnerConfig
   { jobRunnerLogger :: Log.Logger,
     jobRunnerSchedule :: CronSchedule,
+    jobRunnerBackupsCleanupSchedule :: CronSchedule,
     jobRunnerSchemaName :: Text,
     jobRunnerSettings :: JobWorkerSettings
   }
 
-startWorker :: JobConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
-startWorker scheduledConfig meetingsCleanupConfig = do
+startWorker ::
+  JobConfig ->
+  MeetingsCleanupConfig ->
+  BackupsCleanupConfig ->
+  AppT IO CleanupAction
+startWorker scheduledConfig meetingsCleanupConfig backupsCleanupConfig = do
   env <- ask
   extEnv <- liftIO $ initExtEnv True
   let cleanupConfig =
@@ -102,6 +108,7 @@ startWorker scheduledConfig meetingsCleanupConfig = do
         JobRunnerConfig
           { jobRunnerLogger = env.logger,
             jobRunnerSchedule = meetingsCleanupConfig.schedule,
+            jobRunnerBackupsCleanupSchedule = backupsCleanupConfig.schedule,
             jobRunnerSchemaName = arbiterSchemaName,
             jobRunnerSettings = workerSettings
           } ::
@@ -121,8 +128,8 @@ toJobJitter = \case
 -- | Start the worker pools for the job queues.
 --
 -- Each domain queue has its own Arbiter table and worker pool. The meetings
--- pool owns the recurring cleanup cron job, while the conversations pool owns
--- the adminless one-off jobs. Both pools are supervised by Arbiter's
+-- and backups pools own their recurring cleanup cron jobs, while the
+-- conversations pool owns the adminless one-off jobs. All pools are supervised by Arbiter's
 -- multi-pool runner, so they share the process lifecycle without sharing a
 -- payload type or queue.
 runJobRunner ::
@@ -134,7 +141,7 @@ runJobRunner ::
 runJobRunner env extEnv runnerConfig cleanupConfig = do
   Log.info runnerConfig.jobRunnerLogger $
     Log.msg (Log.val "Starting job worker")
-      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
+      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, backupsQueueName, conversationsQueueName])
       . Log.field "schedule" (show runnerConfig.jobRunnerSchedule)
 
   let arbiterEnv = mkNewWireArbiterEnv runnerConfig.jobRunnerSchemaName env.hasqlPool
@@ -146,6 +153,14 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
         case job.payload of
           MeetingsCleanup _ -> runAppT env $ runCleanupOldMeetings cleanupConfig
 
+      backupsWorkerHandler _conn job = liftIO $ do
+        Log.info runnerConfig.jobRunnerLogger $
+          Log.msg (Log.val "Running job")
+            . Log.field "queue_name" backupsQueueName
+            . Log.field "payload_type" (backupsJobPayloadTypeName job.payload)
+        case job.payload of
+          BackupsCleanup _ -> runAppT env $ runBackupsCleanup extEnv
+
       conversationsWorkerHandler _conn job = liftIO $ do
         Log.info runnerConfig.jobRunnerLogger $
           Log.msg (Log.val "Running job")
@@ -156,17 +171,13 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           AdminlessDeletion payload -> runAppT env $ runAdminlessDeletionJob extEnv (mapJobPayload (const payload) job)
           AdminlessReminder payload -> runAppT env $ runAdminlessReminderJob extEnv (mapJobPayload (const payload) job)
 
-  cronJob <- case ArbiterWorkerCron.cronJob
-    "meetings-cleanup"
-    (serializeCronSchedule runnerConfig.jobRunnerSchedule)
-    ArbiterWorkerCron.SkipOverlap
-    ( \_ scheduledFor ->
-        (ArbiterCore.defaultGroupedJob "meetings-cleanup" (MeetingsCleanup MeetingsCleanupJob))
-          & ArbiterCore.setNotVisibleUntil (Just scheduledFor)
-          & ArbiterCore.setMaxAttempts (Just 3)
-    ) of
-    Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
-    Right job -> pure job
+  meetingsCronJob <-
+    mkCronJob "meetings-cleanup" runnerConfig.jobRunnerSchedule (MeetingsCleanup MeetingsCleanupJob)
+  backupsCronJob <-
+    mkCronJob
+      "backups-cleanup"
+      runnerConfig.jobRunnerBackupsCleanupSchedule
+      (BackupsCleanup BackupsCleanupJob)
 
   meetingsWorkerConfig <-
     ( ArbiterWorker.transactionalWorkerConfig
@@ -176,6 +187,17 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           ( ArbiterWorker.WorkerConfig
               (WireArbiter JobRegistry)
               MeetingsJobPayload
+          )
+    )
+
+  backupsWorkerConfig <-
+    ( ArbiterWorker.transactionalWorkerConfig
+        runnerConfig.jobRunnerSettings.jobWorkerThreads
+        backupsWorkerHandler ::
+        IO
+          ( ArbiterWorker.WorkerConfig
+              (WireArbiter JobRegistry)
+              BackupsJobPayload
           )
     )
 
@@ -194,7 +216,13 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
         applyExplicitDefaults
           runnerConfig.jobRunnerSettings
           meetingsWorkerConfig
-            { ArbiterWorkerConfig.cronJobs = [cronJob]
+            { ArbiterWorkerConfig.cronJobs = [meetingsCronJob]
+            }
+      backupsWorkerConfig' =
+        applyExplicitDefaults
+          runnerConfig.jobRunnerSettings
+          backupsWorkerConfig
+            { ArbiterWorkerConfig.cronJobs = [backupsCronJob]
             }
       conversationsWorkerConfig' =
         applyExplicitDefaults
@@ -202,6 +230,7 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           conversationsWorkerConfig
       workerPools =
         [ ArbiterWorker.namedWorkerPool meetingsWorkerConfig',
+          ArbiterWorker.namedWorkerPool backupsWorkerConfig',
           ArbiterWorker.namedWorkerPool conversationsWorkerConfig'
         ]
 
@@ -214,9 +243,32 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
     runWireArbiter arbiterEnv $ ArbiterWorker.shutdownPools workerPools
     Async.cancel workerAsync
 
+-- | A recurring job: skips overlapping runs and is retried at most 3 times.
+mkCronJob ::
+  Text ->
+  CronSchedule ->
+  payload ->
+  IO (ArbiterWorkerCron.CronJob payload)
+mkCronJob name schedule payload =
+  case ArbiterWorkerCron.cronJob
+    name
+    (serializeCronSchedule schedule)
+    ArbiterWorkerCron.SkipOverlap
+    ( \_ scheduledFor ->
+        (ArbiterCore.defaultGroupedJob name payload)
+          & ArbiterCore.setNotVisibleUntil (Just scheduledFor)
+          & ArbiterCore.setMaxAttempts (Just 3)
+    ) of
+    Left err -> throwIO . userError $ "Invalid cron schedule for " <> T.unpack name <> ": " <> err
+    Right job -> pure job
+
 meetingsJobPayloadTypeName :: MeetingsJobPayload -> Text
 meetingsJobPayloadTypeName = \case
   MeetingsCleanup _ -> "meetings_cleanup"
+
+backupsJobPayloadTypeName :: BackupsJobPayload -> Text
+backupsJobPayloadTypeName = \case
+  BackupsCleanup _ -> "backups_cleanup"
 
 conversationsJobPayloadTypeName :: ConversationsJobPayload -> Text
 conversationsJobPayloadTypeName = \case

@@ -187,16 +187,19 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cargohold-types
+    containers
     extended
     imports
     mime
     tasty
+    tasty-hunit
     tasty-quickcheck
     text
     types-common
     unix
     unliftio
     uri-bytestring
+    uuid
     wire-api
   ];
   description = "Asset Storage API";

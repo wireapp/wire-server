@@ -20,6 +20,7 @@
 module Wire.BackupStore where
 
 import Data.Id
+import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Polysemy
 import Wire.API.Backup
@@ -85,6 +86,11 @@ data BackupStore m a where
   -- marked (@deletion_last_tried@), so committing them fails with the reservation gone.
   -- Returns the orphaned ids.
   OrphanClient :: UserId -> ClientId -> BackupStore m [BackupFileId]
+  -- | One transaction: pick up to the given number of orphans to delete (deletions of
+  -- committed files, and upload reservations older than the grace period; never-tried ones
+  -- first) and mark them as tried. Arguments: grace period, batch size. Concurrent calls may
+  -- return the same ids, deleting is idempotent.
+  SelectCleanupBatch :: NominalDiffTime -> Word32 -> BackupStore m [BackupFileId]
   -- | Remove orphan rows by id (no lock).
   DeleteOrphanRows :: [BackupFileId] -> BackupStore m ()
   -- | Set @deletion_last_tried@ of orphan rows by id (no lock).

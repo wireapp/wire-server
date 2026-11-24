@@ -22,7 +22,7 @@ import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, addUTCTime)
 import Imports
 import Polysemy
 import Polysemy.State
@@ -151,6 +151,18 @@ inMemoryBackupStore = interpret $ \case
           orphans = Map.map blocked s.orphans <> newOrphans
         }
     pure (Map.keys newOrphans)
+  SelectCleanupBatch grace limit -> do
+    now <- Now.get
+    s <- get
+    let eligible o = isJust o.fileCreatedAt || o.orphanedAt < addUTCTime (negate grace) now
+        picked =
+          take (fromIntegral limit)
+            . map fst
+            . sortOn (\(_, o) -> (isJust o.deletionLastTried, o.deletionLastTried, o.orphanedAt))
+            . filter (eligible . snd)
+            $ Map.toList s.orphans
+    put s {orphans = foldr (Map.adjust (\o -> o {deletionLastTried = Just now})) s.orphans picked}
+    pure picked
   DeleteOrphanRows ids ->
     modify $ \s -> s {orphans = foldr Map.delete s.orphans ids}
   MarkDeletionTried ids -> do

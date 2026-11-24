@@ -15,12 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Wire.BackupSubsystem where
 
 import Conduit (ResourceT)
-import Data.Aeson (FromJSON (..), withObject, (.:))
+import Data.Aeson (FromJSON (..), withObject, (.!=), (.:), (.:?))
+import Data.Aeson.Types (JSONPathElement (Key), parserThrowError)
 import Data.Conduit (ConduitT)
 import Data.Domain (Domain)
 import Data.Id
@@ -39,23 +41,35 @@ data BackupConfig = BackupConfig
     -- | Maximal number of files of an epoch, counting the full.
     maxFilesPerEpoch :: Word32,
     -- | Maximal duration of an upload.
-    uploadTimeout :: NominalDiffTime
+    uploadTimeout :: NominalDiffTime,
+    -- | Age after which an orphan that is not a deleted file (i.e. an upload reservation) is
+    -- collected by the cleanup. Must be greater than 'uploadTimeout'.
+    orphanGracePeriod :: NominalDiffTime,
+    -- | Maximal number of orphans one cleanup call handles.
+    cleanupBatchSize :: Word32
   }
   deriving (Eq, Show)
 
--- | @uploadTimeout@ is given in seconds.
+-- | @uploadTimeout@ and @orphanGracePeriod@ are given in seconds.
 instance FromJSON BackupConfig where
-  parseJSON = withObject "BackupConfig" $ \o ->
-    BackupConfig
-      <$> o .: "maxFullBytes"
-      <*> o .: "maxIncrementalBytes"
-      <*> (o .: "maxFilesPerEpoch" >>= atLeastOne)
-      <*> (fromInteger <$> o .: "uploadTimeout")
-    where
-      -- the full counts as a file of its epoch
-      atLeastOne n
-        | n < 1 = fail "maxFilesPerEpoch must be at least 1"
-        | otherwise = pure n
+  parseJSON = withObject "BackupConfig" $ \o -> do
+    maxFullBytes <- o .: "maxFullBytes"
+    maxIncrementalBytes <- o .: "maxIncrementalBytes"
+    maxFilesPerEpoch <- o .: "maxFilesPerEpoch"
+    -- the full counts as a file of its epoch
+    when (maxFilesPerEpoch < 1) $ fail "maxFilesPerEpoch must be at least 1"
+    uploadTimeout <- fromInteger <$> o .: "uploadTimeout"
+    -- 0 fails every upload, a negative value disables the S3 timeout ('System.Timeout.timeout')
+    when (uploadTimeout <= 0) $
+      parserThrowError [Key "uploadTimeout"] "uploadTimeout must be at least 1"
+    orphanGracePeriod <- fromInteger <$> o .:? "orphanGracePeriod" .!= 3600
+    -- else the cleanup could remove the reservation of an upload that is still running
+    when (orphanGracePeriod <= uploadTimeout) $
+      parserThrowError [Key "orphanGracePeriod"] "orphanGracePeriod must be greater than uploadTimeout"
+    cleanupBatchSize <- o .:? "cleanupBatchSize" .!= 100
+    when (cleanupBatchSize < 1) $
+      parserThrowError [Key "cleanupBatchSize"] "cleanupBatchSize must be at least 1"
+    pure BackupConfig {..}
 
 data BackupError
   = BackupErrorForbidden
@@ -123,5 +137,9 @@ data BackupSubsystem m a where
   -- | Arguments: caller, calling client (Z-Client), client of the path. Neither the feature
   -- nor a team is required.
   DeleteClientBackups :: Local UserId -> ClientId -> ClientId -> BackupSubsystem m ()
+  -- | One batch of the cleanup of orphans: collects reservations older than the grace period
+  -- and orphans whose deletion failed before, deletes their objects and rows. Returns the
+  -- number of deleted orphans. Internal, no checks.
+  CleanupOrphans :: BackupSubsystem m Word32
 
 makeSem ''BackupSubsystem

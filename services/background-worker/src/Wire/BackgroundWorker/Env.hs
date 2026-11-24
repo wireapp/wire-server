@@ -102,6 +102,7 @@ data Env = Env
     postgresMigration :: PostgresMigrationOpts,
     gundeckEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
+    cargoholdEndpoint :: Endpoint,
     galleyEndpoint :: Endpoint,
     brigEndpoint :: Endpoint,
     maxTeamSize :: !Word32,
@@ -190,6 +191,7 @@ mkEnv opts galleyOpts = do
       galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
+      cargoholdEndpoint = opts.cargohold
       maxTeamSize = galleyOpts._settings._maxTeamSize
       maxFanoutSize = galleyOpts._settings._maxFanoutSize
       exposeInvitationURLsTeamAllowlist = galleyOpts._settings._exposeInvitationURLsTeamAllowlist

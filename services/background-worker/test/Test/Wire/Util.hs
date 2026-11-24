@@ -83,6 +83,7 @@ testEnv = do
       gundeckEndpoint = undefined
       brigEndpoint = undefined
       sparEndpoint = Endpoint "localhost" 0
+      cargoholdEndpoint = Endpoint "localhost" 0
       galleyEndpoint = undefined
       maxTeamSize = 1000
       maxFanoutSize = Nothing

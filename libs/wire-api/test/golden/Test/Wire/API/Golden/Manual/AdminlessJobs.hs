@@ -59,6 +59,9 @@ testObject_AdminlessSetupJob_2 = AdminlessSetupJob teamId (Just originUserId) re
 testObject_MeetingsJobPayload_MeetingsCleanup_1 :: MeetingsJobPayload
 testObject_MeetingsJobPayload_MeetingsCleanup_1 = MeetingsCleanup MeetingsCleanupJob
 
+testObject_BackupsJobPayload_BackupsCleanup_1 :: BackupsJobPayload
+testObject_BackupsJobPayload_BackupsCleanup_1 = BackupsCleanup BackupsCleanupJob
+
 testObject_ConversationsJobPayload_AdminlessDeletion_1 :: ConversationsJobPayload
 testObject_ConversationsJobPayload_AdminlessDeletion_1 = AdminlessDeletion testObject_AdminlessDeletionJob_1
 

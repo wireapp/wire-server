@@ -23,6 +23,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import Data.ByteString.Builder
+import qualified Data.ByteString.Char8 as BC
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Lazy as Lazy
@@ -37,7 +38,8 @@ import Network.HTTP.Client (Request (redirectCount, requestHeaders))
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types.Header (HeaderName)
 import Testlib.Prelude
-import UnliftIO (catch)
+import UnliftIO (atomicModifyIORef', catch, newIORef)
+import UnliftIO.Concurrent (threadDelay)
 
 type LByteString = LBS.ByteString
 
@@ -145,6 +147,38 @@ getClientBackups user zClientId clientId = do
   uid <- user & objId
   req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId]
   submit "GET" $ req & zUser uid & zClient zClientId
+
+-- | Internal: one batch of the cleanup of orphaned backup files.
+postBackupsCleanup :: (HasCallStack, MakesValue domain) => domain -> App Response
+postBackupsCleanup domain = do
+  req <- baseRequest domain Cargohold Unversioned "/i/backups/cleanup"
+  submit "POST" req
+
+-- | Upload a full that promises 1024 bytes, sends 512, stalls for 3 seconds and ends. The upload
+-- fails and leaves its reservation. Arguments: caller, Z-Client = client in the path, epoch.
+uploadBackupFullStalled ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  Int ->
+  App Response
+uploadBackupFullStalled user clientId epoch = do
+  uid <- user & objId
+  req <- rawBaseRequest user Cargohold Versioned $ joinHttpPath ["backups", "clients", clientId, "epochs", show epoch, "full"]
+  submit "POST"
+    $ req
+    & zUser uid
+    & zClient clientId
+    & addBody (HTTP.RequestBodyStream 1024 stalledPopper) "application/octet-stream"
+  where
+    stalledPopper needsPopper = do
+      sent <- newIORef (0 :: Int)
+      needsPopper $ do
+        n <- atomicModifyIORef' sent (\k -> (k + 1, k))
+        case n of
+          0 -> pure (BC.replicate 512 'x')
+          1 -> threadDelay 3_000_000 $> mempty
+          _ -> pure mempty
 
 -- UPLOAD
 

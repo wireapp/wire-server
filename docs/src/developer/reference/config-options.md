@@ -1573,6 +1573,19 @@ PostgreSQL. Make sure that no lifecycle rules (e.g. TTL) apply to this prefix.
 - `backups.maxIncrementalBytes` (integer, bytes): maximum size of an incremental backup file.
 - `backups.maxFilesPerEpoch` (integer, at least 1): maximum number of files of an epoch, including its full.
 - `backups.uploadTimeout` (integer, seconds): maximum duration of a backup upload.
+- `backups.orphanGracePeriod` (integer, seconds, default 3600): age after which the cleanup
+  collects an unfinished upload. Must be greater than `backups.uploadTimeout`, else cargohold
+  does not start.
+- `backups.cleanupBatchSize` (integer, at least 1, default 100): maximum number of orphaned
+  files one cleanup call (`POST /i/backups/cleanup`) deletes.
+
+Orphaned backup files (replaced or removed files whose S3 deletion failed, unfinished uploads)
+are deleted by background-worker, which calls the internal cargohold endpoint
+`POST /i/backups/cleanup` periodically. Configure it in background-worker:
+
+- `cargohold` (endpoint): cargohold to call.
+- `backupsCleanup.schedule` (cron expression, required): when to run the cleanup, e.g.
+  `"*/5 * * * *"`.
 
 ## Settings in cannon
 

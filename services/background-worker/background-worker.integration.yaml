@@ -86,6 +86,15 @@ jobs:
   reaperTimeout: 300s
   workerStaleThreshold: 300s
 
+# Must be called `cargohold`: dynamic backends rewrite it to their own cargohold
+cargohold:
+  host: 127.0.0.1
+  port: 8084
+
+# Backups cleanup configuration for integration
+backupsCleanup:
+  schedule: "* * * * *"  # Run every minute
+
 # Meetings cleanup configuration for integration
 meetingsCleanup:
   cleanOlderThanHours: 0.0014  # Clean meetings older than ~5 seconds

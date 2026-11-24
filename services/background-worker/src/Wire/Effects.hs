@@ -66,6 +66,8 @@ import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotifica
 import Wire.BackgroundWorker.Env (Env (..))
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc
+import Wire.CargoholdAPIAccess (CargoholdAPIAccess)
+import Wire.CargoholdAPIAccess.Rpc (interpretCargoholdAPIAccessToRpc)
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore.Cassandra (interpretCodeStoreToCassandra)
@@ -201,6 +203,7 @@ type BackgroundWorkerEffects =
      FederationAPIAccess FederatorClient,
      NotificationSubsystem,
      SparAPIAccess,
+     CargoholdAPIAccess,
      ExternalAccess,
      RateLimit,
      HashPassword,
@@ -356,6 +359,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runHashPassword env.passwordHashingOptions
     . interpretRateLimit env.passwordHashingRateLimitEnv
     . interpretExternalAccess extEnv
+    . interpretCargoholdAPIAccessToRpc env.cargoholdEndpoint
     . interpretSparAPIAccessToRpc env.sparEndpoint
     . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig requestId)
     . interpretFederationAPIAccess federationAPIAccessConfig

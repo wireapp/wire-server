@@ -23,6 +23,7 @@ import Imports
 import Servant
 import Servant.OpenApi
 import Wire.API.Asset
+import Wire.API.Backup (BackupCleanupResult)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 
@@ -30,6 +31,9 @@ type InternalAPI =
   "i"
     :> ( Named "i_status" ("status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ())
            :<|> Named "i_get_asset" ("assets" :> Capture "key" AssetKey :> Get '[Servant.JSON] Text)
+           :<|> Named
+                  "i_backups_cleanup"
+                  ("backups" :> "cleanup" :> Post '[Servant.JSON] BackupCleanupResult)
        )
 
 swaggerDoc :: OpenApi

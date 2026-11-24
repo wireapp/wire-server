@@ -31,6 +31,8 @@ backups:
   maxIncrementalBytes: 65536
   maxFilesPerEpoch: 3 # counts the full
   uploadTimeout: 2700 # Seconds
+  orphanGracePeriod: 3600 # Seconds
+  cleanupBatchSize: 100
 
 aws:
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here

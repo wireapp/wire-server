@@ -22,6 +22,7 @@ library
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.BackgroundWorker.Workers
+    Wire.BackupsCleanupWorker
     Wire.DeadUserNotificationWatcher
     Wire.Effects
     Wire.MeetingsCleanupWorker
@@ -197,6 +198,7 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
+    Test.Wire.BackupsCleanupWorkerSpec
     Test.Wire.Util
 
   build-depends:
@@ -214,6 +216,7 @@ test-suite background-worker-test
     , http-media
     , http-types
     , imports
+    , polysemy
     , prometheus-client
     , QuickCheck
     , servant

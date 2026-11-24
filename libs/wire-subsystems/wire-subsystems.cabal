@@ -260,6 +260,8 @@ library
     Wire.BudgetStore.Cassandra
     Wire.BudgetStore.DualWrite
     Wire.BudgetStore.Postgres
+    Wire.CargoholdAPIAccess
+    Wire.CargoholdAPIAccess.Rpc
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB

@@ -26,12 +26,17 @@ import Data.CaseInsensitive (mk)
 import qualified Network.HTTP.Client as HTTP
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO (try)
 import UnliftIO.Async (mapConcurrently)
+import UnliftIO.Concurrent (threadDelay)
 
 -- | A team owner with the feature @automaticBackups@ enabled and a client.
 setupBackupUser :: (HasCallStack) => App (Value, String)
-setupBackupUser = do
-  (owner, tid, _) <- createTeam OwnDomain 0
+setupBackupUser = setupBackupUserOn OwnDomain
+
+setupBackupUserOn :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
+setupBackupUserOn domain = do
+  (owner, tid, _) <- createTeam domain 0
   Internal.setTeamFeatureLockStatus owner tid "automaticBackups" "unlocked"
   bindResponse (Internal.setTeamFeatureStatus owner tid "automaticBackups" "enabled") $ \resp ->
     resp.status `shouldMatchInt` 200
@@ -514,3 +519,51 @@ testBackupDeleteOtherClientsUntouched = do
     resp.status `shouldMatchInt` 204
   bindResponse (getBackupEpoch owner cidB cidB 1) $ \resp ->
     resp.status `shouldMatchInt` 200
+
+-- CLEANUP
+
+-- | The number of files one cleanup batch deleted.
+cleanupBatch :: (HasCallStack, MakesValue domain) => domain -> App Int
+cleanupBatch domain =
+  bindResponse (postBackupsCleanup domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "deleted" & asInt
+
+-- | Cleans up until nothing is left (a dynamic backend may be reused).
+drainCleanup :: (HasCallStack, MakesValue domain) => domain -> App ()
+drainCleanup domain = do
+  n <- cleanupBatch domain
+  when (n > 0) $ drainCleanup domain
+
+testBackupCleanupExpiredReservation :: (HasCallStack) => App ()
+testBackupCleanupExpiredReservation =
+  withModifiedBackend
+    def
+      { cargoholdCfg =
+          setField "backups.uploadTimeout" (1 :: Int)
+            >=> setField "backups.orphanGracePeriod" (4 :: Int),
+        -- effectively never: the test calls the cleanup itself
+        backgroundWorkerCfg = setField "backupsCleanup.schedule" ("0 0 1 1 *" :: String)
+      }
+    $ \domain -> do
+      drainCleanup domain
+      threadDelay 5_000_000
+      drainCleanup domain
+      (owner, cid) <- setupBackupUserOn domain
+      -- cargohold may close the connection early
+      stalled <- try (uploadBackupFullStalled owner cid 1)
+      case stalled of
+        Left (_ :: SomeException) -> pure ()
+        Right resp -> resp.status `shouldMatchOneOf` [400, 500 :: Int]
+      -- still in flight as far as the cleanup can tell
+      cleanupBatch domain `shouldMatchInt` 0
+      threadDelay 5_000_000
+      cleanupBatch domain `shouldMatchInt` 1
+      cleanupBatch domain `shouldMatchInt` 0
+
+testBackupCleanupEndpoint :: (HasCallStack) => App ()
+testBackupCleanupEndpoint =
+  bindResponse (postBackupsCleanup OwnDomain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    deleted <- resp.json %. "deleted" & asInt
+    when (deleted < 0) $ assertFailure "deleted must not be negative"

@@ -44,6 +44,12 @@ type MeetingsQueueName = "meetings"
 meetingsQueueName :: Text
 meetingsQueueName = Text.pack $ symbolVal (Proxy @MeetingsQueueName)
 
+-- | The queue/table for jobs that operate on backups.
+type BackupsQueueName = "backups"
+
+backupsQueueName :: Text
+backupsQueueName = Text.pack $ symbolVal (Proxy @BackupsQueueName)
+
 -- | The queue/table for jobs that operate on conversations.
 type ConversationsQueueName = "conversations"
 
@@ -193,6 +199,59 @@ deriving via (Schema MeetingsJobPayload) instance S.ToSchema MeetingsJobPayload
 instance Arbitrary MeetingsJobPayload where
   arbitrary = MeetingsCleanup <$> arbitrary
 
+-- | Empty payload because the schedule itself carries all execution context.
+data BackupsCleanupJob = BackupsCleanupJob
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BackupsCleanupJob)
+
+instance ToSchema BackupsCleanupJob where
+  schema = object $ pure BackupsCleanupJob
+
+instance Arbitrary BackupsCleanupJob where
+  arbitrary = pure BackupsCleanupJob
+
+-- | Payload persisted in the backups queue. Keep the type tag and nested data
+-- shape stable when changing job payloads.
+data BackupsJobPayload
+  = BackupsCleanup BackupsCleanupJob
+  deriving stock (Eq, Generic, Show)
+
+data BackupsJobPayloadTag
+  = BackupsCleanupTag
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via GenericUniform BackupsJobPayloadTag
+
+instance ToSchema BackupsJobPayloadTag where
+  schema =
+    enum @Text $
+      element "backups_cleanup" BackupsCleanupTag
+
+makePrisms ''BackupsJobPayload
+
+backupsJobPayloadObjectSchema :: ObjectSchema SwaggerDoc BackupsJobPayload
+backupsJobPayloadObjectSchema = taggedJobPayloadObjectSchema toTag toSchema
+  where
+    toTag :: BackupsJobPayload -> BackupsJobPayloadTag
+    toTag =
+      \case
+        BackupsCleanup {} -> BackupsCleanupTag
+
+    toSchema :: BackupsJobPayloadTag -> ObjectSchema SwaggerDoc BackupsJobPayload
+    toSchema = \case
+      BackupsCleanupTag -> tag _BackupsCleanup (field "data" schema)
+
+instance ToSchema BackupsJobPayload where
+  schema = object backupsJobPayloadObjectSchema
+
+deriving via (Schema BackupsJobPayload) instance FromJSON BackupsJobPayload
+
+deriving via (Schema BackupsJobPayload) instance ToJSON BackupsJobPayload
+
+deriving via (Schema BackupsJobPayload) instance S.ToSchema BackupsJobPayload
+
+instance Arbitrary BackupsJobPayload where
+  arbitrary = BackupsCleanup <$> arbitrary
+
 -- | Payload persisted in the conversations queue. Keep the type tags and
 -- nested data shapes stable when changing job payloads.
 data ConversationsJobPayload
@@ -250,5 +309,6 @@ instance Arbitrary ConversationsJobPayload where
 -- | Registry for the jobs we expose via Arbiter.
 type JobRegistry =
   '[ Queue MeetingsQueueName MeetingsJobPayload,
+     Queue BackupsQueueName BackupsJobPayload,
      Queue ConversationsQueueName ConversationsJobPayload
    ]

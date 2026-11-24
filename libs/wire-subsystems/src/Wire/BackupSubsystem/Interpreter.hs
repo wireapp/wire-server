@@ -98,6 +98,16 @@ interpretBackupSubsystem = interpret $ \case
     when (zClient /= cid) $ throw BackupErrorForbidden
     ensureClientExists uid zClient
     orphanClient uid cid >>= deleteOrphansNow
+  CleanupOrphans -> do
+    config <- input
+    batch <- selectCleanupBatch config.orphanGracePeriod config.cleanupBatchSize
+    -- rows of failed deletions stay, the select already marked them as tried
+    gone <- deleteGone batch
+    let counts = Log.field "deleted" (length gone) . Log.field "selected" (length batch)
+    unless (null batch) $
+      Log.info $
+        Log.msg (Log.val "Cleaned up orphaned backup files") . counts
+    pure (fromIntegral (length gone))
 
 -- | Best effort: delete the objects of the orphans, then their rows. Rows of orphans whose
 -- objects are not gone stay (marked as tried) for the cleanup. S3 failures are logged by the
@@ -108,8 +118,7 @@ deleteOrphansNow ::
   Sem r ()
 deleteOrphansNow [] = pure ()
 deleteOrphansNow ids = do
-  gone <- deleteObjects ids
-  deleteOrphanRows gone
+  gone <- deleteGone ids
   let goneSet = Set.fromList gone
       failed = filter (`Set.notMember` goneSet) ids
   markDeletionTried failed
@@ -117,6 +126,16 @@ deleteOrphansNow ids = do
   if null failed
     then Log.debug $ Log.msg (Log.val "Deleted orphaned backup files") . counts
     else Log.warn $ Log.msg (Log.val "Could not delete all orphaned backup files") . counts
+
+-- | Deletes the objects, then the rows of those that are gone. Returns the gone ones.
+deleteGone ::
+  (Member BackupStore r, Member BackupObjectStore r) =>
+  [BackupFileId] ->
+  Sem r [BackupFileId]
+deleteGone ids = do
+  gone <- deleteObjects ids
+  deleteOrphanRows gone
+  pure gone
 
 uploadFullImpl ::
   ( Member BackupStore r,
