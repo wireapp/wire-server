@@ -100,6 +100,9 @@ user/team deletion.
   RFC, `client_id` stored as `text` like other PG tables storing `ClientId`
   (builder: confirm existing representation and follow it). Index on
   `backup_orphans (orphaned_at)`, index on `backup_incrementals (full_id)`.
+  `backup_orphans` gets a generated column (RFC addition) making the orphan
+  kind explicit without redundancy:
+  `kind text GENERATED ALWAYS AS (CASE WHEN file_created_at IS NULL THEN 'upload' ELSE 'deletion' END) STORED`.
 - `Wire.BackupStore` effect + `Wire.BackupStore.Postgres` interpreter
   (hasql-th, `runTransaction`). All transactional logic from the RFC lives
   here as whole-transaction operations, e.g. `reserveUpload`,
@@ -135,7 +138,7 @@ user/team deletion.
   | `maxFilesPerEpoch` | 1000 (includes the full) |
   | `uploadTimeout` | 30 min |
   | `orphanGracePeriod` | 60 min; startup fails unless `> uploadTimeout` |
-  | `cleanupBatchSize` | 500 |
+  | `cleanupBatchSize` | 100 (a versioned batch must finish within background-worker's 30 s HTTP timeout) |
 
 - `Env`: hasql pool; galley endpoint.
 - `CargoHold.Backup` (new): `BackupObjectStore` interpreter on top of
@@ -143,7 +146,7 @@ user/team deletion.
   `putObject` reuses the `S3.uploadV3` pipeline (`isolate` / `countC` /
   `streamUpload`, `incompleteBody` on mismatch), run with `runResourceT` in
   `Embed IO`. New S3 ops: `GetBucketVersioning`, `ListObjectVersions`,
-  `ListObjectsV2`, `DeleteObjects` (≤ 1000 keys/versions per call; listings
+  `DeleteObjects` (≤ 1000 keys/versions per call; listings
   in parallel, bounded).
 - `runBackupEffects :: Sem BackupEffects a -> Handler a` interprets the
   whole stack in `Embed IO` and maps `BackupError` to cargohold's Wai
@@ -233,8 +236,8 @@ the caller's user id.
 ### Delete client backups
 
 One transaction orphans everything of `(user, client)`, then inline
-best-effort deletion (`deleteOrphansNow`; catches and logs S3 and Postgres
-errors, so the response is 204 once the orphaning transaction committed).
+best-effort deletion (`deleteOrphansNow`; S3 errors are logged, rows stay
+for the cron; Postgres errors propagate, as Postgres is assumed reliable).
 
 ### Download
 
@@ -255,7 +258,7 @@ lock.
 
 ## Cleanup
 
-- Eligible orphans: `file_created_at IS NOT NULL OR orphaned_at < now() - orphanGracePeriod`.
+- Eligible orphans: `kind = 'deletion' OR orphaned_at < now() - orphanGracePeriod`.
 - `POST /i/backups/cleanup`: select up to `cleanupBatchSize` eligible
   orphans, `ORDER BY deletion_last_tried NULLS FIRST, orphaned_at`, with
   `FOR UPDATE SKIP LOCKED` in a short transaction that also sets
@@ -265,7 +268,8 @@ lock.
   deletion): empty status → `DeleteObjects` with keys only; otherwise or on
   error → `ListObjectVersions` per file (prefix `backups/<id>`), then
   `DeleteObjects` over all versions + delete markers. `NotImplemented` from
-  `ListObjectVersions` → `ListObjectsV2` + plain keys.
+  `ListObjectVersions` → plain exact keys `backups/<id>` (keys are exact, no
+  listing needed; RFC deviation), remaining files of that call skip listing.
 - Inline deletion after a commit uses the same code path on the just-created
   orphan ids. Failures only log; rows stay for the cron.
 - Double deletion (inline and cron at the same time) is harmless: S3 deletes
