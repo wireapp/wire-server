@@ -494,8 +494,10 @@ updateMeetingImpl zUser mConn caller meetingId update validityPeriod pastEditPer
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
-    -- Guard placement after the liveness/domain/creator guards keeps the
-    -- pre-existing uniform 404 for non-creators (no existence oracle).
+    -- Checks below the liveness/domain/creator guards keep the pre-existing
+    -- uniform 404 for non-creators (no existence oracle). The conversation id
+    -- never changes on update.
+    conv <- getVisibleMeetingConversation meetingId meeting
     lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
     -- Creation enforces endTime > startTime (createMeetingImpl); re-establish
     -- the invariant on the *effective* times after this update, since either
@@ -511,12 +513,9 @@ updateMeetingImpl zUser mConn caller meetingId update validityPeriod pastEditPer
     for_ update.startTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
     for_ update.endTime $ \t -> when (t < pastEditCutoff) $ lift $ throw (InvalidTimes TimesBeyondPastEditWindow)
 
-    -- Resolve the conversation and the link capability (URI config + live
-    -- code) before committing any side effect, so neither a missing
-    -- conversation (404) nor a 'LinkUnavailable' at render time can follow
-    -- the row update and the notification. The conversation id never changes
-    -- on update.
-    conv <- getVisibleMeetingConversation meetingId meeting
+    -- Resolve the link capability (URI config + live code) before committing
+    -- any side effect, so a 'LinkUnavailable' at render time cannot follow
+    -- the row update and the notification.
     base <- lift $ codeURIBase (tDomain zUser)
     mCode <- lift $ CodeStore.getMeetingCode (qUnqualified meetingId)
     when (isNothing base || isNothing mCode) $ lift $ throw LinkUnavailable
@@ -725,8 +724,8 @@ refreshMeetingLinkImpl zUser mConn caller meetingId req validityPeriod emailsEna
     guard $ isAlive cutoff meeting
     guard $ qDomain meetingId == tDomain zUser
     guard $ meeting.creator == tUnqualified zUser
-    lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
     conv <- getVisibleMeetingConversation meetingId meeting
+    lift $ ensureCalendarMutation mConn caller meeting.externallyManagedBy
     mHashedPw <- lift $ for req.password $ hashPassword8 (RateLimitUser (tUnqualified zUser))
     -- Rotation + guest-code revocation are one CodeStore op (see
     -- 'CodeStore.RotateMeetingCode' for why they must not be split). The fresh
@@ -983,8 +982,11 @@ getMeetingConversationOrFail meetingId convId = do
 -- same visibility rule as get/list/join ('ownerMeetingsEnabled'): fails
 -- (404) when the conversation is missing (logged by
 -- 'getMeetingConversationOrFail') or the meeting's owning team has meetings
--- disabled. Call it before any write, event or email. Used by update,
--- link refresh and adding/replacing invited emails.
+-- disabled. Call it right after the liveness/domain/creator guards, before
+-- any validation
+-- (calendar ownership, times), write, event or email, so a hidden meeting is
+-- a 404 rather than a validation error. Used by update, link refresh and
+-- adding/replacing invited emails.
 --
 -- Deliberately not used by removing invited emails (it only drops
 -- addresses) nor by delete, so the creator stays able to tear down a meeting
@@ -1408,8 +1410,8 @@ addInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPeriod 
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
-      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       void $ getVisibleMeetingConversation meetingId storedMeeting
+      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
       -- The store unions into 'invited_emails', so only addresses not
       -- already invited get an invitation: re-adding an address is a
@@ -1486,8 +1488,8 @@ replaceInvitedEmailsImpl zUser mConn caller meetingId emails mLocale validityPer
       guard $ isAlive cutoff storedMeeting
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
-      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       void $ getVisibleMeetingConversation meetingId storedMeeting
+      lift $ ensureCalendarMutation mConn caller storedMeeting.externallyManagedBy
       lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
       -- Only newly-added addresses get an invitation; removed addresses get
       -- no email (removal emails are a separate ticket, WPB-27179).

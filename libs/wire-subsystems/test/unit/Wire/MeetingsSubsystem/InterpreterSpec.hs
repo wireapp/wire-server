@@ -3619,10 +3619,14 @@ specMeetingEmails =
             hide (qUnqualified meeting.meeting.conversationId)
             added <- addInvitedEmails zUser1 (Just testConnId) Nothing mid [addrC] Nothing
             replaced <- replaceInvitedEmails zUser1 (Just testConnId) Nothing mid [addrD] Nothing
+            -- A calendar caller on this wire-managed meeting would get
+            -- 'InvalidCalendarFields' if it were visible; hidden, it is a 404.
+            calendarAdded <- addInvitedEmails zUser1 Nothing (Just calendarCid) mid [addrC] Nothing
+            calendarReplaced <- replaceInvitedEmails zUser1 Nothing (Just calendarCid) mid [addrD] Nothing
             removed <- removeInvitedEmails zUser1 (Just testConnId) Nothing mid [addrA]
             rpcsAfter <- length <$> sentRpcs
             stored <- gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified mid))
-            pure (addedWhileVisible, rpcsBefore, (added, replaced, removed), rpcsAfter, (.invitedEmails) <$> stored)
+            pure (addedWhileVisible, rpcsBefore, (added || calendarAdded, replaced || calendarReplaced, removed), rpcsAfter, (.invitedEmails) <$> stored)
           case result of
             Left err -> fail $ "Error: " <> show err
             Right (addedWhileVisible, rpcsBefore, outcomes, rpcsAfter, storedEmails) -> do
@@ -3661,7 +3665,7 @@ specMeetingEmails =
     it "rejects invitation-sending invited-email changes on a meeting whose owning team has meetings disabled" $
       hiddenMeetingInviteeChanges disableOwnerTeam
 
-    it "rejects update and link refresh, but not delete, of a meeting whose owning team has meetings disabled" $ do
+    it "rejects update (before validation) and link refresh, but not delete, of a meeting whose owning team has meetings disabled" $ do
       result <- runTestStack now0 gen0 Map.empty def $ do
         plantHost uid1 (Just hostEmail) hostLocale
         meeting <- createMeeting zUser1 (Just testConnId) Nothing (mkNewMeeting API.Scheduled [addrA])
@@ -3672,7 +3676,16 @@ specMeetingEmails =
         rpcsBefore <- length <$> sentRpcs
         eventsBefore <- length . extractMeetingEvents <$> gets @[Push] id
         updated <- updateMeeting zUser1 (Just testConnId) Nothing mid (titleUpdate (unsafeRange "Renamed"))
+        -- Swapped times would be 'InvalidTimes EndBeforeStart' on a visible
+        -- meeting; a hidden one is a 404 before any validation.
+        swappedTimes <-
+          updateMeeting zUser1 (Just testConnId) Nothing mid $
+            API.UpdateMeeting (Just meeting.meeting.endTime) (Just meeting.meeting.startTime) Nothing Nothing Nothing
         refreshed <- refreshMeetingLink zUser1 (Just testConnId) Nothing mid (API.RefreshMeetingLinkRequest Nothing)
+        -- Same for calendar ownership: 'InvalidCalendarFields' on a visible
+        -- wire-managed meeting, a 404 on a hidden one.
+        calendarUpdated <- updateMeeting zUser1 Nothing (Just calendarCid) mid (titleUpdate (unsafeRange "Renamed"))
+        calendarRefreshed <- refreshMeetingLink zUser1 Nothing (Just calendarCid) mid (API.RefreshMeetingLinkRequest Nothing)
         rpcsAfter <- length <$> sentRpcs
         eventsAfter <- length . extractMeetingEvents <$> gets @[Push] id
         titleAfter <- fmap (.title) <$> gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified mid))
@@ -3688,7 +3701,7 @@ specMeetingEmails =
         disableOwnerTeam convId
         deleted <- deleteMeeting zUser1 (Just testConnId) Nothing mid
         pure
-          ( (updated, refreshed),
+          ( (updated, swappedTimes, refreshed, isJust calendarUpdated || isJust calendarRefreshed),
             (rpcsAfter - rpcsBefore, eventsAfter - eventsBefore),
             (titleAfter, meeting.meeting.title),
             (codeBefore, codeAfter),
@@ -3697,9 +3710,11 @@ specMeetingEmails =
           )
       case result of
         Left err -> fail $ "Error: " <> show err
-        Right ((updated, refreshed), sideEffects, (titleAfter, originalTitle), (codeBefore, codeAfter), whileEnabled, deleted) -> do
+        Right ((updated, swappedTimes, refreshed, calendarSucceeded), sideEffects, (titleAfter, originalTitle), (codeBefore, codeAfter), whileEnabled, deleted) -> do
           (.meeting.id) <$> updated `shouldBe` Nothing
+          (.meeting.id) <$> swappedTimes `shouldBe` Nothing
           (.meeting.id) <$> refreshed `shouldBe` Nothing
+          calendarSucceeded `shouldBe` False
           -- No email RPC and no meeting event.
           sideEffects `shouldBe` (0, 0)
           -- No row write, no link rotation.
