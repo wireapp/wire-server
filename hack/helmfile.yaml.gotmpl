@@ -92,6 +92,10 @@ repositories:
     url: registry-1.docker.io
     oci: true
 
+  - name: wire_stable
+    url: quay.io/wire/charts/stable
+    oci: true
+
   - name: groundhog2k
     url: https://groundhog2k.github.io/helm-charts
 
@@ -274,15 +278,17 @@ releases:
 
   - name: 'ingress'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/{{ .Values.ingressChart }}'
+    chart: 'wire_stable/ingress-nginx-controller'
+    version: '6.1.0'
     values:
-      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
+      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   - name: 'ingress'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/{{ .Values.ingressChart }}'
+    chart: 'wire_stable/ingress-nginx-controller'
+    version: '6.1.0'
     values:
-      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
+      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   {{- if eq (env "WIRE_INGRESS_MODE") "nginx" }}
   - name: 'ingress-svc'
