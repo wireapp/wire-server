@@ -34,6 +34,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
+import Polysemy.TinyLog (TinyLog)
 import Test.Hspec
 import Wire.API.Backup
 import Wire.API.Team.Feature
@@ -47,6 +48,7 @@ import Wire.BackupSubsystem.Interpreter
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.MockInterpreters
+import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 
@@ -58,6 +60,7 @@ type TestStack =
      GalleyAPIAccess,
      Input BackupConfig,
      Random,
+     TinyLog,
      Now,
      Error BackupError,
      State BackupState,
@@ -112,6 +115,7 @@ runBackup fx behaviour action = do
       . fmap (either (error . ("unexpected error: " <>) . show) Imports.id)
       . runError @BackupError
       . interpretNowAsState
+      . discardTinyLogs
       . runRandomPure
       . runInputConst testConfig
       . miniGalleyAPIAccess teams features

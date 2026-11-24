@@ -41,6 +41,7 @@ module CargoHold.S3
 where
 
 import Amazonka hiding (Error)
+import qualified Amazonka
 import Amazonka.S3
 import Amazonka.S3.Lens
 import qualified Amazonka.S3.StreamingUpload as SU
@@ -59,6 +60,7 @@ import qualified Data.Aeson as A
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
+import qualified Data.ByteString.Builder as Builder
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
@@ -218,7 +220,16 @@ streamUploadObject awsEnv createReq len src = do
 
     -- Best effort. The uploads of this key are only ours, as keys are unique per upload.
     abortLeftovers :: IO ()
-    abortLeftovers = void . tryAny $ do
+    abortLeftovers =
+      tryAny abortLeftoversUnsafe >>= \case
+        Left e ->
+          awsEnv.amazonkaEnv.logger Amazonka.Error . Builder.stringUtf8 $
+            "Aborting leftover multipart uploads failed (parts may leak; needs s3:ListBucketMultipartUploads and s3:AbortMultipartUpload): "
+              <> show e
+        Right () -> pure ()
+
+    abortLeftoversUnsafe :: IO ()
+    abortLeftoversUnsafe = do
       let env = awsEnv.amazonkaEnv
       listed <-
         runResourceT . send env $

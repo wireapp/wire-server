@@ -52,7 +52,9 @@ interpretBackupObjectStoreS3 env uploadTimeout = interpret $ \case
             & createMultipartUpload_contentType ?~ "application/octet-stream"
         micros = ceiling (uploadTimeout * 1000000)
     embed (timeout micros (streamUploadObject env createReq len body)) >>= \case
-      Nothing -> pure (Left PutTimedOut)
+      Nothing -> do
+        Log.err $ Log.msg (Log.val "Backup upload timed out") . Log.field "file" (backupKey fid)
+        pure (Left PutTimedOut)
       Just (Left (PutIncompleteBody, _)) -> pure (Left PutIncompleteBody)
       Just (Left (err, details)) -> do
         Log.err $ Log.msg details

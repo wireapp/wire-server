@@ -27,6 +27,9 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
+import System.Logger.Message qualified as Log
 import Wire.API.Backup
 import Wire.API.Team.Feature
 import Wire.API.User.Client (UserClients (..))
@@ -48,6 +51,7 @@ interpretBackupSubsystem ::
     Member GalleyAPIAccess r,
     Member Now r,
     Member Random r,
+    Member TinyLog r,
     Member (Input BackupConfig) r,
     Member (Error BackupError) r
   ) =>
@@ -68,6 +72,7 @@ uploadFullImpl ::
     Member GalleyAPIAccess r,
     Member Now r,
     Member Random r,
+    Member TinyLog r,
     Member (Input BackupConfig) r,
     Member (Error BackupError) r
   ) =>
@@ -94,10 +99,14 @@ uploadFullImpl uid zClient cid epoch len body = do
   putObject fid len body >>= either (throw . putError) pure
   end <- Now.get
   -- the reservation may have been cleaned up after the grace period
-  when (end > addUTCTime config.uploadTimeout start) $ throw BackupErrorUploadFailed
+  when (end > addUTCTime config.uploadTimeout start) $ do
+    Log.err $ Log.msg (Log.val "Backup upload exceeded the upload timeout, not committing") . Log.field "file" (show fid)
+    throw BackupErrorUploadFailed
   commitFull uid cid epoch fid len >>= \case
     Left CommitEpochInvalid -> throw BackupErrorEpochInvalid
-    Left CommitReservationGone -> throw BackupErrorUploadFailed
+    Left CommitReservationGone -> do
+      Log.err $ Log.msg (Log.val "Backup upload reservation vanished before commit") . Log.field "file" (show fid)
+      throw BackupErrorUploadFailed
     Right file -> pure file
   where
     putError PutIncompleteBody = BackupErrorIncompleteBody
