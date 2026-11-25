@@ -1,0 +1,1 @@
+Fix `make es-reindex`: drop the `--pg-pool-aging-timeout` flag, which `brig-index reindex` does not accept.
