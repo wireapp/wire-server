@@ -1,1 +1,0 @@
-Migration of brig nonce (DPoP replay) store from cassandra to postgres

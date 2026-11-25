@@ -1,1 +1,0 @@
-Prevent team admins from changing SCIM-managed users’ team roles and prevent users from deleting their SCIM-managed email addresses. Fix SCIM role reads and updates for pending invitations, preserving the assigned role on acceptance. Expand integration test coverage for SCIM-managed account protections and document the corresponding errors in OpenAPI.

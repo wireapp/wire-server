@@ -1,1 +1,0 @@
-OAuth access tokens carry the OAuth client they were issued to (`client_id` claim, RFC 9068); nginz forwards it to the services as `Z-OAuth-Client` and strips caller-supplied values.
