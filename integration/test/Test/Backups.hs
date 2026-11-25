@@ -23,7 +23,6 @@ import API.Cargohold
 import API.Galley (deleteTeam)
 import qualified API.GalleyInternal as Internal
 import qualified Data.ByteString.Char8 as BC
-import Data.CaseInsensitive (mk)
 import qualified Network.HTTP.Client as HTTP
 import SetupHelpers
 import Testlib.Prelude
@@ -69,9 +68,7 @@ testBackupEpochRules :: (HasCallStack) => App ()
 testBackupEpochRules = do
   (owner, cid) <- setupBackupUser
   let upload epoch = uploadBackupFull owner cid cid epoch (BC.replicate 16 'x')
-  bindResponse (upload 2) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "backup-epoch-invalid"
+  upload 2 >>= assertLabel 409 "backup-epoch-invalid"
   firstId <- bindResponse (upload 1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "id" & asString
@@ -80,27 +77,22 @@ testBackupEpochRules = do
     resp.json %. "id" & asString
   assertBool "replacing a full yields a new id" (firstId /= secondId)
   for_ [2, 3] $ \epoch -> bindResponse (upload epoch) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getBackupEpoch owner cid cid 1) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  getBackupEpoch owner cid cid 1 >>= assertLabel 404 "backup-not-found"
   bindResponse (getBackupEpoch owner cid cid 2) $ \resp -> resp.status `shouldMatchInt` 200
 
 testBackupForbiddenOtherClient :: (HasCallStack) => App ()
 testBackupForbiddenOtherClient = do
   (owner, cid) <- setupBackupUser
   other <- newClientId owner
-  bindResponse (uploadBackupFull owner other cid 1 (BC.replicate 16 'x')) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  uploadBackupFull owner other cid 1 (BC.replicate 16 'x') >>= assertLabel 403 "backup-forbidden"
 
 testBackupRemovedClient :: (HasCallStack) => App ()
 testBackupRemovedClient = do
   (owner, _) <- setupBackupUser
   removed <- newClientId owner
   deleteClient owner removed >>= assertSuccess
-  bindResponse (uploadBackupFull owner removed removed 1 (BC.replicate 16 'x')) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  uploadBackupFull owner removed removed 1 (BC.replicate 16 'x')
+    >>= assertLabel 403 "backup-forbidden"
 
 testBackupDisabled :: (HasCallStack) => App ()
 testBackupDisabled = do
@@ -108,23 +100,19 @@ testBackupDisabled = do
   (owner, tid, _) <- createTeam OwnDomain 0
   Internal.setTeamFeatureLockStatus owner tid "automaticBackups" "unlocked"
   cid <- newClientId owner
-  bindResponse (uploadBackupFull owner cid cid 1 (BC.replicate 16 'x')) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-disabled"
+  uploadBackupFull owner cid cid 1 (BC.replicate 16 'x') >>= assertLabel 403 "backup-disabled"
   -- user without team
   personal <- randomUser OwnDomain def
   personalCid <- newClientId personal
-  bindResponse (uploadBackupFull personal personalCid personalCid 1 (BC.replicate 16 'x')) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-disabled"
+  uploadBackupFull personal personalCid personalCid 1 (BC.replicate 16 'x')
+    >>= assertLabel 403 "backup-disabled"
 
 testBackupTooLarge :: (HasCallStack) => App ()
 testBackupTooLarge = do
   (owner, cid) <- setupBackupUser
   -- the limit is 1048576 bytes in the integration config
-  bindResponse (uploadBackupFull owner cid cid 1 (BC.replicate 1048577 'x')) $ \resp -> do
-    resp.status `shouldMatchInt` 413
-    resp.json %. "label" `shouldMatch` "backup-too-large"
+  uploadBackupFull owner cid cid 1 (BC.replicate 1048577 'x')
+    >>= assertLabel 413 "backup-too-large"
 
 testBackupOtherUserCannotRead :: (HasCallStack) => App ()
 testBackupOtherUserCannotRead = do
@@ -132,9 +120,7 @@ testBackupOtherUserCannotRead = do
   bindResponse (uploadBackupFull alice aliceCid aliceCid 1 (BC.replicate 16 'x')) $ \resp ->
     resp.status `shouldMatchInt` 200
   (bob, bobCid) <- setupBackupUser
-  bindResponse (getBackupEpoch bob bobCid aliceCid 1) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  getBackupEpoch bob bobCid aliceCid 1 >>= assertLabel 404 "backup-not-found"
 
 testBackupDownloadFull :: (HasCallStack) => App ()
 testBackupDownloadFull = do
@@ -143,12 +129,9 @@ testBackupDownloadFull = do
   fileId <- bindResponse (uploadBackupFull owner cid cid 1 bytes) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "id" & asString
-  bindResponse (downloadBackupFull owner cid cid 1 fileId) $ \resp -> do
-    resp.status `shouldMatchInt` 302
-    let location = BC.unpack (getHeader' (mk (BC.pack "Location")) resp)
-    req <- liftIO $ HTTP.parseRequest location
-    -- the presigned URL needs no authentication
-    s3Resp <- submit "GET" req
+  req <- presignedFullRequest owner cid 1 fileId
+  -- the presigned URL needs no authentication
+  bindResponse (submit "GET" req) $ \s3Resp -> do
     s3Resp.status `shouldMatchInt` 200
     assertBool "downloaded bytes equal the uploaded ones" (s3Resp.body == bytes)
 
@@ -160,9 +143,7 @@ testBackupDownloadReplacedFull = do
         resp.json %. "id" & asString
   oldId <- upload
   newId <- upload
-  bindResponse (downloadBackupFull owner cid cid 1 oldId) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  downloadBackupFull owner cid cid 1 oldId >>= assertLabel 404 "backup-not-found"
   bindResponse (downloadBackupFull owner cid cid 1 newId) $ \resp ->
     resp.status `shouldMatchInt` 302
 
@@ -173,9 +154,7 @@ testBackupDownloadOtherUser = do
     resp.status `shouldMatchInt` 200
     resp.json %. "id" & asString
   (bob, bobCid) <- setupBackupUser
-  bindResponse (downloadBackupFull bob bobCid aliceCid 1 fileId) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  downloadBackupFull bob bobCid aliceCid 1 fileId >>= assertLabel 404 "backup-not-found"
 
 -- | Upload a full of the epoch (16 bytes) and return its id.
 uploadFullId :: (HasCallStack) => Value -> String -> Int -> App String
@@ -212,13 +191,11 @@ testBackupIncrementalStaleFull = do
   (owner, cid) <- setupBackupUser
   oldFull <- uploadFullId owner cid 1
   _ <- uploadFullId owner cid 1
-  bindResponse (uploadBackupIncremental owner cid cid 1 oldFull (BC.replicate 16 'i')) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "backup-full-missing"
+  uploadBackupIncremental owner cid cid 1 oldFull (BC.replicate 16 'i')
+    >>= assertLabel 409 "backup-full-missing"
   unknownFull <- randomId
-  bindResponse (uploadBackupIncremental owner cid cid 1 unknownFull (BC.replicate 16 'i')) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "backup-full-missing"
+  uploadBackupIncremental owner cid cid 1 unknownFull (BC.replicate 16 'i')
+    >>= assertLabel 409 "backup-full-missing"
 
 testBackupEpochFull :: (HasCallStack) => App ()
 testBackupEpochFull = do
@@ -226,9 +203,8 @@ testBackupEpochFull = do
   fullId <- uploadFullId owner cid 1
   -- the limit is 3 files (including the full) in the integration config
   replicateM_ 2 $ uploadIncrementalId owner cid 1 fullId 16
-  bindResponse (uploadBackupIncremental owner cid cid 1 fullId (BC.replicate 16 'i')) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "backup-epoch-full"
+  uploadBackupIncremental owner cid cid 1 fullId (BC.replicate 16 'i')
+    >>= assertLabel 409 "backup-epoch-full"
 
 -- | The pre-check lets both pass; only the count under the lock in the commit stops one.
 testBackupConcurrentIncrementalsAtLimit :: (HasCallStack) => App ()
@@ -253,18 +229,16 @@ testBackupIncrementalTooLarge = do
   (owner, cid) <- setupBackupUser
   fullId <- uploadFullId owner cid 1
   -- the limit is 65536 bytes in the integration config
-  bindResponse (uploadBackupIncremental owner cid cid 1 fullId (BC.replicate 65537 'i')) $ \resp -> do
-    resp.status `shouldMatchInt` 413
-    resp.json %. "label" `shouldMatch` "backup-too-large"
+  uploadBackupIncremental owner cid cid 1 fullId (BC.replicate 65537 'i')
+    >>= assertLabel 413 "backup-too-large"
 
 testBackupIncrementalForbiddenOtherClient :: (HasCallStack) => App ()
 testBackupIncrementalForbiddenOtherClient = do
   (owner, cid) <- setupBackupUser
   other <- newClientId owner
   fullId <- uploadFullId owner cid 1
-  bindResponse (uploadBackupIncremental owner other cid 1 fullId (BC.replicate 16 'i')) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  uploadBackupIncremental owner other cid 1 fullId (BC.replicate 16 'i')
+    >>= assertLabel 403 "backup-forbidden"
 
 -- | Replacing the full orphans its incrementals (real foreign key).
 testBackupReplaceFullWithIncrementals :: (HasCallStack) => App ()
@@ -277,9 +251,7 @@ testBackupReplaceFullWithIncrementals = do
     resp.status `shouldMatchInt` 200
     resp.json %. "incrementals" `shouldMatch` ([] :: [Value])
   for_ oldIncs $ \incId ->
-    bindResponse (downloadBackupIncremental owner cid cid 1 oldFull incId) $ \resp -> do
-      resp.status `shouldMatchInt` 404
-      resp.json %. "label" `shouldMatch` "backup-not-found"
+    downloadBackupIncremental owner cid cid 1 oldFull incId >>= assertLabel 404 "backup-not-found"
 
 testBackupDownloadIncremental :: (HasCallStack) => App ()
 testBackupDownloadIncremental = do
@@ -289,12 +261,9 @@ testBackupDownloadIncremental = do
   incId <- bindResponse (uploadBackupIncremental owner cid cid 1 fullId bytes) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "id" & asString
-  bindResponse (downloadBackupIncremental owner cid cid 1 fullId incId) $ \resp -> do
-    resp.status `shouldMatchInt` 302
-    let location = BC.unpack (getHeader' (mk (BC.pack "Location")) resp)
-    req <- liftIO $ HTTP.parseRequest location
-    -- the presigned URL needs no authentication
-    s3Resp <- submit "GET" req
+  req <- backupIncrementalLocation owner cid 1 fullId incId >>= liftIO . HTTP.parseRequest
+  -- the presigned URL needs no authentication
+  bindResponse (submit "GET" req) $ \s3Resp -> do
     s3Resp.status `shouldMatchInt` 200
     assertBool "downloaded bytes equal the uploaded ones" (s3Resp.body == bytes)
 
@@ -304,9 +273,7 @@ testBackupDownloadIncrementalWrongFull = do
   fullId1 <- uploadFullId owner cid 1
   incId <- uploadIncrementalId owner cid 1 fullId1 16
   fullId2 <- uploadFullId owner cid 2
-  bindResponse (downloadBackupIncremental owner cid cid 2 fullId2 incId) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  downloadBackupIncremental owner cid cid 2 fullId2 incId >>= assertLabel 404 "backup-not-found"
 
 testBackupDownloadIncrementalOtherUser :: (HasCallStack) => App ()
 testBackupDownloadIncrementalOtherUser = do
@@ -314,9 +281,8 @@ testBackupDownloadIncrementalOtherUser = do
   fullId <- uploadFullId alice aliceCid 1
   incId <- uploadIncrementalId alice aliceCid 1 fullId 16
   (bob, bobCid) <- setupBackupUser
-  bindResponse (downloadBackupIncremental bob bobCid aliceCid 1 fullId incId) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  downloadBackupIncremental bob bobCid aliceCid 1 fullId incId
+    >>= assertLabel 404 "backup-not-found"
 
 -- | An epoch with a full of 1024 bytes and an incremental of 512 bytes; returns the creation time
 -- of the incremental.
@@ -405,30 +371,20 @@ testBackupListDisabled = do
   (owner, tid, _) <- createTeam OwnDomain 0
   Internal.setTeamFeatureLockStatus owner tid "automaticBackups" "unlocked"
   cid <- newClientId owner
-  bindResponse (listBackups owner cid) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-disabled"
-  bindResponse (getClientBackups owner cid cid) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-disabled"
+  listBackups owner cid >>= assertLabel 403 "backup-disabled"
+  getClientBackups owner cid cid >>= assertLabel 403 "backup-disabled"
   -- removed Z-Client
   (owner', removed) <- setupBackupUser
   deleteClient owner' removed >>= assertSuccess
-  bindResponse (listBackups owner' removed) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
-  bindResponse (getClientBackups owner' removed removed) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  listBackups owner' removed >>= assertLabel 403 "backup-forbidden"
+  getClientBackups owner' removed removed >>= assertLabel 403 "backup-forbidden"
 
 -- DELETE
 
 -- | The presigned download URL of a full, as a request.
 presignedFullRequest :: (HasCallStack) => Value -> String -> Int -> String -> App HTTP.Request
 presignedFullRequest owner cid epoch fullId =
-  bindResponse (downloadBackupFull owner cid cid epoch fullId) $ \resp -> do
-    resp.status `shouldMatchInt` 302
-    liftIO $ HTTP.parseRequest (BC.unpack (getHeader' (mk (BC.pack "Location")) resp))
+  backupLocation owner cid epoch fullId >>= liftIO . HTTP.parseRequest
 
 testBackupDeleteClient :: (HasCallStack) => App ()
 testBackupDeleteClient = do
@@ -439,9 +395,7 @@ testBackupDeleteClient = do
   bindResponse (deleteClientBackups owner cid cid) $ \resp ->
     resp.status `shouldMatchInt` 204
   for_ [1, 2] $ \epoch ->
-    bindResponse (getBackupEpoch owner cid cid epoch) $ \resp -> do
-      resp.status `shouldMatchInt` 404
-      resp.json %. "label" `shouldMatch` "backup-not-found"
+    getBackupEpoch owner cid cid epoch >>= assertLabel 404 "backup-not-found"
   -- nothing left to delete
   bindResponse (deleteClientBackups owner cid cid) $ \resp ->
     resp.status `shouldMatchInt` 204
@@ -472,9 +426,7 @@ testBackupDeleteForbiddenOtherClient = do
   (owner, cid) <- setupBackupUser
   other <- newClientId owner
   _ <- uploadFullId owner cid 1
-  bindResponse (deleteClientBackups owner cid other) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  deleteClientBackups owner cid other >>= assertLabel 403 "backup-forbidden"
   bindResponse (getBackupEpoch owner cid cid 1) $ \resp ->
     resp.status `shouldMatchInt` 200
 
@@ -483,9 +435,7 @@ testBackupDeleteRemovedClient = do
   (owner, _) <- setupBackupUser
   removed <- newClientId owner
   deleteClient owner removed >>= assertSuccess
-  bindResponse (deleteClientBackups owner removed removed) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "backup-forbidden"
+  deleteClientBackups owner removed removed >>= assertLabel 403 "backup-forbidden"
 
 -- | Deletion (GDPR) does not depend on the feature flag.
 testBackupDeleteWhenDisabled :: (HasCallStack) => App ()
@@ -530,9 +480,13 @@ testBackupDeleteOtherClientsUntouched = do
 -- | The presigned @Location@ of a full.
 backupLocation :: (HasCallStack) => Value -> String -> Int -> String -> App String
 backupLocation owner cid epoch fullId =
-  bindResponse (downloadBackupFull owner cid cid epoch fullId) $ \resp -> do
-    resp.status `shouldMatchInt` 302
-    pure $ BC.unpack (getHeader' (mk (BC.pack "Location")) resp)
+  redirectLocation (downloadBackupFull owner cid cid epoch fullId)
+
+-- | The @Location@ of a redirect.
+redirectLocation :: (HasCallStack) => App Response -> App String
+redirectLocation r = bindResponse r $ \resp -> do
+  resp.status `shouldMatchInt` 302
+  BC.unpack . snd <$> assertJust "no Location header" (locationHeader resp)
 
 -- | The object is eventually deleted by the cleanup. Loops, because orphans of other tests may
 -- fill a cleanup batch.
@@ -544,6 +498,25 @@ assertBackupObjectGone domain location = do
     bindResponse (submit "GET" req) $ \resp ->
       resp.status `shouldMatchInt` 404
 
+-- | The presigned @Location@ of an incremental.
+backupIncrementalLocation :: (HasCallStack) => Value -> String -> Int -> String -> String -> App String
+backupIncrementalLocation owner cid epoch fullId incId =
+  redirectLocation (downloadBackupIncremental owner cid cid epoch fullId incId)
+
+-- | Epoch 1 becomes stale with the full of epoch 3: its incrementals go with it.
+testBackupStaleEpochWithIncrementals :: (HasCallStack) => App ()
+testBackupStaleEpochWithIncrementals = do
+  (owner, cid) <- setupBackupUser
+  full1 <- uploadFullId owner cid 1
+  incs <- replicateM 2 $ uploadIncrementalId owner cid 1 full1 16
+  fullLocation <- backupLocation owner cid 1 full1
+  incLocations <- for incs $ backupIncrementalLocation owner cid 1 full1
+  _ <- uploadFullId owner cid 2
+  _ <- uploadFullId owner cid 3
+  for_ incs $ \incId ->
+    downloadBackupIncremental owner cid cid 1 full1 incId >>= assertLabel 404 "backup-not-found"
+  for_ (fullLocation : incLocations) $ assertBackupObjectGone OwnDomain
+
 testBackupsDeletedOnClientRemoval :: (HasCallStack) => App ()
 testBackupsDeletedOnClientRemoval = do
   (owner, cidA) <- setupBackupUser
@@ -552,9 +525,7 @@ testBackupsDeletedOnClientRemoval = do
   location <- backupLocation owner cidA 1 fullId
   deleteClient owner cidA >>= assertSuccess
   -- synchronous: brig has orphaned the backups when it answers
-  bindResponse (getBackupEpoch owner cidB cidA 1) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-    resp.json %. "label" `shouldMatch` "backup-not-found"
+  getBackupEpoch owner cidB cidA 1 >>= assertLabel 404 "backup-not-found"
   bindResponse (getClientBackups owner cidB cidA) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "epochs" `shouldMatch` ([] :: [Value])
