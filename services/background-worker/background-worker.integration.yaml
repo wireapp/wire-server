@@ -105,3 +105,4 @@ postgresMigration:
   budget: postgresql
   nonce: postgresql
   connections: postgresql
+  sessions: postgresql
