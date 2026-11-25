@@ -1,0 +1,1 @@
+Preparing a release no longer fails when a release was tagged after the dev build of the source commit was made, for instance a GA cut on the commit of the last alpha. The dev build is now found by its commit, whatever version it was given when Concourse built it.

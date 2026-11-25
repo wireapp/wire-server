@@ -162,8 +162,8 @@ jobs:
           sparse-checkout: scripts
           persist-credentials: false
 
-      - name: Dev build version of the source commit
-        id: devbuild
+      - name: Version a dev build of the source commit gets today
+        id: computed
         env:
           REF: ${{ steps.source.outputs.sha }}
           BRANCH: ${{ inputs.source_branch }}
@@ -213,6 +213,14 @@ jobs:
         uses: wireapp/wire-rm-actions/quay-login@9ff2112f54a312a66c579f6c815614e736e9791b # dev (until v0.2.0)
         with:
           robot: wire+gha_wire-server
+
+      - name: Find the dev build of the source commit
+        id: devbuild
+        env:
+          IMAGES: ${{ steps.images.outputs.images }}
+          COMPUTED_VERSION: ${{ steps.computed.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.sha }}
+        run: .github/scripts/find-dev-build.sh
 
       - name: Resolve the images of the dev build
         id: digests
