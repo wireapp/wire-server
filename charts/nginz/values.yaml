@@ -721,6 +721,9 @@ nginx_conf:
     - path: /teams/([^/]*)/members/csv$
       envs:
       - all
+    - path: /teams/([^/]*)/search-visibility$
+      envs:
+      - all
     - path: /teams/([^/]*)/legalhold(.*)
       envs:
       - all
