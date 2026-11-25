@@ -24,15 +24,16 @@ cleanup() {
     return 0
 }
 
-# Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
-# following steps.
+# Upload test logs under the version, optionally prefixed by the pipeline.
 copyToAwsS3() {
-    local build_ts
-    build_ts=$(date +%s)
     if ((UPLOAD_LOGS > 0)); then
+        local build_ts log_version destination
+        build_ts=$(date +%s)
+        log_version="${INTEGRATION_LOG_PREFIX:+${INTEGRATION_LOG_PREFIX}-}${VERSION}"
         for t in "${tests[@]}"; do
-            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION-$build_ts.log"
-            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION-$build_ts.log"
+            destination="s3://wire-server-test-logs/test-logs-$log_version/$t-$log_version-$build_ts.log"
+            echo "Copy logs-$t to $destination"
+            aws s3 cp "logs-$t" "$destination"
         done
     fi
     return 0
