@@ -1,1 +1,0 @@
-Federation error logs now include the requested peer domain and discovered SRV target.

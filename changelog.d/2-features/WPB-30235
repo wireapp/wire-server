@@ -1,1 +1,0 @@
-The backoffice chart has new settings `config.ibisPort` and `config.galebPort` for the ports stern uses to reach ibis and galeb. Both default to 8080, so existing installations are not affected. Set them to 8081 to call these services on their admin port.
