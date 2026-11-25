@@ -9,6 +9,11 @@ ingress-nginx:
     ingressClass: "nginx-{{ .Release.Namespace }}"
     kind: Deployment
     replicaCount: 1
+    # Federation tests use a shared client CA and forward the client
+    # certificate to federator with an Ingress configuration snippet.
+    config:
+      allow-cross-namespace-resources: "true"
+      annotations-risk-level: "Critical"
     service:
       type: NodePort
       nodePorts:
