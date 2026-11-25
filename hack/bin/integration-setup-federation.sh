@@ -31,6 +31,8 @@ fi
 . "$DIR/helm_overrides.sh"
 "${DIR}"/integration-cleanup.sh
 
+# The integration-only pipeline uses this mode to run tests against already
+# published Helm charts with the Helmfile and values from this checkout.
 if [[ -n "${INTEGRATION_CHART_REPOSITORY:-}${INTEGRATION_CHART_VERSION:-}" ]]; then
     : "${INTEGRATION_CHART_REPOSITORY:?Set the published integration chart repository}"
     : "${INTEGRATION_CHART_VERSION:?Set the published integration chart version}"
