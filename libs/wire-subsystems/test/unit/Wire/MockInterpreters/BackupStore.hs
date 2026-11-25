@@ -130,6 +130,11 @@ inMemoryBackupStore = interpret $ \case
   CountEpochFiles uid cid epoch ->
     gets $ \s ->
       (\(_, f) -> 1 + fromIntegral (length (incrementalsOf s f.id))) <$> Map.lookup (uid, cid, epoch) s.epochs
+  ListBackupClients uid ->
+    gets $ \s ->
+      Set.toList . Set.fromList $
+        [c | (u, c, _) <- Map.keys s.epochs, u == uid]
+          <> [o.clientId | o <- Map.elems s.orphans, o.userId == uid, isNothing o.fileCreatedAt]
   OrphanClient uid cid -> do
     s <- get
     now <- Now.get

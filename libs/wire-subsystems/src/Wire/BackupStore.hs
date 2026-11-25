@@ -81,6 +81,9 @@ data BackupStore m a where
   -- | Summaries of the current files of the epochs of the user, of one client or of all
   -- (no lock, read only). Ascending by client and epoch; clients without epochs are absent.
   ListClientBackups :: UserId -> Maybe ClientId -> BackupStore m [ClientBackups]
+  -- | The clients of the user that have epochs or in-flight upload reservations (no lock,
+  -- read only).
+  ListBackupClients :: UserId -> BackupStore m [ClientId]
   -- | One transaction under the per-client lock: orphan all committed files (incrementals
   -- and fulls) of the client, keeping their creation times. Upload reservations stay but are
   -- marked (@deletion_last_tried@), so committing them fails with the reservation gone.
@@ -97,3 +100,8 @@ data BackupStore m a where
   MarkDeletionTried :: [BackupFileId] -> BackupStore m ()
 
 makeSem ''BackupStore
+
+-- | Orphans the backups of all clients of the user, one transaction per client. Idempotent
+-- and resumable: a retry continues with the clients that still have epochs or reservations.
+orphanUserBackups :: (Member BackupStore r) => UserId -> Sem r ()
+orphanUserBackups uid = listBackupClients uid >>= traverse_ (orphanClient uid)

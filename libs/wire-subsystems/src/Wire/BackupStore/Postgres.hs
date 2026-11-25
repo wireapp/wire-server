@@ -76,6 +76,9 @@ interpretBackupStoreToPostgres = interpret $ \case
   ListClientBackups uid mcid -> do
     rows <- runStatement (toUUID uid, clientToText <$> mcid) selectBackupSummaries
     groupSummaries . catMaybes <$> for (toList rows) parseRow
+  ListBackupClients uid -> do
+    rows <- runStatement (toUUID uid) selectBackupClients
+    catMaybes <$> for (toList rows) parseClientId
   OrphanClient uid cid ->
     runTransaction ReadCommitted Write (orphanClientTx uid cid)
   SelectCleanupBatch grace batchSize ->
@@ -107,6 +110,15 @@ parseRow (client, epochNo, created, count, size) =
               size = fromIntegral size
             }
         )
+
+-- | See 'parseRow'.
+parseClientId :: (Member TinyLog r) => Text -> Sem r (Maybe ClientId)
+parseClientId client =
+  case postgresUnmarshall client of
+    Left err -> do
+      Log.err $ Log.msg (Log.val "Invalid client id in backup tables") . Log.field "error" err
+      pure Nothing
+    Right cid -> pure (Just cid)
 
 -- | Rows are ordered by epoch, which the grouping keeps.
 groupSummaries :: [(ClientId, EpochSummary)] -> [ClientBackups]
@@ -424,6 +436,17 @@ orphanClientEpochs =
     INSERT INTO backup_orphans (id, user_id, client_id, epoch_no, file_created_at)
     SELECT full_id, $1 :: uuid, $2 :: text, epoch_no, full_created_at FROM removed
     RETURNING id :: uuid
+  |]
+
+-- | Clients with epochs or in-flight upload reservations (the latter must be blocked too):
+-- (user)
+selectBackupClients :: Statement UUID (Vector Text)
+selectBackupClients =
+  [vectorStatement|
+    SELECT client_id :: text FROM backup_epochs WHERE user_id = $1 :: uuid
+    UNION
+    SELECT client_id :: text FROM backup_orphans
+    WHERE user_id = $1 :: uuid AND file_created_at IS NULL
   |]
 
 -- | Marks the upload reservations of the client, so that they can no longer be claimed:

@@ -163,6 +163,11 @@ deleteTeamMember tid owner mem = do
   req <- baseRequest owner Galley Versioned path
   submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
+deleteTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+deleteTeam user tid = do
+  req <- baseRequest user Galley Versioned $ joinHttpPath ["teams", tid]
+  submit "DELETE" $ req & zConnection "conn" & addJSONObject ["password" .= defPassword]
+
 data TeamPermissions = Partner | Member | Admin | Owner
 
 instance ToJSON TeamPermissions where

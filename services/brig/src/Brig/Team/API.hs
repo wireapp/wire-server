@@ -71,6 +71,7 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
+import Wire.BackupStore (BackupStore)
 import Wire.BlockListStore
 import Wire.ClientStore (ClientStore)
 import Wire.ConnectionStore (ConnectionStore)
@@ -116,6 +117,7 @@ servantAPI ::
     Member (Embed App.HttpClientIO) r,
     Member NotificationSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member PropertySubsystem r,
     Member UserGroupSubsystem r,
     Member Events r,
@@ -251,6 +253,7 @@ deleteInvitation ::
     Member (Embed App.HttpClientIO) r,
     Member NotificationSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member PropertySubsystem r,
     Member UserGroupSubsystem r,
     Member Events r,

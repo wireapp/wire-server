@@ -119,6 +119,7 @@ import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BackendNotificationQueueAccess
+import Wire.BackupStore (BackupStore, orphanUserBackups)
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -1013,6 +1014,7 @@ deleteSelfUser ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
+    Member BackupStore r,
     Member NotificationSubsystem r,
     Member InvitationStore r,
     Member UserStore r,
@@ -1090,6 +1092,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
 -- as an effet operation
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
+    Member BackupStore r,
     Member NotificationSubsystem r,
     Member InvitationStore r,
     Member UserKeyStore r,
@@ -1123,6 +1126,7 @@ verifyDeleteUser d = do
 -- as an effet operation
 ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
+    Member BackupStore r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member InvitationStore r,
@@ -1187,6 +1191,7 @@ deleteAccount ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   User ->
@@ -1194,6 +1199,8 @@ deleteAccount ::
 deleteAccount user = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
+  -- Before any state change: a Postgres error aborts here and the caller retries
+  orphanUserBackups uid
   do
     -- Free unique keys
     for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey

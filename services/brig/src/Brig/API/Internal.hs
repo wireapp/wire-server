@@ -97,6 +97,7 @@ import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
+import Wire.BackupStore (BackupStore)
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -193,6 +194,7 @@ servantSitemap ::
     Member AppStore r,
     Member AppSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member ClientSubsystem r,
     Member MlsKeyPackageSubsystem r,
     Member (ConnectionStore InternalPaging) r
@@ -266,6 +268,7 @@ accountAPI ::
     Member EnterpriseLoginSubsystem r,
     Member (Concurrency Unsafe) r,
     Member ClientStore r,
+    Member BackupStore r,
     Member ClientSubsystem r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -659,6 +662,7 @@ deleteUserNoAuthH ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->

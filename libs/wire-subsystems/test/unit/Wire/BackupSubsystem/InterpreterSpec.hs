@@ -749,6 +749,72 @@ spec = describe "BackupSubsystem" $ do
       Map.keys objects `shouldMatchList` others
       state.orphans `shouldBe` mempty
 
+  describe "orphanUserBackups" $ do
+    let commitAs uid cid epoch n = do
+          reserveUpload uid cid (BackupEpoch epoch) (fileN n)
+          commitFull uid cid (BackupEpoch epoch) (fileN n) 5 >>= orFail
+        -- U/A: epoch 1 and epoch 2 with an incremental (files 1-3), U/B: epoch 1 (file 4),
+        -- V/A: epoch 1 (file 5)
+        seed = do
+          _ <- commitAs testUser clientA 1 1
+          e2 <- commitAs testUser clientA 2 2
+          reserveUpload testUser clientA (BackupEpoch 2) (fileN 3)
+          _ <- commitIncremental 10 testUser clientA (BackupEpoch 2) (fileN 2) (fileN 3) 3 >>= orFail
+          _ <- commitAs testUser clientB 1 4
+          _ <- commitAs otherUser clientA 1 5
+          pure (fst e2)
+        userFiles = map fileN [1, 2, 3, 4]
+
+    it "listBackupClientsDistinct" $ do
+      ((cs, none), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- seed
+        (,) <$> listBackupClients testUser <*> listBackupClients (Id (fromJust (UUID.fromString "44444444-4444-4444-8444-444444444444")))
+      sort cs `shouldBe` [clientA, clientB]
+      none `shouldBe` []
+
+    it "orphanUserBackupsOrphansAllClients" $ do
+      (_, state, _) <- runBackup defaultFixture PutSucceeds $ seed *> orphanUserBackups testUser
+      [k | k@(u, _, _) <- Map.keys state.epochs, u == testUser] `shouldBe` []
+      Map.keys state.epochs `shouldBe` [(otherUser, clientA, BackupEpoch 1)]
+      Map.keys state.incrementals `shouldBe` []
+      Map.keys state.orphans `shouldMatchList` userFiles
+      for_ (Map.elems state.orphans) $ \o -> o.fileCreatedAt `shouldBe` Just defaultTime
+
+    it "orphanUserBackupsIdempotent" $ do
+      ((s1, s2), _, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- seed
+        orphanUserBackups testUser
+        s1 <- get @BackupState
+        passTime 5
+        orphanUserBackups testUser
+        s2 <- get @BackupState
+        pure (s1, s2)
+      s2 `shouldBe` s1
+      (_, unknown, _) <- runBackup defaultFixture PutSucceeds $ orphanUserBackups testUser
+      unknown `shouldBe` emptyBackupState
+
+    it "orphanUserBackupsKeepsReservations" $ do
+      (_, state, _) <- runBackup defaultFixture PutSucceeds $ do
+        _ <- seed
+        passTime 1
+        reserveUpload testUser clientA (BackupEpoch 3) (fileN 9)
+        orphanUserBackups testUser
+        orphanUserBackups testUser
+      let reservation = Map.lookup (fileN 9) state.orphans
+      (.fileCreatedAt) <$> reservation `shouldBe` Just Nothing
+      (.deletionLastTried) <$> reservation `shouldBe` Just (Just (addUTCTime 1 defaultTime))
+
+    it "orphanUserBackupsBlocksReservationOfClientWithoutEpochs" $ do
+      ((cs, r), state, _) <- runBackup defaultFixture PutSucceeds $ do
+        reserveUpload testUser clientA (BackupEpoch 1) (fileN 1)
+        cs <- listBackupClients testUser
+        orphanUserBackups testUser
+        r <- commitFull testUser clientA (BackupEpoch 1) (fileN 1) 5
+        pure (cs, void r)
+      cs `shouldBe` [clientA]
+      r `shouldBe` Left CommitReservationGone
+      state.epochs `shouldBe` mempty
+
   describe "cleanup" $ do
     let grace = testConfig.orphanGracePeriod
         expire = passTime (grace + 1)

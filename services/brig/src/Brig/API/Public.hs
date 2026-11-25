@@ -151,6 +151,7 @@ import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BackendNotificationQueueAccess
+import Wire.BackupStore (BackupStore)
 import Wire.BlockListStore (BlockListStore)
 import Wire.BudgetStore
 import Wire.ClientStore (ClientStore)
@@ -408,6 +409,7 @@ servantSitemap ::
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member MlsKeyPackageSubsystem r,
     Member ClientSubsystem r,
     Member (Error FederationError) r,
@@ -1506,6 +1508,7 @@ deleteSelfUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1528,6 +1531,7 @@ verifyDeleteUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member BackupStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.VerifyDeleteUser ->

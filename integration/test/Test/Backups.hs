@@ -20,6 +20,7 @@ module Test.Backups where
 
 import API.Brig (addClient, deleteClient)
 import API.Cargohold
+import API.Galley (deleteTeam)
 import qualified API.GalleyInternal as Internal
 import qualified Data.ByteString.Char8 as BC
 import Data.CaseInsensitive (mk)
@@ -37,11 +38,15 @@ setupBackupUser = setupBackupUserOn OwnDomain
 setupBackupUserOn :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
 setupBackupUserOn domain = do
   (owner, tid, _) <- createTeam domain 0
+  enableAutomaticBackups owner tid
+  cid <- newClientId owner
+  pure (owner, cid)
+
+enableAutomaticBackups :: (HasCallStack, MakesValue owner) => owner -> String -> App ()
+enableAutomaticBackups owner tid = do
   Internal.setTeamFeatureLockStatus owner tid "automaticBackups" "unlocked"
   bindResponse (Internal.setTeamFeatureStatus owner tid "automaticBackups" "enabled") $ \resp ->
     resp.status `shouldMatchInt` 200
-  cid <- newClientId owner
-  pure (owner, cid)
 
 newClientId :: (HasCallStack, MakesValue user) => user -> App String
 newClientId user = do
@@ -554,6 +559,29 @@ testBackupsDeletedOnClientRemoval = do
     resp.status `shouldMatchInt` 200
     resp.json %. "epochs" `shouldMatch` ([] :: [Value])
   assertBackupObjectGone OwnDomain location
+
+testBackupsDeletedOnUserDeletion :: (HasCallStack) => App ()
+testBackupsDeletedOnUserDeletion = do
+  (owner, tid, [mem]) <- createTeam OwnDomain 2
+  enableAutomaticBackups owner tid
+  cid <- newClientId mem
+  fullId <- uploadFullId mem cid 1
+  location <- backupLocation mem cid 1 fullId
+  -- a sole owner cannot delete themselves, hence the member
+  deleteUser mem
+  assertBackupObjectGone OwnDomain location
+
+testBackupsDeletedOnTeamDeletion :: (HasCallStack) => App ()
+testBackupsDeletedOnTeamDeletion = do
+  (owner, tid, [mem]) <- createTeam OwnDomain 2
+  enableAutomaticBackups owner tid
+  locations <- for [owner, mem] $ \u -> do
+    cid <- newClientId u
+    fullId <- uploadFullId u cid 1
+    backupLocation u cid 1 fullId
+  deleteTeam owner tid >>= assertStatus 202
+  -- team deletion is asynchronous, which 'eventually' covers
+  for_ locations $ assertBackupObjectGone OwnDomain
 
 -- CLEANUP
 
