@@ -1,0 +1,1 @@
+Meeting emails: configurable From address via brig `emailSMS.general.meeting.sender` (defaults to `emailSender`)

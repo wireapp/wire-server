@@ -265,7 +265,12 @@ brig** using its existing `emailSMS` settings: `emailSMS.general.templateDir`
 (the wire-subsystems templates), `emailSMS.general.emailSender`,
 `emailSMS.general.templateBranding`, and the SES/SMTP transport Brig already
 configures. An optional `emailSMS.general.meeting.replyTo` sets a Reply-To
-header on every meeting email Brig renders.
+header on every meeting email Brig renders, and an optional
+`emailSMS.general.meeting.sender` overrides their From address (defaulting to
+`emailSMS.general.emailSender`, and validated the same way). The From display
+name still comes from the meeting templates (`email/sender.txt`). The sender
+must be accepted by the configured transport (verified SES identity or allowed
+SMTP sender) and be covered by SPF/DKIM.
 
 Galley only *triggers* these emails: the optional
 `settings.meetings.emailsEnabled` flag (default `false`) makes galley hand the
@@ -287,6 +292,7 @@ emailSMS:
     # ... existing emailSMS settings (templateDir, emailSender, transport) ...
     meeting:
       replyTo: noreply@example.com   # optional
+      sender: meetings@example.com   # optional, defaults to emailSender
 ```
 
 ### Meetings calendar integration

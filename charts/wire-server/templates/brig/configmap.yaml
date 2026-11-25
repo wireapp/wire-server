@@ -162,9 +162,15 @@ data:
           {{- end }}
         {{- $legacyReplyTo := dig "config" "settings" "meetings" "email" "replyTo" "" $.Values.galley }}
         {{- $meetingReplyTo := dig "emailSMS" "general" "meeting" "replyTo" "" . | default $legacyReplyTo }}
-        {{- with $meetingReplyTo }}
+        {{- $meetingSender := dig "emailSMS" "general" "meeting" "sender" "" . }}
+        {{- if or $meetingReplyTo $meetingSender }}
         meeting:
+          {{- with $meetingReplyTo }}
           replyTo: {{ . | quote }}
+          {{- end }}
+          {{- with $meetingSender }}
+          sender: {{ . | quote }}
+          {{- end }}
         {{- end }}
 
       user:
