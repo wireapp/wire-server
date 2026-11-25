@@ -494,7 +494,7 @@ testMLSProtocolUpgrade secondDomain = do
   bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
-    resp.json %. "receipt_mode" `shouldMatchInt` 0
+    resp.json %. "receipt_mode" `shouldMatchInt` 9
 
 testAddUserSimple :: (HasCallStack) => Ciphersuite -> CredentialType -> App ()
 testAddUserSimple suite ctype = do
