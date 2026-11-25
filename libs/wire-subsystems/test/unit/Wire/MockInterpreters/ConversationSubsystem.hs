@@ -19,7 +19,7 @@ module Wire.MockInterpreters.ConversationSubsystem where
 
 import Data.Id
 import Data.Map qualified as Map
-import Data.Qualified (tUnqualified)
+import Data.Qualified (qualifyAs, tUnqualified, tUntagged)
 import Data.Range (fromRange)
 import Data.Set qualified as Set
 import Imports
@@ -113,8 +113,16 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
   JoinMeetingConversation lusr _connId lcnv -> do
     modify @ConversationMembers (Map.insertWith (<>) lcnv (Set.singleton (tUnqualified lusr)))
     pureT Unchanged
-  GetConversationIds _lusr _range _pagingState -> do
-    pureT $ MultiTablePaging.MultiTablePage [] False (Public.ConversationPagingState MultiTablePaging.PagingLocals Nothing)
+  -- Single page with every local conversation the user is a member of
+  -- (range and paging are not modelled).
+  GetConversationIds lusr _range _pagingState -> do
+    members <- get @ConversationMembers
+    let cids = Map.keys (Map.filter (Set.member (tUnqualified lusr)) members)
+    pureT $
+      MultiTablePaging.MultiTablePage
+        (map (tUntagged . qualifyAs lusr) cids)
+        False
+        (Public.ConversationPagingState MultiTablePaging.PagingLocals Nothing)
   GetConversations cids -> do
     convs <- gets (\s -> [c | cid <- cids, Just c <- [Map.lookup cid s]])
     pureT convs

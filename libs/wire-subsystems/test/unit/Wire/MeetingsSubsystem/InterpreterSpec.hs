@@ -112,6 +112,7 @@ type TestStack =
      TinyLog,
      Error MeetingError,
      ErrorS ('ActionDenied 'DeleteConversation),
+     State AllTeamFeatures,
      State (Map ConvId (Set UserId)),
      State (Map ConvId StoredConversation),
      State (Map MeetingId Store.StoredMeeting),
@@ -144,11 +145,13 @@ testCodeURIBase = HttpsUrl (fromRight' (parseURI strictURIParserOptions "https:/
 expectedLink :: HttpsUrl -> Domain -> Code -> HttpsUrl
 expectedLink base dom c = API.mkMeetingLink base dom c.codeKey c.codeValue
 
-interpretFeaturesConfigSubsystemPure :: AllTeamFeatures -> InterpreterFor FeaturesConfigSubsystem r
-interpretFeaturesConfigSubsystemPure configs = interpret $ \case
+-- | Every team gets the features held in the 'AllTeamFeatures' state, so
+-- tests can switch a feature mid-run with 'put'.
+interpretFeaturesConfigSubsystemPure :: (Member (State AllTeamFeatures) r) => InterpreterFor FeaturesConfigSubsystem r
+interpretFeaturesConfigSubsystemPure = interpret $ \case
   GetDbFeatureRawInternal _tid -> pure def
   GetFeature _uid _tid -> pure def
-  GetFeatureForTeam _tid -> pure $ npProject configs
+  GetFeatureForTeam _tid -> gets npProject
   GetFeatureForServer -> pure def
   GetFeatureForTeamUser _uid _mTid -> pure def
   GetAllTeamFeaturesForTeamMember _luid _tid -> pure def
@@ -251,11 +254,12 @@ runTestStackWithURICfg now gen convCodeURI teams configs lic cfg sem = do
     . evalState Map.empty
     . evalState Map.empty
     . evalState Map.empty
+    . evalState configs
     . runError @(Tagged ('ActionDenied 'DeleteConversation) ())
     . runError @MeetingError
     . discardTinyLogs
     . inMemoryNotificationSubsystemInterpreter
-    . interpretFeaturesConfigSubsystemPure configs
+    . interpretFeaturesConfigSubsystemPure
     . interpretTeamSubsystemToGalleyAPI
     . inMemoryConversationSubsystemInterpreter
     . inMemoryMeetingsStoreInterpreter
@@ -573,31 +577,27 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
-        mid = Id $ read "00000000-0000-0000-0000-00000000000a"
         zUser = toLocalUnsafe (Domain "wire.com") uid
-        sm =
-          Store.StoredMeeting
-            { id = mid,
-              title = fromJust $ checked "Legacy Meeting",
-              creator = uid,
-              startTime = now,
-              endTime = addUTCTime 3600 now,
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Legacy Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
               tzid = API.defaultLegacyTimeZone,
-              meetingType = API.Scheduled,
+              mtype = API.Scheduled,
               externallyManagedBy = Nothing,
               externallyCalendarEventId = Nothing,
               externallyCalendarId = Nothing,
+              password = Nothing,
               recurrence = Nothing,
-              conversationId = Id $ read "00000000-0000-0000-0000-00000000000b",
-              invitedEmails = [],
-              trial = False,
-              createdAt = now,
-              updatedAt = now
+              invitedEmails = []
             }
 
     result <- runTestStack now gen Map.empty def $ do
-      modify @(Map MeetingId Store.StoredMeeting) (Map.insert mid sm)
-      getMeeting zUser (Qualified mid (Domain "wire.com"))
+      meeting <- createMeeting zUser (Just (ConnId "test-conn")) Nothing newMeeting
+      -- Simulate a legacy meeting whose join code was never created.
+      put @(Map Key (Code, Maybe Password)) Map.empty
+      getMeeting zUser meeting.meeting.id
 
     result `shouldBe` Left LinkUnavailable
 
@@ -646,36 +646,83 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
         zUser = toLocalUnsafe (Domain "wire.com") uid
-        mkStoredMeeting mid =
-          Store.StoredMeeting
-            { id = mid,
-              title = fromJust $ checked "Listed Meeting",
-              creator = uid,
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Listed Meeting",
               startTime = addUTCTime 60 now,
               endTime = addUTCTime 3600 now,
               tzid = API.defaultLegacyTimeZone,
-              meetingType = API.Scheduled,
+              mtype = API.Scheduled,
               externallyManagedBy = Nothing,
               externallyCalendarEventId = Nothing,
               externallyCalendarId = Nothing,
+              password = Nothing,
               recurrence = Nothing,
-              conversationId = Id $ read "00000000-0000-0000-0000-00000000000d",
-              invitedEmails = [],
-              trial = False,
-              createdAt = now,
-              updatedAt = now
+              invitedEmails = []
             }
-        midWithCode = Id $ read "00000000-0000-0000-0000-00000000000e"
         midWithoutCode = Id $ read "00000000-0000-0000-0000-00000000000f"
 
     result <-
       runTestStack now gen Map.empty def $ do
-        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithCode (mkStoredMeeting midWithCode))
-        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode (mkStoredMeeting midWithoutCode))
-        void $ CodeStore.createMeetingCode midWithCode (Timeout 3600) Nothing
-        listMeetings zUser
+        -- The created meeting has a live code and a conversation; a second
+        -- meeting on the same (existing) conversation has no code. Listing
+        -- only renders meetings whose conversation exists, so the shared
+        -- conversation keeps the code-less meeting in the listing. The
+        -- creator leaves the conversation so both meetings are reached only
+        -- through the created-meetings path, not the member path.
+        meeting <- createMeeting zUser (Just (ConnId "test-conn")) Nothing newMeeting
+        modify @(Map ConvId (Set UserId)) (Map.adjust (Set.delete uid) (qUnqualified meeting.meeting.conversationId))
+        listedBefore <- map (.id) <$> listMeetings zUser
+        stored <- maybe (error "created meeting not stored") pure =<< gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified meeting.meeting.id))
+        modify @(Map MeetingId Store.StoredMeeting) (Map.insert midWithoutCode stored {Store.id = midWithoutCode})
+        listedAfter <- try @MeetingError (listMeetings zUser)
+        pure (meeting.meeting.id, listedBefore, void listedAfter)
 
-    result `shouldBe` Left LinkUnavailable
+    case result of
+      Left err -> fail $ "Unexpected error: " <> show err
+      Right (mid, listedBefore, listedAfter) -> do
+        -- Positive control: listing succeeds before the code-less meeting.
+        listedBefore `shouldBe` [mid]
+        listedAfter `shouldBe` Left LinkUnavailable
+
+  it "listMeetings omits a created meeting whose conversation is missing" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Orphaned Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              tzid = API.defaultLegacyTimeZone,
+              mtype = API.Scheduled,
+              externallyManagedBy = Nothing,
+              externallyCalendarEventId = Nothing,
+              externallyCalendarId = Nothing,
+              password = Nothing,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <-
+      runTestStack now gen Map.empty def $ do
+        meeting <- createMeeting zUser (Just (ConnId "test-conn")) Nothing newMeeting
+        listedBefore <- map (.id) <$> listMeetings zUser
+        -- Simulate a data-inconsistency: the meeting's conversation vanished
+        -- (e.g. deleted by a team admin) while the meeting row survives.
+        modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
+        listedAfter <- listMeetings zUser
+        fetchedAfter <- getMeeting zUser meeting.meeting.id
+        pure (meeting.meeting.id, listedBefore, listedAfter, fetchedAfter)
+
+    case result of
+      Left err -> fail $ "Unexpected error: " <> show err
+      Right (mid, listedBefore, listedAfter, fetchedAfter) -> do
+        listedBefore `shouldBe` [mid]
+        -- Listing agrees with getMeeting: both fail closed.
+        map (.id) listedAfter `shouldBe` []
+        (.id) <$> fetchedAfter `shouldBe` Nothing
 
   it "creates meeting conversation with invite and code access" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -2665,19 +2712,69 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Left MeetingsFeatureDisabled
 
-    it "returns Nothing on getMeeting for team user with meetings disabled" $ do
+    -- read paths are not gated by the caller's team feature, so a team user with
+    -- meetings disabled still sees meetings (e.g. of another team) whose
+    -- conversation they were added to.
+    it "lists and gets a meeting the team user was added to even with meetings disabled" $ do
       result <-
-        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam (Just (ConnId "test-conn")) Nothing newMeeting
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $ do
+          -- The personal user has no team, so creation is not gated.
+          meeting <- createMeeting zUserPersonal (Just (ConnId "test-conn")) Nothing newMeeting
+          let convId = qUnqualified meeting.conversation.qualifiedId
+          modify @(Map ConvId (Set UserId)) (Map.insertWith Set.union convId (Set.singleton uidTeam))
+          listed <- listMeetings zUserTeam
+          fetched <- getMeeting zUserTeam meeting.meeting.id
+          pure (meeting, listed, fetched)
 
       case result of
-        Left err -> fail $ "Failed to create meeting: " <> show err
-        Right meeting -> do
-          result2 <-
-            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-              getMeeting zUserTeam meeting.meeting.id
+        Left err -> fail $ "Unexpected error: " <> show err
+        Right (meeting, listed, fetched) -> do
+          map (.id) listed `shouldBe` [meeting.meeting.id]
+          (.id) <$> fetched `shouldBe` Just meeting.meeting.id
 
-          result2 `shouldBe` Right Nothing
+    it "still hides meetings the team user is not a member of when meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $ do
+          meeting <- createMeeting zUserPersonal (Just (ConnId "test-conn")) Nothing newMeeting
+          listed <- listMeetings zUserTeam
+          fetched <- getMeeting zUserTeam meeting.meeting.id
+          pure (listed, fetched)
+
+      case result of
+        Left err -> fail $ "Unexpected error: " <> show err
+        Right (listed, fetched) -> do
+          listed `shouldBe` []
+          fetched `shouldBe` Nothing
+
+    -- once the meeting's owning team disables meetings, nobody (creator included)
+    -- can list, get, code-check or join it.
+    it "hides a meeting from everyone while its owning team has meetings disabled" $ do
+      let uidOther = Id $ read "00000000-0000-0000-0000-000000000003"
+          zUserOther = toLocalUnsafe (Domain "wire.com") uidOther
+          visibility meeting code = do
+            listed <- map (.id) <$> listMeetings zUserTeam
+            fetched <- (.id) <$$> getMeeting zUserTeam meeting.meeting.id
+            codeChecked <- codeCheckMeetingLink (IpAddr (read @IP "10.0.0.1")) (Domain "my-domain") code.codeKey code.codeValue Nothing
+            joined <- joinMeeting zUserOther (ConnId "test-conn") (Domain "wire.com") code.codeKey code.codeValue Nothing
+            pure (listed, fetched, codeChecked == CodeCheckNotFound, joined == JoinMeetingNotFound)
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          meeting <- createMeeting zUserTeam (Just (ConnId "test-conn")) Nothing newMeeting
+          key <- CodeStore.makeKey (CodeReferentMeeting (qUnqualified meeting.meeting.id))
+          code <- maybe (error "no meeting code stored") fst <$> gets @(Map Key (Code, Maybe Password)) (Map.lookup key)
+          put meetingsDisabled
+          disabled <- visibility meeting code
+          membersWhileDisabled <- gets @(Map ConvId (Set UserId)) (Map.lookup (qUnqualified meeting.meeting.conversationId))
+          put meetingsEnabled
+          enabled <- visibility meeting code
+          pure (meeting.meeting.id, disabled, membersWhileDisabled, enabled)
+
+      case result of
+        Left err -> fail $ "Unexpected error: " <> show err
+        Right (mid, disabled, membersWhileDisabled, enabled) -> do
+          disabled `shouldBe` ([], Nothing, True, True)
+          membersWhileDisabled `shouldBe` Just (Set.singleton uidTeam)
+          enabled `shouldBe` ([mid], Just mid, False, False)
 
     it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
       result <-
@@ -2706,13 +2803,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               deleteMeeting zUserTeam (Just (ConnId "test-conn")) Nothing meeting.meeting.id
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
-
-    it "returns [] on listMeetings for team user with meetings disabled" $ do
-      result <-
-        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-          listMeetings zUserTeam
-
-      result `shouldBe` Right []
 
     it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
       result <-

@@ -1,0 +1,1 @@
+Meeting visibility now depends on the `meetings` feature of the meeting's owning team instead of the caller's team (`GET /meetings/list`, `GET /meetings/{domain}/{id}`).

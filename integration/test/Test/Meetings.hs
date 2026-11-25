@@ -235,9 +235,7 @@ testMeetingsConfigDisabledBlocksCreate :: (HasCallStack) => App ()
 testMeetingsConfigDisabledBlocksCreate = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
-  -- Disable the MeetingsConfig feature
-  let firstMeeting = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
-  I.setTeamFeatureConfig owner tid "meetings" firstMeeting >>= assertStatus 200
+  setMeetingsStatus owner tid "disabled"
 
   -- Try to create a meeting - should fail
   now <- liftIO getCurrentTime
@@ -247,11 +245,11 @@ testMeetingsConfigDisabledBlocksCreate = do
 
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
--- | Read endpoints (@GET /meetings/list@, @GET /meetings/{domain}/{id}@) treat a
--- team with the @meetings@ feature disabled as "no meetings" (list -> @200 []@,
--- get -> @404 meeting-not-found@) instead of @403 invalid-op@, while write
--- endpoints (@POST /meetings@) keep the hard gate and still return @403
--- invalid-op@. See WPB-27329.
+-- | Read endpoints (@GET /meetings/list@, @GET /meetings/{domain}/{id}@) hide
+-- the meetings of a team with the @meetings@ feature disabled, from everyone
+-- including the creator (list -> @200 []@, get -> @404 meeting-not-found@).
+-- Write endpoints (@POST /meetings@) return @403 invalid-op@. Re-enabling the
+-- feature makes the meeting visible again.
 testMeetingsReadsWhenDisabled :: (HasCallStack) => App ()
 testMeetingsReadsWhenDisabled = do
   (owner, tid, _members) <- createTeam OwnDomain 1
@@ -264,33 +262,82 @@ testMeetingsReadsWhenDisabled = do
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- Positive control while enabled: the created meeting is directly findable.
-  getMeeting owner domain meetingId >>= assertStatus 200
-
-  -- Disable the meetings feature for the team.
-  let disabled = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
-  I.setTeamFeatureConfig owner tid "meetings" disabled >>= assertStatus 200
-
-  -- Read paths treat a disabled feature as "no meetings": list -> 200 [], get -> 404.
-  getMeetingsList owner `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    meetings <- resp.json & asList
-    shouldBeEmpty meetings
-
+  setMeetingsStatus owner tid "disabled"
+  getMeetingsList owner >>= getJSON 200 >>= meetingIds >>= shouldBeEmpty
   getMeeting owner domain meetingId >>= assertLabel 404 "meeting-not-found"
-
-  -- Write paths keep the hard gate: create -> 403 invalid-op (unchanged behavior).
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
-  -- Re-enable: the previously-created meeting is readable again.
-  let enabled = object ["status" .= "enabled", "lockStatus" .= "unlocked"]
-  I.setTeamFeatureConfig owner tid "meetings" enabled >>= assertStatus 200
+  setMeetingsStatus owner tid "enabled"
+  getMeetingsList owner >>= getJSON 200 >>= meetingIds >>= (`shouldMatch` [meetingId])
+  getMeeting owner domain meetingId >>= assertStatus 200
 
-  listResp2 <- getMeetingsList owner
-  assertSuccess listResp2
-  meetings2 <- listResp2.json & asList
-  fetchedIds <- forM meetings2 $ \m -> m %. "qualified_id" %. "id" >>= asString
-  (meetingId `elem` fetchedIds) `shouldMatch` True
+-- | once the meeting's owning team disables meetings, its join link no longer
+-- resolves (code-check and join -> @404 meeting-not-found@) for a user of
+-- a team with meetings enabled. Re-enabling restores the link.
+testMeetingOwnerTeamDisabledBlocksJoin :: (HasCallStack) => App ()
+testMeetingOwnerTeamDisabledBlocksJoin = withLicensedBackend $ \dom -> do
+  (ownerA, tidA, _) <- createTeam dom 1
+  (ownerB, _tidB, _) <- createTeam dom 1
+  meeting <- createDefaultMeeting ownerA
+  (_, domain) <- getMeetingIdAndDomain meeting
+  (key, code) <- linkKeyAndCode <$> (meeting %. "link" >>= asString)
+
+  setMeetingsStatus ownerA tidA "disabled"
+  getMeetingCodeCheck ownerB domain key code Nothing >>= assertLabel 404 "meeting-not-found"
+  postMeetingJoin ownerB domain key code Nothing >>= assertLabel 404 "meeting-not-found"
+
+  setMeetingsStatus ownerA tidA "enabled"
+  getMeetingCodeCheck ownerB domain key code Nothing >>= assertStatus 200
+  postMeetingJoin ownerB domain key code Nothing >>= assertStatus 200
+
+-- | a user whose team has the @meetings@ feature disabled can list and fetch a
+-- meeting of another team once added to its conversation, but still cannot
+-- create meetings.
+testMeetingListCrossTeamWhenDisabled :: (HasCallStack) => App ()
+testMeetingListCrossTeamWhenDisabled = do
+  (ownerA, tidA, _) <- createTeam OwnDomain 1
+  (ownerB, tidB, _) <- createTeam OwnDomain 1
+  setMeetingsStatus ownerB tidB "disabled"
+  connectTwoUsers ownerA ownerB
+
+  meeting <- createDefaultMeeting ownerA
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Not yet a member: nothing visible.
+  getMeetingsList ownerB >>= getJSON 200 >>= meetingIds >>= shouldBeEmpty
+  getMeeting ownerB domain meetingId >>= assertLabel 404 "meeting-not-found"
+
+  -- Meeting conversations are MLS: add owner B through an MLS commit.
+  aClient <- createMLSClient def ownerA
+  bClient <- createMLSClient def ownerB
+  void $ uploadNewKeyPackage def bClient
+  convId <- meeting %. "qualified_conversation" >>= getConversation ownerA >>= getJSON 200 >>= objConvId
+  createGroup def aClient convId
+  void $ createAddCommit aClient convId [ownerB] >>= sendAndConsumeCommitBundle
+
+  getMeetingsList ownerB >>= getJSON 200 >>= meetingIds >>= (`shouldMatch` [meetingId])
+  getMeeting ownerB domain meetingId >>= assertStatus 200
+
+  -- The owning team disabling meetings hides it from the other team's member.
+  setMeetingsStatus ownerA tidA "disabled"
+  getMeetingsList ownerB >>= getJSON 200 >>= meetingIds >>= shouldBeEmpty
+  getMeeting ownerB domain meetingId >>= assertLabel 404 "meeting-not-found"
+  setMeetingsStatus ownerA tidA "enabled"
+  getMeetingsList ownerB >>= getJSON 200 >>= meetingIds >>= (`shouldMatch` [meetingId])
+
+  now <- liftIO getCurrentTime
+  postMeetings ownerB (defaultMeetingJson "Team B meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) [])
+    >>= assertLabel 403 "invalid-op"
+
+-- | Set the @meetings@ feature status (@"enabled"@ / @"disabled"@) of a team.
+setMeetingsStatus :: (HasCallStack, MakesValue user) => user -> String -> String -> App ()
+setMeetingsStatus owner tid status =
+  I.setTeamFeatureConfig owner tid "meetings" (object ["status" .= status, "lockStatus" .= "unlocked"])
+    >>= assertStatus 200
+
+-- | The meeting ids of a @GET /meetings/list@ response body.
+meetingIds :: (HasCallStack) => Value -> App [String]
+meetingIds body = body & asList >>= traverse (\m -> m %. "qualified_id" %. "id" >>= asString)
 
 -- Test that creating a meeting with a start time in the past is rejected
 testMeetingCreatePastStartTime :: (HasCallStack) => App ()
