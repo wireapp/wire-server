@@ -1,3 +1,145 @@
+# [2026-11-24] (Chart Release 5.39.0)
+
+## Release notes
+
+* The `ldap-scim-bridge` Helm chart is no longer published from wire-server. It now lives in [wireapp/ldap-scim-bridge](https://github.com/wireapp/ldap-scim-bridge/tree/dev/charts/ldap-scim-bridge) and is released with an independant version (6.0.0 onwards) at `oci://quay.io/wire/charts/stable/ldap-scim-bridge`. The 5.x charts already published stay available. The `openldap` test chart moved to `examples/openldap` in the same repository. (#5680)
+* <!-- Related issue: WPB-29361 -->
+
+  The meeting join-code backfill is now a one-off transactional SQL data migration (`20261019090000-meeting-join-code-backfill.sql`) that runs once per database at service startup and gives every meeting without a live join code a canonical one, so every meeting exposes a join `link`. Existing join codes and links are never rotated. The previous periodic galley background pass is removed.
+
+  Operators must run with `postgresMigration.conversationCodes: postgresql` (or `migration-to-postgresql`) and have a join-link URI configured (`settings.conversationCodeURI`, or the user's domain in the `multiIngress` map); otherwise meetings without a live join code (pre-link-feature rows) return `500 link-unavailable` on reads across all API versions (legacy V15–V18 shapes included; their response *shapes* are unchanged) until the migration has run at startup, and meeting creation fails with `500 link-unavailable` in misconfigured deployments. (#5597)
+* Meeting join links are now gated behind the deployment's licence. To enable them, set the optional top-level `license` Helm value to a licence payload that covers invitation links. Unset, or if it does not cover invitation links, the meeting join-by-link endpoints return `403 id-feature-error`.
+  Licence payloads follow the 2026-10-08 RFC: `license_content` with `entitlements`, and `schema_version` 1 is the only accepted version. (#5661)
+* Calendar-managed meetings now require the calendar integration's OAuth client to be configured: set `galley.config.settings.meetings.calendarOAuthClients` to the OAuth client id(s) of the calendar integration. Until it is set, no caller can create or mutate externally-managed meetings. OAuth access tokens issued before this release carry no client id and must be refreshed. Upgrade nginz before setting `calendarOAuthClients`: galley trusts the `Z-OAuth-Client` header, which only the new nginz sets from the verified token and strips from client requests; an ingress path to galley that does not strip it would let any OAuth app claim to be the calendar integration. (#5682)
+
+## API changes
+
+* Add mock authenticator-app management endpoints for TOTP (RFC 6238), available
+  from API V19:
+
+  - `POST /self/totp`: begin enrolment; return a shared secret, an `otpauth://`
+    URI, credential metadata and server time. Clients render the QR code from
+    the URI. The response carries `Cache-Control: no-store`.
+  - `POST /self/totp/{id}/activate`: submit an authenticator code and client time;
+    return recovery codes.
+  - `GET /self/totp`: list credential metadata, without shared secrets.
+  - `PUT /self/totp/{id}`: rename a credential.
+  - `DELETE /self/totp/{id}`: remove a credential.
+
+  **These endpoints are mocks for client integration, not working second-factor
+  protection.** Request bodies are parsed but ignored, responses are generated,
+  and nothing is stored. In particular, listing credentials does not reflect
+  previous enrolments, and passwords and codes are not checked. The enrolment
+  URI is consistent with the secret and parameters in its own response. (#5653)
+* The following endpoints now accept an optional `totp_code` field in their
+  JSON request body, preparing clients for authenticator-app and recovery-code
+  support:
+
+  - `POST /login`
+  - `DELETE /self`
+  - `PUT /self/password`
+  - `PUT /access/self/email`
+  - `POST /password-reset/complete`
+  - `POST /clients` (including the existing versioned request bodies)
+  - `DELETE /clients/{client}`
+  - `POST /teams/invitations/accept` (an existing personal or team account joining another team)
+  - `POST /teams/{tid}/apps`
+  - `DELETE /oauth/applications/{id}/sessions` (revoke all sessions)
+  - `DELETE /oauth/applications/{id}/sessions/{tokenId}` (revoke one session)
+  - `DELETE /teams/{tid}`
+  - `DELETE /teams/{tid}/members/{uid}`
+  - `DELETE /teams/{tid}/legalhold/settings`
+  - `DELETE /teams/{tid}/legalhold/{uid}`
+  - `PUT /teams/{tid}/legalhold/{uid}/approve`
+  - `POST /auth-tokens` (SCIM-token creation, including the V7 request body)
+
+  The field is a prefixed string: `totp:123456` for an authenticator-app code
+  (6–9 digits), or `recovery:xxxx-xxxx-xxxx-xxxx` for a recovery code. A bare,
+  unprefixed code is not accepted. Existing clients may omit the field.
+
+  **Second-factor checking is not yet enforced.** The field is parsed and
+  validated for format but otherwise ignored; existing authentication and
+  authorisation requirements remain unchanged. Galley and Spar forward supplied
+  codes to Brig for re-authentication, but Brig does not verify them yet. (#5669)
+* Federation error responses now include `federation_domain` to identify the requested peer. When an SRV target is available, they also include `srv_target` and, when parseable, `srv_target_domain`. Existing `domain` and `path` fields are unchanged. (#5651)
+* Meeting invitation/update/cancel email rendering and transport moved from galley to brig: configure brig's `emailSMS` instead of the legacy `galley.config.settings.meetings.email` block. For backward compatibility the legacy galley block is still honored: its presence enables meeting emails and its `replyTo` feeds brig's `emailSMS.general.meeting.replyTo`; transport/sender/branding keys under it (`from`, `useSES`, `aws.*`, `smtp.*`, `templateDir`, `branding`) are ignored. The new keys are `galley.config.settings.meetings.emailsEnabled` and `brig.config.emailSMS.general.meeting.replyTo`. (#5606)
+* Add `PUT /teams/{tid}/members/{uid}/verification-email` endpoint allowing team admins to resend the email verification for members with a pending unverified email address. (#5681)
+* Meetings now always expose a `link` field on the V19 API shape: every meeting is guaranteed a canonical join link derived from a live join code in the PostgreSQL code store.
+
+  Refreshing a meeting link reports `has_password` according to the password supplied with the refresh request. (#5597)
+* New authenticated endpoint `GET /license` (V19) returning the deployment's meetings licensing flags (`invitation_links`, `emails_sending`, `calendars_integration`), all false when the deployment has no valid license. (#5671)
+* Finalize API version v19 and create development version v20. (#5734)
+* V19 meetings can be externally managed: `POST /meetings` takes an optional `externally_managed_by` plus `externally_calendar_event_id`/`externally_calendar_id`, and externally-managed meetings can only be created/mutated by the calendar integration, i.e. OAuth access tokens issued to an OAuth client listed in galley's `settings.meetings.calendarOAuthClients` (wire clients get `403 externally-managed-by-calendar`; other callers and inconsistent pairing `400 invalid-op`; unlicensed create `403 id-feature-error`). The calendar integration cannot mutate wire-managed meetings.
+  Externally-managed meetings send no emails through Wire. (#5682)
+
+## Features
+
+* `contact_status` in `POST /list-users?include-contact-status=true` now covers
+  federated users. The requester's backend sends its context (MLS availability,
+  allowed cipher suites) in one batched call per remote domain; the remote
+  backend evaluates the rule on its own users.
+
+  **Administration notes:** Requests to backends on federation version `< V5` log
+  an error on level `Warn` (because the request cannot be fulfilled). This will
+  be resolved once the remote backend is upgraded. (#5693)
+* Meeting invitation, update and cancellation emails now attach an RFC 5545 .ics calendar file, and the Add to calendar link references the attachment. (#5609)
+* Add logging analyzer endpoint to the api (#5722)
+* Meeting join links are now licensed: `POST /meeting/{domain}/{key}/{code}/join` and `GET /meeting/{domain}/{key}/{code}/code-check` return `403 id-feature-error` unless the deployment's license covers invitation links. (#5661)
+* Added the `totp` team feature flag, for now because totp is only a mock, the feature flag is dummy only for enable testing on UI. (#5689)
+* Kicked meeting participants now receive a `meeting.delete` event, so their clients remove the meeting as soon as they are excluded from the meeting conversation. (#5694)
+* The backoffice chart has new settings `config.ibisPort` and `config.galebPort` for the ports stern uses to reach ibis and galeb. Both default to 8080, so existing installations are not affected. Set them to 8081 to call these services on their admin port. (#5741)
+
+## Bug fixes and other updates
+
+* Exclude legacy team 1:1 conversations from adminless group prevention. (#5686)
+* Fix: changing a team collaborator's permissions no longer removes them from conversations. (#5581)
+* Fix: remove collaborators from MLS 1:1 conversations with team members when the collaboration ends, unless the two users can still reach each other in another way. (#5581)
+* Prevent team admins from changing SCIM-managed users’ team roles and prevent users from deleting their SCIM-managed email addresses. Fix SCIM role reads and updates for pending invitations, preserving the assigned role on acceptance. Expand integration test coverage for SCIM-managed account protections and document the corresponding errors in OpenAPI. (#5723)
+* Fix a race where re-joining an MLS group with an external commit could drop the re-joining client from the backend's member list, silently stopping message delivery to that client. (#5677)
+* Fix MLS timestamp mismatches that break reply quotes. Federated sends require federation API V5 on both backends. (#5712)
+* Prevent legacy Proteus team 1:1 conversations from being migrated in place as MLS groups, which could split messages between the migrated group and the canonical MLS 1:1 conversation. (#5710)
+
+## Documentation
+
+* Auto-resolve DYLD_LIBRARY_PATH for nginz on Apple Silicon (arm64) macOS dev setups. `.envrc` now locates nginx's compiled-in zauth dylib in the Nix store and exports DYLD_LIBRARY_PATH automatically (cached against the dev-env rebuild), so `direnv allow` + `make cr` starts nginz without manual steps. See docs/src/developer/developer/running-locally-macos-arm64.md for the full local macOS dev setup. (#5676)
+* Rewrite the user searchability page: use API and configuration names consistently, separate the team search visibility from the `searchVisibility` team feature that allows changing it, and document the team role, per-user searchability, searchers without a team, and handle lookup. (#5578)
+
+## Internal changes
+
+* Gundeck: new Prometheus metrics about stored notifications, notification fetches and websocket deliveries.
+
+  - wire_push_stored_targets: histogram of the number of targets of each stored push
+  - wire_push_stored_targets_all_clients: stored push targets that address all clients of a user
+  - wire_push_stored_targets_some_clients: stored push targets that address specific clients of a user
+  - wire_push_stored_target_clients: histogram of the number of clients of each stored push target that addresses specific clients
+  - wire_push_stored_payload_bytes: histogram of the size of the encoded payload of each stored push
+  - wire_notification_fetch: notification fetches
+  - wire_notification_fetch_without_client: notification fetches without a client
+  - wire_notification_fetch_without_since: notification fetches without a starting notification id
+  - wire_notification_fetch_gap: notification fetches whose starting notification id was not found
+  - wire_notification_fetch_has_more: notification fetches that have more notifications to fetch
+  - wire_notification_fetch_returned: histogram of the number of notifications returned by each fetch
+  - wire_push_ws_delivered_presences: websocket presences that were successfully pushed to (including transient pushes)
+  - wire_push_ws_delivered_presences_transient: websocket presences that were successfully pushed to with a transient push (#5683)
+* Revert nginz config of local federation-v0/v1/v2 test backends to `oauth_scope`
+  (pinned images do not support `oauth_scopes` from commit 7efe9b4 / PR #5542).
+* Migration of brig nonce (DPoP replay) store from cassandra to postgres (#5675)
+* Dev shell: provide haskell-language-server 2.15 (was 2.13). HLS and its dependencies are pinned to Hackage versions in `nix/overlay.nix`; the pins affect only HLS. (#5692)
+* Add vscode config to gitignore
+* Federation error logs now include the requested peer domain and discovered SRV target. (#5651)
+* Migration of connections from cassandra to postgres (#5626)
+* Migration of budget store from cassandra to postgres (#5619)
+* Meeting invitation, update and cancellation emails are now sent to invited email addresses when a meeting is created, edited, its join link refreshed or it is deleted. Galley only triggers them (`settings.meetings.emailsEnabled` + the deployment license covering meeting emails); brig renders them from its `emailSMS` templates (branding, sender, SES/SMTP transport) and sends them, with an optional `emailSMS.general.meeting.replyTo` Reply-To header. (#5606)
+* Avoid repeated client MLS public-key lookups when validating key-package uploads. The key is now loaded at most once per signature scheme per request. (#5717)
+* Migration of custom backend store from cassandra to postgres (#5633)
+* A release published from `develop` also feeds the S3 Helm repositories and wire-builds, besides Quay and the release managers. A pre-release pushes its charts to `charts-develop` and pins them in the `dev` branch of wire-builds. A GA pushes them to `charts` and pins them in the `main` branch only, `dev` is left alone. A pin never moves backwards: `dev` is not changed when it already pins a newer commit, and `main` refuses a version lower than the one it pins. Every chart of the release is packaged when the candidate is prepared and checked against its checksum before anything is published. If the S3 or wire-builds step fails, the `Publish legacy channels` workflow runs it again for the published release. A release from a `release/X.Y` branch only goes to Quay and the release managers. (#5745)
+* OAuth access tokens carry the OAuth client they were issued to (`client_id` claim, RFC 9068); nginz forwards it to the services as `Z-OAuth-Client` and strips caller-supplied values. (#5682)
+
+## Federation changes
+
+* Added `get-users-contact-status` to the Brig federation API (development version V5). Batch request per domain; the remote backend rejects more than 1000 users with HTTP 400. (#5693)
+* Remove exposure of internal federator endpoints and only leave paths with /federation prefixes exposed. (#5355)
+
 # [2026-10-23] (Chart Release 5.38.0)
 
 ## Release notes
