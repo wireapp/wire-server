@@ -107,7 +107,10 @@ import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
+import Wire.FederationConfigStore.Cassandra (interpretFederationConfigStoreCassandra)
+import Wire.FederationConfigStore.Postgres (interpretFederationDomainConfigStorePostgres)
+import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
+import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem, remotesMapFromCfgFile)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
@@ -235,6 +238,8 @@ type BrigLowerLevelEffects =
      DomainVerificationChallengeStore,
      NonceStore,
      BlockListStore,
+     FederationConfigSubsystem,
+     FederationConfigStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -274,7 +279,6 @@ type BrigLowerLevelEffects =
      Input InvitationUrlTemplates,
      Input ClientSubsystemConfig,
      GundeckAPIAccess,
-     FederationConfigStore,
      Jwk,
      JwtTools,
      BudgetStore,
@@ -500,6 +504,11 @@ runBrigToIO e (AppT ma) = do
               . interpretConnectionStoreToCassandraAndPostgres
               . raiseUnder2
 
+      federationDomainConfigStoreInterpreter =
+        case e.postgresMigration.federationDomainConfig of
+          CassandraStorage -> interpretFederationConfigStoreCassandra e.casClient
+          PostgresqlStorage -> interpretFederationDomainConfigStorePostgres
+          MigrationToPostgresql -> interpretFederationConfigStoreCassandra e.casClient -- todo: implement dual write
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -529,7 +538,6 @@ runBrigToIO e (AppT ma) = do
               . budgetStoreInterpreter
               . interpretJwtTools
               . interpretJwk
-              . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
               . runInputConst clientSubsystemConfig
               . runInputConst (invitationUrlTemplates e)
@@ -569,6 +577,8 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . federationDomainConfigStoreInterpreter
+              . interpretFederationConfigSubsystem e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . blockListStore
               . nonceStore
               . domainVerificationChallengeStore
