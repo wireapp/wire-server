@@ -1,10 +1,12 @@
 -- WPB-29578: delete expired user_cookies rows (ADR 0005: pg_cron for TTL
--- deletions). Sessions are auth-relevant, so the purge runs hourly; the
--- expression index serves the purge scan (the existing
--- user_cookies_expires_idx leads with user_id and cannot).
+-- deletions). Sessions are auth-relevant, so the purge runs hourly. The purge
+-- predicate is `expires_at < now() OR invalid_after < now()`; one index per
+-- column lets the planner serve it with a BitmapOr instead of a sequential
+-- scan (the existing user_cookies_expires_idx leads with user_id and cannot).
 -- Requires the operator to enable pg_cron (shared_preload_libraries + CREATE EXTENSION);
 -- the migration only schedules the job and must not fail boot without it.
 CREATE INDEX IF NOT EXISTS user_cookies_expires_at_idx ON user_cookies (expires_at);
+CREATE INDEX IF NOT EXISTS user_cookies_invalid_after_idx ON user_cookies (invalid_after);
 
 DO $mig$
 BEGIN

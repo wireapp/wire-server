@@ -26,7 +26,9 @@ where
 -- now()@).  Expired rows are reaped on write: every insert first deletes the
 -- rows of the affected user that are invisible to every read path, which is
 -- bounded per user by the @(user_id, expires_at)@ index and keeps rotation
--- from accumulating dead rows unboundedly.
+-- from accumulating dead rows unboundedly.  Rows of users that stop writing
+-- are removed by the hourly @expire-user-cookies@ pg_cron job (see the
+-- @user-cookies-ttl-cleanup@ migration).
 
 import Data.Id
 import Data.Time.Clock
@@ -48,14 +50,18 @@ interpretSessionStoreToPostgres ::
   InterpreterFor SessionStore r
 interpretSessionStoreToPostgres = interpret $ \case
   InsertCookie uid cookie ttl -> insertCookieImpl uid cookie ttl
-  LookupCookie uid expiry cid -> lookupImpl uid expiry cid
-  ListCookies uid -> listImpl uid
-  DeleteAllCookies uid -> deleteAllImpl uid
-  DeleteCookies uid cs -> deleteImpl uid cs
+  LookupCookie uid expiry cid -> lookupCookieImpl uid expiry cid
+  ListCookies uid -> listCookiesImpl uid
+  DeleteAllCookies uid -> deleteAllCookiesImpl uid
+  DeleteCookies uid cs -> deleteCookiesImpl uid cs
 
--- | Marshals a cookie into the column order of the insert statements below
--- (user_id and invalid_after passed separately).
-cookieColumns :: Cookie () -> (Int64, Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime)
+-- | Column tuple @(id, typ, created, label, succ_id, expires_at)@ produced by
+-- 'cookieColumns' for the insert and returned by the select statements below
+-- (user_id and invalid_after are handled separately).
+type CookieRow = (Int64, Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime)
+
+-- | Marshals a cookie into a 'CookieRow'.
+cookieColumns :: Cookie () -> CookieRow
 cookieColumns ck =
   ( postgresMarshall (cookieId ck),
     postgresMarshall (cookieType ck),
@@ -64,6 +70,24 @@ cookieColumns ck =
     fmap postgresMarshall (cookieSucc ck),
     cookieExpires ck
   )
+
+-- | Decodes a 'CookieRow' (see 'cookieColumns').
+decodeCookieRow :: CookieRow -> Either Text (Cookie ())
+decodeCookieRow (i, t, created, label, csucc, expires) = do
+  cid <- postgresUnmarshall i
+  typ <- postgresUnmarshall t
+  cookieLabel' <- traverse postgresUnmarshall label
+  cookieSucc' <- traverse postgresUnmarshall csucc
+  pure
+    Cookie
+      { cookieId = cid,
+        cookieType = typ,
+        cookieCreated = created,
+        cookieExpires = expires,
+        cookieLabel = cookieLabel',
+        cookieSucc = cookieSucc',
+        cookieValue = ()
+      }
 
 -- | Upsert a cookie. The Cassandra interpreter relies on a row TTL; here the
 -- row carries an explicit @invalid_after@ boundary instead: cookie expiry by
@@ -90,8 +114,8 @@ insertCookieImpl u ck ttl =
                                expires_at = EXCLUDED.expires_at,
                                invalid_after = EXCLUDED.invalid_after|]
 
--- | Delete exactly the rows that no read path can see: 'listImpl' requires
--- both @expires_at@ and @invalid_after@ in the future, 'lookupImpl' requires
+-- | Delete exactly the rows that no read path can see: 'listCookiesImpl' requires
+-- both @expires_at@ and @invalid_after@ in the future, 'lookupCookieImpl' requires
 -- @invalid_after@ in the future, so the @OR@ below reaps both expired cookies
 -- and superseded ones (future @expires_at@, past @invalid_after@).
 purgeExpiredStatement :: Hasql.Statement UUID ()
@@ -99,64 +123,33 @@ purgeExpiredStatement =
   [resultlessStatement|DELETE FROM user_cookies WHERE user_id = ($1 :: uuid)
                        AND (expires_at <= now() OR invalid_after <= now())|]
 
-lookupImpl :: (PGConstraints r) => UserId -> UTCTime -> CookieId -> Sem r (Maybe (Cookie ()))
-lookupImpl u expiry cid =
+lookupCookieImpl :: (PGConstraints r) => UserId -> UTCTime -> CookieId -> Sem r (Maybe (Cookie ()))
+lookupCookieImpl u expiry cid =
   runStatement (u.toUUID, expiry, postgresMarshall cid) lookupStatement
   where
-    decodeRow :: (Int32, UTCTime, Maybe Text, Maybe Int64, UTCTime) -> Either Text (Cookie ())
-    decodeRow (t, created, label, csucc, x) = do
-      typ <- postgresUnmarshall t
-      cookieLabel' <- traverse postgresUnmarshall label
-      cookieSucc' <- traverse postgresUnmarshall csucc
-      pure
-        Cookie
-          { cookieId = cid,
-            cookieCreated = created,
-            cookieExpires = x,
-            cookieType = typ,
-            cookieLabel = cookieLabel',
-            cookieSucc = cookieSucc',
-            cookieValue = ()
-          }
     lookupStatement :: Hasql.Statement (UUID, UTCTime, Int64) (Maybe (Cookie ()))
     lookupStatement =
-      Hasql.refineResult (traverse decodeRow) $
-        [maybeStatement|SELECT typ :: int4, created :: timestamptz, label :: text?, succ_id :: int8?, expires_at :: timestamptz
+      Hasql.refineResult (traverse decodeCookieRow) $
+        [maybeStatement|SELECT id :: int8, typ :: int4, created :: timestamptz, label :: text?, succ_id :: int8?, expires_at :: timestamptz
                          FROM user_cookies
                          WHERE user_id = ($1 :: uuid) AND expires_at = ($2 :: timestamptz) AND id = ($3 :: int8)
                            AND invalid_after > now()|]
 
-listImpl :: (PGConstraints r) => UserId -> Sem r [Cookie ()]
-listImpl u =
+listCookiesImpl :: (PGConstraints r) => UserId -> Sem r [Cookie ()]
+listCookiesImpl u =
   runStatement u.toUUID listStatement
   where
-    decodeRow :: (Int64, UTCTime, UTCTime, Int32, Maybe Text, Maybe Int64) -> Either Text (Cookie ())
-    decodeRow (i, ct, et, t, l, sc) = do
-      cid <- postgresUnmarshall i
-      typ <- postgresUnmarshall t
-      cookieLabel' <- traverse postgresUnmarshall l
-      cookieSucc' <- traverse postgresUnmarshall sc
-      pure
-        Cookie
-          { cookieId = cid,
-            cookieType = typ,
-            cookieCreated = ct,
-            cookieExpires = et,
-            cookieLabel = cookieLabel',
-            cookieSucc = cookieSucc',
-            cookieValue = ()
-          }
     listStatement :: Hasql.Statement UUID [Cookie ()]
     listStatement =
-      Hasql.refineResult (traverse decodeRow . Vector.toList) $
-        [vectorStatement|SELECT id :: int8, created :: timestamptz, expires_at :: timestamptz, typ :: int4, label :: text?, succ_id :: int8?
+      Hasql.refineResult (traverse decodeCookieRow . Vector.toList) $
+        [vectorStatement|SELECT id :: int8, typ :: int4, created :: timestamptz, label :: text?, succ_id :: int8?, expires_at :: timestamptz
                           FROM user_cookies
                           WHERE user_id = ($1 :: uuid) AND expires_at > now() AND invalid_after > now()
                           ORDER BY expires_at ASC|]
 
-deleteImpl :: (PGConstraints r) => UserId -> [Cookie ()] -> Sem r ()
-deleteImpl _ [] = pure ()
-deleteImpl u cs =
+deleteCookiesImpl :: (PGConstraints r) => UserId -> [Cookie ()] -> Sem r ()
+deleteCookiesImpl _ [] = pure ()
+deleteCookiesImpl u cs =
   runStatement (u.toUUID, Vector.fromList (map (postgresMarshall . cookieId) cs)) deleteStatement
   where
     deleteStatement :: Hasql.Statement (UUID, Vector Int64) ()
@@ -164,8 +157,8 @@ deleteImpl u cs =
       [resultlessStatement|DELETE FROM user_cookies
                            WHERE user_id = ($1 :: uuid) AND id = ANY ($2 :: int8[])|]
 
-deleteAllImpl :: (PGConstraints r) => UserId -> Sem r ()
-deleteAllImpl u =
+deleteAllCookiesImpl :: (PGConstraints r) => UserId -> Sem r ()
+deleteAllCookiesImpl u =
   runStatement u.toUUID deleteAllStatement
   where
     deleteAllStatement :: Hasql.Statement UUID ()
