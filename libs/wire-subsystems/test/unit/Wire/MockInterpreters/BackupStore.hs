@@ -127,9 +127,10 @@ inMemoryBackupStore = interpret $ \case
     gets $ \s ->
       fmap ((.id) . snd) (Map.lookup (uid, cid, epoch) s.epochs) == Just full
         && fmap fst (Map.lookup fid s.incrementals) == Just full
-  CountEpochFiles uid cid epoch ->
-    gets $ \s ->
-      (\(_, f) -> 1 + fromIntegral (length (incrementalsOf s f.id))) <$> Map.lookup (uid, cid, epoch) s.epochs
+  CountEpochFiles uid cid epoch full ->
+    gets $ \s -> case Map.lookup (uid, cid, epoch) s.epochs of
+      Just (_, f) | f.id == full -> Just (1 + fromIntegral (length (incrementalsOf s f.id)))
+      _ -> Nothing
   ListBackupClients uid ->
     gets $ \s ->
       Set.toList . Set.fromList $

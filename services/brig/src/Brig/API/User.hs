@@ -1224,6 +1224,11 @@ deleteAccount user = do
   --       they need to be notified.
   Data.deleteConnections uid
   Auth.revokeAllCookies uid
+  -- Again, now that the clients are gone: an epoch-1 upload that passed cargohold's client
+  -- check before the removal can commit after the first call. Last step, so that a Postgres
+  -- error (logged by the interpreter) does not skip the other steps; the retry of the
+  -- deletion orphans again.
+  orphanUserBackups uid
 
 -------------------------------------------------------------------------------
 -- Lookups

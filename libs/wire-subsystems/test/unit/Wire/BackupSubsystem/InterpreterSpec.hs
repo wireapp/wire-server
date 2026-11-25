@@ -76,7 +76,10 @@ data Fixture = Fixture
   { inTeam :: Bool,
     featureEnabled :: Bool,
     -- | clients that exist in brig
-    existingClients :: Set ClientId
+    existingClients :: Set ClientId,
+    -- | Brig lookups from this one on (counting from 0) find no clients: the removal of the
+    -- clients happens in between.
+    clientsGoneAfterLookups :: Maybe Int
   }
 
 defaultFixture :: Fixture
@@ -84,7 +87,8 @@ defaultFixture =
   Fixture
     { inTeam = True,
       featureEnabled = True,
-      existingClients = Set.fromList [clientA, clientB]
+      existingClients = Set.fromList [clientA, clientB],
+      clientsGoneAfterLookups = Nothing
     }
 
 testUser :: UserId
@@ -138,6 +142,7 @@ runBackupFrom ::
   Sem TestStack a ->
   IO (a, BackupState, Map BackupFileId ByteString)
 runBackupFrom config fx behaviour deleteBehaviour (initialState, initialObjects) action = do
+  lookups <- newIORef (0 :: Int)
   (_, (objects, (state, result))) <-
     runM
       . runState defaultTime
@@ -150,7 +155,7 @@ runBackupFrom config fx behaviour deleteBehaviour (initialState, initialObjects)
       . runRandomPure
       . runInputConst config
       . miniGalleyAPIAccess teams features
-      . brigStub
+      . brigStub lookups
       . inMemoryBackupObjectStore behaviour deleteBehaviour
       . inMemoryBackupStore
       . interpretBackupSubsystem
@@ -169,8 +174,13 @@ runBackupFrom config fx behaviour deleteBehaviour (initialState, initialObjects)
       | fx.featureEnabled =
           npUpdate @AutomaticBackupsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
       | otherwise = def
-    brigStub = interpret $ \case
-      LookupClients uids -> pure (UserClients (Map.fromList [(u, fx.existingClients) | u <- uids]))
+    brigStub lookups = interpret $ \case
+      LookupClients uids -> do
+        n <- embed (atomicModifyIORef' lookups (\c -> (c + 1, c)))
+        let clients
+              | maybe False (n >=) fx.clientsGoneAfterLookups = mempty
+              | otherwise = fx.existingClients
+        pure (UserClients (Map.fromList [(u, clients) | u <- uids]))
       _ -> error "unexpected BrigAPIAccess call"
 
 body :: ByteString -> ConduitT () ByteString (ResourceT IO) ()
@@ -748,6 +758,37 @@ spec = describe "BackupSubsystem" $ do
       for_ [e1.id, i1.id] $ \f -> Map.member f objects `shouldBe` False
       Map.keys objects `shouldMatchList` others
       state.orphans `shouldBe` mempty
+
+  describe "client removed during an upload" $ do
+    -- lookup 0 is the check before the upload, lookup 1 the re-check after the commit
+    let removedAfterCheck = defaultFixture {clientsGoneAfterLookups = Just 1}
+
+    it "fullOfRemovedClientIsOrphanedAndDeleted" $ do
+      (r, state, objects) <- runBackup removedAfterCheck PutSucceeds (uploadA 1)
+      r `shouldBe` Left BackupErrorForbidden
+      state.epochs `shouldBe` mempty
+      state.orphans `shouldBe` mempty
+      objects `shouldBe` mempty
+
+    it "incrementalOfRemovedClientIsOrphanedAndDeleted" $ do
+      -- lookups 0 (full) and 1 (re-check) and 2 (incremental) see the client
+      let fx = defaultFixture {clientsGoneAfterLookups = Just 3}
+      (r, state, objects) <- runBackup fx PutSucceeds $ do
+        e1 <- uploadA 1 >>= orFail
+        uploadIncA e1.id "abc"
+      r `shouldBe` Left BackupErrorForbidden
+      state.epochs `shouldBe` mempty
+      state.incrementals `shouldBe` mempty
+      state.orphans `shouldBe` mempty
+      objects `shouldBe` mempty
+
+    it "normalUploadNeedsOneExtraLookup" $ do
+      -- the client is gone from the third lookup on: a third lookup would fail the upload
+      let fx = defaultFixture {clientsGoneAfterLookups = Just 2}
+      (r, state, objects) <- runBackup fx PutSucceeds (uploadA 1)
+      fmap (.size) r `shouldBe` Right 5
+      Map.keys state.epochs `shouldBe` [(testUser, clientA, BackupEpoch 1)]
+      Map.size objects `shouldBe` 1
 
   describe "orphanUserBackups" $ do
     let commitAs uid cid epoch n = do

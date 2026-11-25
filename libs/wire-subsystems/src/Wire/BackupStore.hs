@@ -76,8 +76,10 @@ data BackupStore m a where
   -- | Is the incremental (last argument) one of the full (second to last) of the epoch?
   LookupIncremental ::
     UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupFileId -> BackupStore m Bool
-  -- | Number of current files of the epoch including the full; 'Nothing' if there is no epoch.
-  CountEpochFiles :: UserId -> ClientId -> BackupEpoch -> BackupStore m (Maybe Word32)
+  -- | Number of current files of the epoch including the full; 'Nothing' if there is no epoch
+  -- or the file (last argument) is not its full.
+  CountEpochFiles ::
+    UserId -> ClientId -> BackupEpoch -> BackupFileId -> BackupStore m (Maybe Word32)
   -- | Summaries of the current files of the epochs of the user, of one client or of all
   -- (no lock, read only). Ascending by client and epoch; clients without epochs are absent.
   ListClientBackups :: UserId -> Maybe ClientId -> BackupStore m [ClientBackups]
@@ -103,5 +105,7 @@ makeSem ''BackupStore
 
 -- | Orphans the backups of all clients of the user, one transaction per client. Idempotent
 -- and resumable: a retry continues with the clients that still have epochs or reservations.
+-- Callers run it again after the clients are removed: an epoch-1 upload racing the removal
+-- can commit after the first run.
 orphanUserBackups :: (Member BackupStore r) => UserId -> Sem r ()
 orphanUserBackups uid = listBackupClients uid >>= traverse_ (orphanClient uid)

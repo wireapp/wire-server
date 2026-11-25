@@ -365,6 +365,11 @@ execDelete u con c = do
   for_ (clientCookie c) $ \l -> Authentication.revokeCookies u [] [l]
   DeleteQueue.enqueueClientDeletion c.clientId u con
   ClientStore.delete u c.clientId
+  -- Again, now that the client is gone: an epoch-1 upload that passed cargohold's client
+  -- check before the removal can commit after the first call. A Postgres error here
+  -- (logged by the interpreter) fails the request although the client is removed; cargohold
+  -- re-checks the client after each commit and orphans the backup itself.
+  void $ BackupStore.orphanClient u c.clientId
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

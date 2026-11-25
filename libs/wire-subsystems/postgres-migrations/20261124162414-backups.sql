@@ -26,3 +26,7 @@ CREATE TABLE IF NOT EXISTS backup_orphans (
 );
 
 CREATE INDEX IF NOT EXISTS backup_orphans_orphaned_at ON backup_orphans (orphaned_at);
+
+-- Upload reservations of a client (blockReservations, listBackupClients)
+CREATE INDEX IF NOT EXISTS backup_orphans_reservations
+  ON backup_orphans (user_id, client_id) WHERE file_created_at IS NULL;

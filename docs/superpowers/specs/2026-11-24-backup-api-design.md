@@ -210,6 +210,14 @@ cargohold's cleanup cron deletes the S3 objects. S3 stays cargohold-only.
   every member through it), plus the `DeleteUser` internal event path.
   Bots (`deleteBot`) aren't covered; they have no team, so they never have
   backups.
+- Racing epoch-1 uploads: an upload that passed cargohold's client check
+  before the removal can still commit epoch 1 after the orphaning (nothing
+  blocks it: no epochs, no marked reservation). Two closing halves: brig
+  orphans again after the client is actually removed (`execDelete` after
+  `ClientStore.delete`, last step of `deleteAccount`; Postgres errors are
+  logged and propagate), and cargohold re-checks the client after each
+  successful commit; if gone it orphans the client's backups, deletes the
+  objects inline and answers 403.
 - Why not a RabbitMQ job: background jobs are dropped after 3 attempts (no
   dead-letter queue), so a deletion could be lost; the orphans table already
   is durable and retried by the cron.

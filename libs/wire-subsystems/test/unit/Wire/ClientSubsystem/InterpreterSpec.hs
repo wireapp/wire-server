@@ -117,6 +117,23 @@ failingBackupStore = interpret \case
   -- BackupStore is first-order, so its monad parameter is phantom
   op -> inMemoryBackupStore (send @BackupStore (coerce op))
 
+-- | The first 'OrphanClient' is followed by an upload that commits its first epoch (the
+-- reservation is made after the orphaning, so it is not blocked).
+lateCommitBackupStore ::
+  (Member (State BackupState) r, Member Now r) =>
+  InterpreterFor BackupStore r
+lateCommitBackupStore = interpret \case
+  OrphanClient uid cid -> do
+    orphaned <- inMemoryBackupStore (send @BackupStore (OrphanClient uid cid))
+    seen <- gets \s -> Map.member lateFile s.orphans
+    unless seen . void . inMemoryBackupStore $ do
+      reserveUpload uid cid (BackupEpoch 1) lateFile
+      commitFull uid cid (BackupEpoch 1) lateFile 5
+    pure orphaned
+  op -> inMemoryBackupStore (send @BackupStore (coerce op))
+  where
+    lateFile = BackupFileId (UUID.fromWords 0 0 0 99)
+
 orphanFailure :: ClientError
 orphanFailure = ClientUserNotFound (Id UUID.nil)
 
@@ -402,6 +419,20 @@ spec = describe "ClientSubsystem.Interpreter" do
               testResult.deletions === [],
               Map.keys testResult.backups.epochs === [(uid, clientId, BackupEpoch 1)],
               testResult.backups.orphans === mempty
+            ]
+
+  prop "orphans again after removal, catching a late first upload" $ \user conn (FakeLastPrekey lpk) ->
+    let uid = user.id
+        luid = toLocalUnsafe testDomain uid
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
+        testResult =
+          runClientSubsystemTestWith lateCommitBackupStore [user] do
+            void $ addClient luid Nothing (newClient PermanentClientType lpk)
+            removeClient uid conn clientId Nothing
+     in expectRight testResult.result $ \() ->
+          conjoin
+            [ Map.keys testResult.backups.epochs === [],
+              assertCommittedOrphan testResult.backups (BackupFileId (UUID.fromWords 0 0 0 99))
             ]
 
   prop "adds and removes legal hold client" $ \user (FakeLastPrekey lpk) ->
