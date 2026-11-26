@@ -50,7 +50,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (NonNegative, arbitrary, counterexample, generate, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import URI.ByteString (parseURI, strictURIParserOptions)
-import Wire.API.Conversation (Access (CodeAccess, InviteAccess), AccessRole (GuestAccessRole), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess, cnvmAccessRoles), defRole)
+import Wire.API.Conversation (Access (CodeAccess, InviteAccess), AccessRole (GuestAccessRole), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess, cnvmAccessRoles, cnvmTeam), defRole)
 import Wire.API.Conversation.Role (pattern DeleteConversation)
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound), InvalidTimesReason (..), MeetingError (..), pattern ActionDenied)
@@ -1315,9 +1315,12 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting <- createMeeting zUser1 (Just (ConnId "test-conn")) Nothing newMeeting
         -- Simulate a data-inconsistency: the meeting's conversation vanished.
         modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
-        updateMeeting zUser1 (Just (ConnId "test-conn")) Nothing meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
+        updated <- updateMeeting zUser1 (Just (ConnId "test-conn")) Nothing meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing Nothing)
+        stored <- gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified meeting.meeting.id))
+        pure (updated, (.title) <$> stored)
 
-      result `shouldBe` Right Nothing
+      -- The 404 comes before any write: the stored row keeps its title.
+      result `shouldBe` Right (Nothing, Just newMeeting.title)
 
     prop "applies valid update, preserves unchanged fields" $ \(update :: API.UpdateMeeting) ->
       let baseMeeting =
@@ -3600,6 +3603,63 @@ specMeetingEmails =
         Right (Right _created) -> pure ()
         Right (Left err) -> fail $ "Error: " <> show err
         Left _denied -> expectationFailure "unexpected CheckDeleteLocalConversation denial"
+
+    -- A meeting hidden from get/list/join (conversation missing, or owning
+    -- team with meetings disabled) rejects invitation-sending changes
+    -- before any write or email; removing invitees stays possible.
+    let hiddenMeetingInviteeChanges :: (ConvId -> Sem TestStack ()) -> Expectation
+        hiddenMeetingInviteeChanges hide = do
+          result <- runTestStack now0 gen0 Map.empty def $ do
+            plantHost uid1 (Just hostEmail) hostLocale
+            meeting <- createMeeting zUser1 (Just testConnId) Nothing (mkNewMeeting API.Scheduled [addrA])
+            let mid = meeting.meeting.id
+            -- Positive control: the endpoint works while the meeting is visible.
+            addedWhileVisible <- addInvitedEmails zUser1 (Just testConnId) Nothing mid [addrB] Nothing
+            rpcsBefore <- length <$> sentRpcs
+            hide (qUnqualified meeting.meeting.conversationId)
+            added <- addInvitedEmails zUser1 (Just testConnId) Nothing mid [addrC] Nothing
+            replaced <- replaceInvitedEmails zUser1 (Just testConnId) Nothing mid [addrD] Nothing
+            removed <- removeInvitedEmails zUser1 (Just testConnId) Nothing mid [addrA]
+            rpcsAfter <- length <$> sentRpcs
+            stored <- gets @(Map MeetingId Store.StoredMeeting) (Map.lookup (qUnqualified mid))
+            pure (addedWhileVisible, rpcsBefore, (added, replaced, removed), rpcsAfter, (.invitedEmails) <$> stored)
+          case result of
+            Left err -> fail $ "Error: " <> show err
+            Right (addedWhileVisible, rpcsBefore, outcomes, rpcsAfter, storedEmails) -> do
+              addedWhileVisible `shouldBe` True
+              -- One invitation on create, one for the visible add.
+              rpcsBefore `shouldBe` 2
+              -- add and replace are rejected; remove still succeeds.
+              outcomes `shouldBe` (False, False, True)
+              rpcsAfter `shouldBe` rpcsBefore
+              -- Neither addrC (add) nor addrD (replace) was written; addrA was removed.
+              storedEmails `shouldBe` Just [addrB]
+
+    it "rejects invitation-sending invited-email changes on a meeting whose conversation is missing" $
+      -- Simulate a data-inconsistency: the meeting's conversation vanished
+      -- (e.g. deleted by a team admin) while the meeting row survives.
+      hiddenMeetingInviteeChanges $ \convId ->
+        modify @(Map ConvId StoredConversation) (Map.delete convId)
+
+    it "rejects invitation-sending invited-email changes on a meeting whose owning team has meetings disabled" $ do
+      -- The creator is a personal user (not gated by the caller-team check),
+      -- while the meeting's conversation belongs to a team that disables
+      -- meetings.
+      let ownerTeam = Id $ read "00000000-0000-0000-0000-000000000100"
+          meetingsDisabled =
+            npUpdate @MeetingsConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def) def
+          ownedBy :: StoredConversation -> StoredConversation
+          ownedBy c =
+            StoredConversation
+              { id_ = c.id_,
+                localMembers = c.localMembers,
+                remoteMembers = c.remoteMembers,
+                metadata = c.metadata {cnvmTeam = Just ownerTeam},
+                protocol = c.protocol
+              }
+      hiddenMeetingInviteeChanges $ \convId -> do
+        modify @(Map ConvId StoredConversation) (Map.adjust ownedBy convId)
+        put meetingsDisabled
 
 -- | Plant a brig user record for the meeting creator in the mock brig state.
 plantHost :: UserId -> Maybe EmailAddress -> Locale -> Sem TestStack ()
