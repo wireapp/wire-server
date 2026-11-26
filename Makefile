@@ -437,7 +437,6 @@ es-reindex: c
 	./dist/brig-index reindex \
 		--pg-pool-size 10 \
 		--pg-pool-acquisition-timeout 10s \
-		--pg-pool-aging-timeout 1d \
 		--pg-pool-idleness-timeout 1h \
 		--pg-settings '{"host":"127.0.0.1","port":"5432","user":"wire-server","dbname":"backendA"}' \
 		--pg-password-file ./libs/wire-subsystems/test/resources/postgres-credentials.yaml \
