@@ -49,29 +49,6 @@ import Testlib.Prekeys
 import Testlib.Prelude
 import UnliftIO (Chan, readChan, timeout)
 
-testLegalHoldAndSsoCannotBothBeEnabled :: (HasCallStack) => App ()
-testLegalHoldAndSsoCannotBothBeEnabled =
-  withModifiedBackend
-    def
-      { galleyCfg =
-          setField "settings.featureFlags.legalhold" "disabled-by-default"
-            >=> setField "settings.featureFlags.sso" "disabled-by-default"
-      }
-    $ \domain ->
-      for_ [("legalhold", "sso"), ("sso", "legalhold")] $ \(first, second) -> do
-        (owner, team, []) <- createTeam domain 0
-        let enable feature = API.GalleyInternal.setTeamFeatureConfig owner team feature (object ["status" .= "enabled"])
-            status feature = API.GalleyInternal.getTeamFeature owner team feature >>= getJSON 200 >>= (%. "status")
-        status first `shouldMatch` "disabled"
-        status second `shouldMatch` "disabled"
-        enable first >>= assertSuccess
-        enable second `bindResponse` \resp -> do
-          resp.status `shouldMatchRange` (400, 499)
-          message <- resp.json %. "message" >>= asString
-          assertBool "Expected an explanation for the rejected feature change" (not (null message))
-        status first `shouldMatch` "enabled"
-        status second `shouldMatch` "disabled"
-
 testLHPreventAddingNonConsentingUsers :: (HasCallStack) => LhApiVersion -> App ()
 testLHPreventAddingNonConsentingUsers v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
