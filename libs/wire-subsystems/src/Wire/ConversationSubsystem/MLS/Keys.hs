@@ -37,8 +37,8 @@ data SomeKeyPair where
 data RemovalKeyError
   = -- | No MLS private keys are configured (see 'mlsPrivateKeyPaths').
     RemovalKeyNotConfigured
-  | -- | The backend cannot sign with this scheme, whatever its configuration,
-    -- until ML-DSA signing is implemented.
+  | -- | MLS private keys are configured, but the backend cannot sign with this
+    -- scheme until ML-DSA signing is implemented.
     RemovalKeyUnsupported SignatureSchemeTag
   deriving stock (Eq, Show)
 
