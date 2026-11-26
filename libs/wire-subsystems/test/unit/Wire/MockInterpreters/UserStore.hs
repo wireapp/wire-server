@@ -105,6 +105,8 @@ inMemoryUserStoreInterpreterWithDeleteHook onDelete = interpret $ \case
           else u
   UpdateSSOId uid ssoId -> do
     updateUserInStore uid (\u -> u {ssoId = ssoId})
+    when (any User.isUserSSOId ssoId) $
+      modify @(Map UserId Password) (Map.delete uid)
     gets @[StoredUser] (any (\u -> u.id == uid))
   UpdateManagedBy uid managedBy -> updateUserInStore uid (\u -> u {managedBy = Just managedBy})
   UpdateAccountStatus uid accountStatus -> updateUserInStore uid (\u -> u {status = Just accountStatus})

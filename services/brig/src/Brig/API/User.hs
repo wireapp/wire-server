@@ -975,9 +975,13 @@ changePassword ::
   PasswordChange ->
   ExceptT ChangePasswordError (AppT r) ()
 changePassword uid cp = do
-  activated <- lift $ liftSem $ UserStore.isActivated uid
-  unless activated $
+  mUser <- lift $ liftSem $ UserStore.getUser uid
+  user <- maybe (throwE ChangePasswordNoIdentity) pure mUser
+  unless user.activated $
     throwE ChangePasswordNoIdentity
+  -- A SAML identity does not permit a local password; a SCIM-only ID does.
+  when (any isUserSSOId user.ssoId) $
+    throwE ChangePasswordSamlManaged
   currpw <- lift $ liftSem $ UserStore.lookupHashedPassword uid
   let newpw = cp.newPassword
       rateLimitKey = RateLimitUser uid

@@ -913,14 +913,15 @@ lookupServiceUsersForTeamImpl pid sid tid mBotId = do
 
 updateSSOIdImpl :: (PGConstraints r) => UserId -> Maybe UserSSOId -> Sem r Bool
 updateSSOIdImpl uid ssoid =
-  isJust . join <$> runStatement (uid, ssoid) update
+  isJust . join <$> runStatement (uid, ssoid, maybe False isUserSSOId ssoid) update
   where
-    update :: Hasql.Statement (UserId, Maybe UserSSOId) (Maybe (Maybe TeamId))
+    update :: Hasql.Statement (UserId, Maybe UserSSOId, Bool) (Maybe (Maybe TeamId))
     update =
       dimapPG
         [maybeStatement|
           UPDATE wire_user
-          SET sso_id = $2 :: jsonb?
+          SET sso_id = $2 :: jsonb?,
+              password = CASE WHEN $3 :: bool THEN NULL ELSE password END
           WHERE id = $1 :: uuid
           AND team IS NOT NULL
           RETURNING team :: uuid?
