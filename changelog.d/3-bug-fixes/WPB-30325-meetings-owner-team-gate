@@ -1,0 +1,1 @@
+Updating a meeting and refreshing its join link now return 404 meeting-not-found, without writes, events or emails, when the meeting's owning team has meetings disabled, consistently with getting, listing and joining it. Deleting such a meeting stays possible for its creator.
