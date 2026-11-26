@@ -261,6 +261,6 @@ jobs:
           set -euo pipefail
           {
             echo
-            echo "v${VERSION} published: ${RELEASE_URL}. Images promoted by digest, charts pushed to oci://quay.io/wire/charts/${CHANNEL}, 12 components declared to the release managers."
+            echo "v${VERSION} published: ${RELEASE_URL}. Images promoted by digest, charts pushed to oci://quay.io/wire/charts/${CHANNEL}, components declared to the release managers."
             ci/.github/scripts/legacy-summary.sh
           } >> "$GITHUB_STEP_SUMMARY"
