@@ -32,7 +32,6 @@ import Control.Lens ((^.), (^..), (^?))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.ByteString.Lazy qualified as BL
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -480,7 +479,7 @@ newDnsVerificationToken ::
   ) =>
   Sem r DnsVerificationToken
 newDnsVerificationToken =
-  decodeBodyOrThrow
+  decodeBodyOrThrow "wireServerEnterprise"
     =<< enterpriseRequest
       (method POST . paths ["i", "create-verification-token"] . expect2xx)
 
@@ -495,7 +494,7 @@ verifyDNSRecord ::
   Sem r ()
 verifyDNSRecord domain dnsToken = do
   verified <-
-    decodeBodyOrThrow
+    decodeBodyOrThrow "wireServerEnterprise"
       =<< enterpriseRequest
         ( method POST
             . paths
@@ -513,9 +512,6 @@ enterpriseRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Re
 enterpriseRequest req = do
   ep <- input
   rpcWithRetries "wireServerEnterprise" ep req
-
-decodeBodyOrThrow :: forall a r. (Typeable a, Aeson.FromJSON a, Member (Error ParseException) r) => Response (Maybe BL.ByteString) -> Sem r a
-decodeBodyOrThrow r = either (throw . ParseException "wireServerEnterprise") pure (responseJsonEither r)
 
 validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrationUpdate -> Sem r ()
 validate dr = do

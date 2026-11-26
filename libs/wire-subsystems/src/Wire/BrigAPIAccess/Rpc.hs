@@ -19,7 +19,6 @@ module Wire.BrigAPIAccess.Rpc where
 
 import Bilge
 import Control.Monad.Catch (throwM)
-import Data.Aeson
 import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
 import Data.Handle
@@ -207,9 +206,6 @@ brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request)
 brigRequest req = do
   ep <- input
   rpcWithRetries "brig" ep req
-
-decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe LByteString) -> Sem r a
-decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
 -- \| Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from

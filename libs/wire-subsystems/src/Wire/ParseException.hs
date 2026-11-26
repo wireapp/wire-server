@@ -19,11 +19,15 @@
 -- should probably be RpcExceptions instead).
 module Wire.ParseException where
 
+import Bilge (Response, responseJsonEither)
+import Data.Aeson (FromJSON)
 import Data.Text qualified as Text
 import Imports
 import Network.HTTP.Types
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.JSONResponse
+import Polysemy
+import Polysemy.Error (Error, throw)
 import Wire.API.Error
 import Wire.Error
 
@@ -46,3 +50,12 @@ instance APIError ParseException where
 
 parseExceptionToHttpError :: ParseException -> HttpError
 parseExceptionToHttpError (ParseException _ _) = StdError (mkError status500 "internal-error" mempty)
+
+-- | Decodes the JSON body of a response from the service @remote@.
+decodeBodyOrThrow ::
+  forall a r.
+  (Typeable a, FromJSON a, Member (Error ParseException) r) =>
+  Text ->
+  Response (Maybe LByteString) ->
+  Sem r a
+decodeBodyOrThrow remote r = either (throw . ParseException remote) pure (responseJsonEither r)

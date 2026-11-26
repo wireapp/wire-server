@@ -16,8 +16,6 @@
 module Wire.CargoholdAPIAccess.Rpc (interpretCargoholdAPIAccessToRpc) where
 
 import Bilge hiding (head, options, requestId)
-import Data.Aeson (FromJSON)
-import Data.ByteString.Lazy qualified as BL
 import Imports
 import Network.HTTP.Types.Method
 import Polysemy
@@ -41,11 +39,3 @@ interpretCargoholdAPIAccessToRpc endpoint = interpret $ \case
         method POST
           . paths ["i", "backups", "cleanup"]
           . expect2xx
-
-decodeBodyOrThrow ::
-  forall a r.
-  (Typeable a, FromJSON a, Member (Error ParseException) r) =>
-  Text ->
-  Response (Maybe BL.ByteString) ->
-  Sem r a
-decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)

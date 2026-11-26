@@ -18,9 +18,7 @@
 module Wire.SparAPIAccess.Rpc where
 
 import Bilge hiding (head, options, requestId)
-import Data.Aeson
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy qualified as BL
 import Data.Id
 import Imports
 import Network.HTTP.Types.Method
@@ -119,5 +117,3 @@ lookupScimUserInfoImpl uid = do
         . paths ["i", "scim", "userinfo", toByteString' uid]
 
 -- FUTUREWORK: This is duplicated in Wire/GalleyAPIAccess/Rpc. Move to a common module.
-decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
-decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)

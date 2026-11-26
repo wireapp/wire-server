@@ -22,7 +22,6 @@ import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Id
@@ -535,9 +534,6 @@ getVerificationCodeEnabled tid = do
       method GET
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
         . expect2xx
-
-decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
-decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
 getAllTeamFeaturesForUser ::
   (Member Rpc r, Member (Input Endpoint) r) =>
