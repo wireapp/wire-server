@@ -159,12 +159,21 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
 checkedEmailSender :: EmailSMSGeneralOpts -> EmailAddress
 checkedEmailSender = unStricterDomain . emailSender
 
+-- | From address of meeting emails: @meeting.sender@ if set, otherwise
+-- 'checkedEmailSender'.
+checkedMeetingEmailSender :: EmailSMSGeneralOpts -> EmailAddress
+checkedMeetingEmailSender opts =
+  maybe (checkedEmailSender opts) unStricterDomain (opts.meeting >>= (.sender))
+
 instance FromJSON EmailSMSGeneralOpts
 
 data MeetingEmailOpts = MeetingEmailOpts
   { -- | Optional Reply-To address for meeting emails (header on every
     -- invitation/update/cancel email brig renders).
-    replyTo :: !(Maybe EmailAddress)
+    replyTo :: !(Maybe EmailAddress),
+    -- | Optional From address for meeting emails; same domain validation as
+    -- 'emailSender', which it falls back to when unset.
+    sender :: !(Maybe StricterDomain)
   }
   deriving (Show, Generic)
 

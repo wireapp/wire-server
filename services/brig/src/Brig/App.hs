@@ -268,7 +268,7 @@ loadEmailTemplates opts = do
     loadMeetingTemplates
       opts.emailSMS.general.templateDir
       (Opt.defaultTemplateLocale opts.settings)
-      (Opt.checkedEmailSender opts.emailSMS.general)
+      (Opt.checkedMeetingEmailSender opts.emailSMS.general)
   pure EmailTemplates {userTemplates, teamTemplates, meetingTemplates}
 
 newEnv :: Opts -> IO Env

@@ -18,11 +18,13 @@
 module Test.Brig.Options (tests) where
 
 import Brig.Options
-import Data.Aeson (eitherDecode, object)
+import Data.Aeson (Value, eitherDecode, object, parseJSON, (.=))
+import Data.Aeson.Types (parseEither)
 import Data.Map.Strict qualified as Map
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.User.EmailAddress (fromEmail)
 
 tests :: TestTree
 tests =
@@ -55,5 +57,33 @@ tests =
             case eitherDecode "\"noreply@diana.123\"" :: Either String StricterDomain of
               Left _ -> pure ()
               Right _ -> assertFailure "expected invalid sender domain"
+        ],
+      testGroup
+        "meeting email sender"
+        [ testCase "falls back to emailSender when meeting is absent" $
+            senderOf (generalOpts Nothing) @?= Right "noreply@wire.com",
+          testCase "falls back to emailSender when meeting.sender is absent" $
+            senderOf (generalOpts (Just (object ["replyTo" .= ("reply@wire.com" :: Text)]))) @?= Right "noreply@wire.com",
+          testCase "uses meeting.sender when set" $
+            senderOf (generalOpts (Just (object ["sender" .= ("meetings@wire.com" :: Text)]))) @?= Right "meetings@wire.com",
+          testCase "rejects a meeting.sender with an invalid domain" $
+            assertBool "expected invalid meeting sender to be rejected" . isLeft $
+              senderOf (generalOpts (Just (object ["sender" .= ("meetings@diana.123" :: Text)])))
         ]
     ]
+  where
+    senderOf :: Value -> Either String Text
+    senderOf v = fromEmail . checkedMeetingEmailSender <$> parseEither parseJSON v
+    generalOpts :: Maybe Value -> Value
+    generalOpts mMeeting =
+      object $
+        [ "templateDir" .= ("templates" :: Text),
+          "emailSender" .= ("noreply@wire.com" :: Text),
+          "smsSender" .= ("+123456789" :: Text),
+          "templateBranding"
+            .= object
+              [ k .= ("x" :: Text)
+              | k <- ["brand", "brandUrl", "brandLabelUrl", "brandLogoUrl", "brandService", "copyright", "misuse", "legal", "forgot", "support"]
+              ]
+        ]
+          <> maybe [] (\m -> ["meeting" .= m]) mMeeting
