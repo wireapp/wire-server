@@ -183,24 +183,33 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    amazonka
+    amazonka-s3
     base
     bytestring
     bytestring-conversion
     cargohold-types
+    conduit
     containers
     extended
+    HsOpenSSL
+    http-client
+    http2-manager
     imports
     mime
+    mtl
     tasty
     tasty-hunit
     tasty-quickcheck
     text
+    tinylog
     types-common
     unix
     unliftio
     uri-bytestring
     uuid
     wire-api
+    yaml
   ];
   description = "Asset Storage API";
   license = lib.licenses.agpl3Only;

@@ -367,24 +367,33 @@ test-suite cargohold-tests
 
   build-depends:
       aeson                  >=2.0.1.0
+    , amazonka
+    , amazonka-s3
     , base                   >=4       && <5
     , bytestring             >=0.10
     , bytestring-conversion
     , cargohold
     , cargohold-types
+    , conduit
     , containers
     , extended
+    , HsOpenSSL
+    , http-client
+    , http2-manager
     , imports
     , mime                   >=0.4
+    , mtl
     , tasty                  >=1.0
     , tasty-hunit            >=0.9
     , tasty-quickcheck       >=0.10
     , text                   >=1.1
+    , tinylog
     , types-common
     , unix
     , unliftio
     , uri-bytestring         >=0.2
     , uuid                   >=1.3
     , wire-api
+    , yaml
 
   default-language:   Haskell2010

@@ -1,0 +1,1 @@
+Cargohold asset uploads no longer catch asynchronous exceptions (e.g. the request thread being killed by a timeout), which turned them into a 500 response instead of cancelling the upload.

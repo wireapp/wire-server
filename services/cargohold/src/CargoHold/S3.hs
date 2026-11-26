@@ -58,7 +58,6 @@ import qualified Codec.MIME.Type as MIME
 import Conduit
 import Control.Error (throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
-import qualified Control.Monad.Catch as Catch
 import qualified Data.Aeson as A
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
@@ -156,13 +155,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src
           & createMultipartUpload_contentType ?~ MIME.showType ct
           & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
 
-  -- also catches asynchronous exceptions (e.g. the thread being killed)
-  result <-
-    liftIO $
-      Catch.catch (streamUploadObject awsEnv createReq (fromIntegral cl) src) $
-        \(e :: SomeException) ->
-          pure . Left . StreamUploadFailed $
-            "Unhandled error while uploading asset: " <> Text.pack (show e)
+  result <- liftIO $ streamUploadObject awsEnv createReq (fromIntegral cl) src
 
   case result of
     Left StreamIncompleteBody -> throwE incompleteBody
