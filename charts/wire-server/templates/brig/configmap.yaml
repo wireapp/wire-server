@@ -160,16 +160,15 @@ data:
           forgot: {{ .forgot }}
           support: {{ .support }}
           {{- end }}
-        {{- $legacyReplyTo := dig "config" "settings" "meetings" "email" "replyTo" "" $.Values.galley }}
-        {{- $meetingReplyTo := dig "emailSMS" "general" "meeting" "replyTo" "" . | default $legacyReplyTo }}
+        {{- $meetingReplyTo := dig "emailSMS" "general" "meeting" "replyTo" "" . | default (dig "config" "settings" "meetings" "email" "replyTo" "" $.Values.galley) }}
         {{- $meetingSender := dig "emailSMS" "general" "meeting" "sender" "" . }}
         {{- if or $meetingReplyTo $meetingSender }}
         meeting:
-          {{- with $meetingReplyTo }}
-          replyTo: {{ . | quote }}
+          {{- if $meetingReplyTo }}
+          replyTo: {{ $meetingReplyTo | quote }}
           {{- end }}
-          {{- with $meetingSender }}
-          sender: {{ . | quote }}
+          {{- if $meetingSender }}
+          sender: {{ $meetingSender | quote }}
           {{- end }}
         {{- end }}
 

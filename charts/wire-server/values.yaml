@@ -168,7 +168,7 @@ galley:
         # (`from`, `useSES`, `aws.*`, `smtp.*`, `templateDir`, `branding`)
         # and `galley.secrets.smtpPassword` are no longer read: sender,
         # transport and branding come from brig's `emailSMS` config.
-        # New keys: galley.config.settings.meetings.emailsEnabled,
+        # Current keys: galley.config.settings.meetings.emailsEnabled,
         # brig.config.emailSMS.general.meeting.replyTo and
         # brig.config.emailSMS.general.meeting.sender.
         #

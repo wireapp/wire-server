@@ -266,8 +266,8 @@ brig** using its existing `emailSMS` settings: `emailSMS.general.templateDir`
 `emailSMS.general.templateBranding`, and the SES/SMTP transport Brig already
 configures. An optional `emailSMS.general.meeting.replyTo` sets a Reply-To
 header on every meeting email Brig renders, and an optional
-`emailSMS.general.meeting.sender` overrides their From address (defaulting to
-`emailSMS.general.emailSender`, and validated the same way). The From display
+`emailSMS.general.meeting.sender` overrides their `From:` address (defaulting to
+`emailSMS.general.emailSender`, and validated the same way). The `From:` display
 name still comes from the meeting templates (`email/sender.txt`). The sender
 must be accepted by the configured transport (verified SES identity or allowed
 SMTP sender) and be covered by SPF/DKIM.
