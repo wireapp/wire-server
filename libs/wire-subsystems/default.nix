@@ -124,6 +124,7 @@
 , string-conversions
 , tagged
 , template
+, template-haskell
 , text
 , text-icu-translit
 , time
@@ -411,6 +412,7 @@ mkDerivation {
     string-conversions
     tagged
     template
+    template-haskell
     text
     text-icu-translit
     time

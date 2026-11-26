@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -22,6 +24,8 @@ module Wire.EmailSubsystem.TemplateFixtures where
 
 import Data.Map qualified as Map
 import Imports
+import Language.Haskell.TH.Syntax qualified as TH
+import System.FilePath ((</>))
 import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Locale
 import Wire.API.User.EmailAddress (EmailAddress)
@@ -70,18 +74,26 @@ branding =
       ("support", "https://support.wire.com/")
     ]
 
--- | Load the on-disk team templates. Relies on the test suite running with the
--- package directory as its working directory (as @cabal test@ does).
+-- | Package directory, for test data paths. Absolute under multi-repl (GHC's
+-- @-working-dir@, used by @make devtest@); @.@ otherwise, relying on the
+-- suite running in the package directory (as @cabal test@ and Nix do).
+testDataRoot :: FilePath
+testDataRoot = $(TH.lift =<< TH.getPackageRoot)
+
+templatesDir :: FilePath
+templatesDir = testDataRoot </> "templates"
+
+-- | Load the on-disk team templates. See 'testDataRoot'.
 loadTestTeamTemplates :: IO (Localised TeamTemplates)
-loadTestTeamTemplates = loadTeamTemplates teamOpts "templates" defLocale emailSender
+loadTestTeamTemplates = loadTeamTemplates teamOpts templatesDir defLocale emailSender
 
 -- | Load the on-disk user templates. See 'loadTestTeamTemplates'.
 loadTestUserTemplates :: IO (Localised UserTemplates)
-loadTestUserTemplates = loadUserTemplates userTemplateOpts "templates" defLocale emailSender
+loadTestUserTemplates = loadUserTemplates userTemplateOpts templatesDir defLocale emailSender
 
 -- | Load the on-disk meeting templates. See 'loadTestTeamTemplates'.
 loadTestMeetingTemplates :: IO (Localised MeetingTemplates)
-loadTestMeetingTemplates = loadMeetingTemplates "templates" defLocale emailSender
+loadTestMeetingTemplates = loadMeetingTemplates templatesDir defLocale emailSender
 
 -- | Load all template sets consumed by the email subsystem interpreter.
 loadTestEmailTemplates :: IO EmailTemplates
