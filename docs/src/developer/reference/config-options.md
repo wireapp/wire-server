@@ -2437,6 +2437,7 @@ galley:
       nonce: postgresql
       connections: postgresql
       sessions: postgresql
+      proposals: postgresql
 background-worker:
   config:
     migrateConversations: false
