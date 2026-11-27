@@ -893,7 +893,7 @@ spar:
       acquisitionTimeout: 10s
       idlenessTimeout: 10m
     # Per-store storage-location flags (shared type). Spar-relevant stores are
-    # added by their migration tasks; defaults stay on Cassandra. All 11 keys
+    # added by their migration tasks; defaults stay on Cassandra. All 12 keys
     # are mandatory (strict FromJSON).
     postgresMigration:
       conversation: cassandra
@@ -907,6 +907,7 @@ spar:
       budget: cassandra
       nonce: cassandra
       connections: cassandra
+      sessions: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 

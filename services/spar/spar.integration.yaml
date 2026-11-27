@@ -55,6 +55,7 @@ postgresMigration:
   budget: cassandra
   nonce: cassandra
   connections: cassandra
+  sessions: cassandra
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"
