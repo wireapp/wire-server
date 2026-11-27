@@ -1692,7 +1692,7 @@ CREATE TABLE public.oauth_auth_code (
     client uuid NOT NULL,
     user_id uuid NOT NULL,
     scope text[] NOT NULL,
-    redirect_uri bytea NOT NULL,
+    redirect_uri text NOT NULL,
     code_challenge text,
     expires_at timestamp with time zone NOT NULL
 );

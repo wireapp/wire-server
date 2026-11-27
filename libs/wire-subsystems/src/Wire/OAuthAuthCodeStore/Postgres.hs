@@ -55,27 +55,30 @@ insertOAuthAuthCodeStatement =
   -- conflict is not expected; @DO NOTHING@ keeps an existing row untouched.
   lmapPG insertDb
   where
-    insertDb :: Hasql.Statement (Text, UUID, UUID, Vector Text, ByteString, Text, Int32) ()
+    insertDb :: Hasql.Statement (Text, UUID, UUID, Vector Text, Text, Text, Int32) ()
     insertDb =
       [resultlessStatement|
       INSERT INTO oauth_auth_code (code, client, user_id, scope, redirect_uri, code_challenge, expires_at)
-      VALUES ($1 :: text, $2 :: uuid, $3 :: uuid, $4 :: text[], $5 :: bytea, $6 :: text, now() + make_interval(secs => $7 :: int4))
+      VALUES ($1 :: text, $2 :: uuid, $3 :: uuid, $4 :: text[], $5 :: text, $6 :: text, now() + make_interval(secs => $7 :: int4))
       ON CONFLICT (code) DO NOTHING
     |]
 
--- | Consume-on-read in a single atomic statement: a code is returned at most
--- once and expired rows are indistinguishable from unknown ones.
+-- | Consume-on-read in a single atomic statement: the row is deleted whether or
+-- not it has expired (codes are single-use either way), but it is only
+-- returned while still live, so a code is returned at most once and expired
+-- codes are indistinguishable from unknown ones.
 lookupAndDeleteOAuthAuthCodeStatement ::
   Hasql.Statement
     OAuthAuthorizationCode
     (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge))
 lookupAndDeleteOAuthAuthCodeStatement =
-  dimapPG lookupAndDeleteDb
+  dimapPG ((>>= onlyLive) <$> lookupAndDeleteDb)
   where
-    lookupAndDeleteDb :: Hasql.Statement Text (Maybe (UUID, UUID, Vector Text, ByteString, Maybe Text))
+    lookupAndDeleteDb :: Hasql.Statement Text (Maybe (UUID, UUID, Vector Text, Text, Maybe Text, Bool))
     lookupAndDeleteDb =
       [maybeStatement|
       DELETE FROM oauth_auth_code
-      WHERE code = ($1 :: text) AND expires_at > now()
-      RETURNING (client :: uuid), (user_id :: uuid), (scope :: text[]), (redirect_uri :: bytea), (code_challenge :: text?)
+      WHERE code = ($1 :: text)
+      RETURNING (client :: uuid), (user_id :: uuid), (scope :: text[]), (redirect_uri :: text), (code_challenge :: text?), ((expires_at > now()) :: bool)
     |]
+    onlyLive (cid, uid, scope, uri, chal, isLive) = (cid, uid, scope, uri, chal) <$ guard isLive

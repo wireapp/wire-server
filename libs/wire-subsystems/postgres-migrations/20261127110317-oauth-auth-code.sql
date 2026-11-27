@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS oauth_auth_code (
   client UUID NOT NULL,
   user_id UUID NOT NULL,
   scope TEXT[] NOT NULL,
-  redirect_uri BYTEA NOT NULL,
+  redirect_uri TEXT NOT NULL,
   code_challenge TEXT,
   expires_at TIMESTAMPTZ NOT NULL
 );

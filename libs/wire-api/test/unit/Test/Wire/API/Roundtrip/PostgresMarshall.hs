@@ -38,7 +38,6 @@ module Test.Wire.API.Roundtrip.PostgresMarshall (tests) where
 import Crypto.Error (CryptoFailable (..))
 import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Aeson as A
-import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.Code qualified as Code
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
@@ -76,7 +75,7 @@ tests =
       testRoundTrip @Int64 @CookieId,
       testRoundTrip @Text @OAuth.OAuthAuthorizationCode,
       testRoundTrip @Text @OAuth.OAuthCodeChallenge,
-      testRoundTrip @BS.ByteString @OAuth.RedirectUrl,
+      testRoundTrip @Text @OAuth.RedirectUrl,
       testRoundTrip @(Vector Text) @OAuth.OAuthScopes
     ]
 

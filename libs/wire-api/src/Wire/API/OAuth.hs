@@ -24,7 +24,6 @@ import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
-import Data.ByteString qualified as StrictBS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.HashMap.Strict qualified as HM
@@ -911,11 +910,13 @@ instance PostgresMarshall Text OAuthCodeChallenge where
 instance PostgresUnmarshall Text OAuthCodeChallenge where
   postgresUnmarshall = Right . OAuthCodeChallenge
 
-instance PostgresMarshall StrictBS.ByteString RedirectUrl where
-  postgresMarshall = toByteString'
+-- | Same text form as the HTTP instances; serialized URIs are ASCII (RFC 3986
+-- percent-encoding), so the round-trip through @text@ is lossless.
+instance PostgresMarshall Text RedirectUrl where
+  postgresMarshall = toUrlPiece
 
-instance PostgresUnmarshall StrictBS.ByteString RedirectUrl where
-  postgresUnmarshall = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
+instance PostgresUnmarshall Text RedirectUrl where
+  postgresUnmarshall = parseUrlPiece
 
 -- | Scopes are stored as the current canonical scope strings; rows written by
 -- older versions may carry deprecated cumulative scopes (@write@, @admin@),
