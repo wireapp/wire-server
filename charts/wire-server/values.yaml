@@ -896,7 +896,8 @@ spar:
       idlenessTimeout: 10m
     # Per-store storage-location flags (shared type). Spar-relevant stores are
     # added by their migration tasks; defaults stay on Cassandra. Every key
-    # is mandatory (strict FromJSON).
+    # is mandatory (strict FromJSON). scimTokens / scimExternalIds only accept
+    # cassandra or postgresql (no data migration; see the release notes).
     postgresMigration:
       conversation: cassandra
       conversationCodes: cassandra

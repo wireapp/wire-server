@@ -536,35 +536,6 @@ instance Arbitrary ScimUserCreationStatus where
 
 ----------------------------------------------------------------------------
 -- Postgres marshall
--- (The 'Cql' instances for the token types live in "Wire.ScimTokenStore.Cassandra";
--- these use the exact same encodings.)
-
-instance PostgresMarshall Text ScimToken where
-  postgresMarshall = fromScimToken
-
-instance PostgresUnmarshall Text ScimToken where
-  postgresUnmarshall = pure . ScimToken
-
--- | Base64-encoded digest, without the @sha512:@ prefix.
-instance PostgresMarshall Text ScimTokenHash where
-  postgresMarshall = fromScimTokenHash
-
-instance PostgresUnmarshall Text ScimTokenHash where
-  postgresUnmarshall = pure . ScimTokenHash
-
--- | Mirrors @instance Cql ScimTokenLookupKey@: hashed rows are stored with the
--- @sha512:@ prefix, plaintext rows as the raw token text. Base64 (the digest
--- alphabet) contains no ':', so a plaintext token can never collide.
-instance PostgresMarshall Text ScimTokenLookupKey where
-  postgresMarshall = \case
-    ScimTokenLookupKeyHashed h -> "sha512:" <> fromScimTokenHash h
-    ScimTokenLookupKeyPlaintext t -> fromScimToken t
-
-instance PostgresUnmarshall Text ScimTokenLookupKey where
-  postgresUnmarshall t =
-    case T.stripPrefix "sha512:" t of
-      Just h -> pure (ScimTokenLookupKeyHashed (ScimTokenHash h))
-      Nothing -> pure (ScimTokenLookupKeyPlaintext (ScimToken t))
 
 -- | Mirrors @instance Cql ScimUserCreationStatus@ in
 -- "Wire.ScimExternalIdStore.Cassandra": 0 = Created, 1 = Creating.
@@ -578,15 +549,3 @@ instance PostgresUnmarshall Int32 ScimUserCreationStatus where
     0 -> pure ScimUserCreated
     1 -> pure ScimUserCreating
     n -> Left ("unexpected ScimUserCreationStatus: " <> T.pack (show n))
-
-instance Arbitrary ScimTokenHash where
-  arbitrary =
-    ScimTokenHash . decodeUtf8 . convertToBase Base64 . (fromString :: String -> ByteString)
-      <$> QC.arbitrary
-
-instance Arbitrary ScimTokenLookupKey where
-  arbitrary =
-    QC.oneof
-      [ ScimTokenLookupKeyHashed <$> QC.arbitrary,
-        ScimTokenLookupKeyPlaintext . ScimToken . ("tok-" <>) <$> QC.arbitrary
-      ]

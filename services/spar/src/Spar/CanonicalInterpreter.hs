@@ -136,11 +136,11 @@ type LowerLevelCanonicalEffs =
 
 runSparToIO :: Env -> Sem CanonicalEffs a -> IO (Either SparError a)
 runSparToIO ctx =
+  -- MigrationToPostgresql is rejected for the SCIM stores at startup
+  -- ('Spar.Run.rejectScimStoreMigration'); the branches below are a fallback.
   let scimTokenStoreInterpreter =
         case (sparCtxOpts ctx).postgresMigration.scimTokens of
           CassandraStorage -> scimTokenStoreToCassandra
-          -- Migration copy machinery is removed; a stale
-          -- "migration-to-postgresql" value keeps serving Postgres.
           MigrationToPostgresql -> interpretScimTokenStoreToPostgres
           PostgresqlStorage -> interpretScimTokenStoreToPostgres
       scimExternalIdsStoreInterpreter =

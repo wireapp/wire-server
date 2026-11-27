@@ -33,39 +33,37 @@ import Wire.ScimExternalIdStore (ScimExternalIdStore (..))
 
 interpretScimExternalIdStoreToPostgres :: (PGConstraints r) => InterpreterFor ScimExternalIdStore r
 interpretScimExternalIdStoreToPostgres = interpret $ \case
-  -- Nothing: the Insert effect leaves creation_status untouched, like the C* insert.
-  Insert tid eid uid -> upsertScimExternalIdRow tid eid uid Nothing
-  Lookup tid eid -> lookupScimExternalIdPg tid eid
-  Delete tid eid -> deleteScimExternalIdPg tid eid
+  Insert tid eid uid -> upsertScimExternalId tid eid uid Nothing
+  Lookup tid eid -> lookupScimExternalId tid eid
+  Delete tid eid -> deleteScimExternalId tid eid
   InsertStatus tid veid uid status ->
-    upsertScimExternalIdRow tid (validScimIdExternal veid) uid (Just status)
-  LookupStatus tid veid -> lookupScimExternalIdStatusPg tid (validScimIdExternal veid)
+    upsertScimExternalId tid (validScimIdExternal veid) uid (Just status)
+  LookupStatus tid veid -> lookupScimExternalIdStatus tid (validScimIdExternal veid)
 
 -- | Upsert a full row; used by the effect interpreter (Insert with @Nothing@,
--- InsertStatus with @Just@). @Nothing@ for the status
--- leaves the stored status untouched.
-upsertScimExternalIdRow :: (PGConstraints r) => TeamId -> Text -> UserId -> Maybe ScimUserCreationStatus -> Sem r ()
-upsertScimExternalIdRow tid eid uid status =
-  runStatement (postgresMarshall tid, eid, postgresMarshall uid, postgresMarshall status) upsertStatement
+-- InsertStatus with @Just@). @Nothing@ for the status leaves the stored status
+-- untouched, like the C* insert.
+upsertScimExternalId :: (PGConstraints r) => TeamId -> Text -> UserId -> Maybe ScimUserCreationStatus -> Sem r ()
+upsertScimExternalId tid eid uid status =
+  runStatement (toUUID tid, eid, toUUID uid, postgresMarshall status) upsertStatement
+  where
+    upsertStatement :: Hasql.Statement (UUID, Text, UUID, Maybe Int32) ()
+    upsertStatement =
+      [resultlessStatement|INSERT INTO scim_external
+                             (team, external_id, user_id, creation_status)
+                           VALUES
+                             ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: int?)
+                           ON CONFLICT (team, external_id) DO UPDATE
+                           SET user_id = excluded.user_id,
+                               creation_status = coalesce (excluded.creation_status, scim_external.creation_status)
+       |]
 
-upsertStatement :: Hasql.Statement (UUID, Text, UUID, Maybe Int32) ()
-upsertStatement =
-  lmapPG
-    [resultlessStatement|INSERT INTO scim_external
-                           (team, external_id, user_id, creation_status)
-                         VALUES
-                           ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: int?)
-                         ON CONFLICT (team, external_id) DO UPDATE
-                         SET user_id = ($3 :: uuid),
-                             creation_status = coalesce (($4 :: int?), scim_external.creation_status)
-     |]
-
-lookupScimExternalIdPg :: (PGConstraints r) => TeamId -> Text -> Sem r (Maybe UserId)
-lookupScimExternalIdPg tid eid = do
-  mRow <- runStatement (postgresMarshall tid, eid) selectStatement
-  pure $ do
-    uid <- mRow
-    either (const Nothing) Just (postgresUnmarshall uid)
+-- | Same row as 'lookupScimExternalIdStatus', but kept as a separate query on
+-- purpose: 'Lookup' must return the user id even if @creation_status@ holds an
+-- unknown code, which 'lookupScimExternalIdStatus' would map to 'Nothing'.
+lookupScimExternalId :: (PGConstraints r) => TeamId -> Text -> Sem r (Maybe UserId)
+lookupScimExternalId tid eid =
+  fmap Id <$> runStatement (toUUID tid, eid) selectStatement
   where
     selectStatement :: Hasql.Statement (UUID, Text) (Maybe UUID)
     selectStatement =
@@ -74,25 +72,24 @@ lookupScimExternalIdPg tid eid = do
                        WHERE team = ($1 :: uuid) AND external_id = ($2 :: text)
                       |]
 
-deleteScimExternalIdPg :: (PGConstraints r) => TeamId -> Text -> Sem r ()
-deleteScimExternalIdPg tid eid =
-  runStatement (postgresMarshall tid, eid) deleteStatement
+deleteScimExternalId :: (PGConstraints r) => TeamId -> Text -> Sem r ()
+deleteScimExternalId tid eid =
+  runStatement (toUUID tid, eid) deleteStatement
+  where
+    deleteStatement :: Hasql.Statement (UUID, Text) ()
+    deleteStatement =
+      [resultlessStatement|DELETE FROM scim_external
+                           WHERE team = ($1 :: uuid) AND external_id = ($2 :: text)
+                          |]
 
-deleteStatement :: Hasql.Statement (UUID, Text) ()
-deleteStatement =
-  [resultlessStatement|DELETE FROM scim_external
-                       WHERE team = ($1 :: uuid) AND external_id = ($2 :: text)
-                      |]
-
-lookupScimExternalIdStatusPg :: (PGConstraints r) => TeamId -> Text -> Sem r (Maybe (UserId, ScimUserCreationStatus))
-lookupScimExternalIdStatusPg tid eid = do
-  mRow <- runStatement (postgresMarshall tid, eid) selectStatusStatement
+lookupScimExternalIdStatus :: (PGConstraints r) => TeamId -> Text -> Sem r (Maybe (UserId, ScimUserCreationStatus))
+lookupScimExternalIdStatus tid eid = do
+  mRow <- runStatement (toUUID tid, eid) selectStatusStatement
   pure $
     mRow >>= \(uid, status) -> do
-      uid' <- either (const Nothing) Just (postgresUnmarshall uid)
       -- a missing creation_status means the user was created (pre-status rows)
       status' <- either (const Nothing) Just (traverse postgresUnmarshall status)
-      pure (uid', fromMaybe ScimUserCreated status')
+      pure (Id uid, fromMaybe ScimUserCreated status')
   where
     selectStatusStatement :: Hasql.Statement (UUID, Text) (Maybe (UUID, Maybe Int32))
     selectStatusStatement =

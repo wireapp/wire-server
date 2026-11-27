@@ -25,6 +25,7 @@ module Spar.Run
   ( initCassandra,
     runServer,
     mkApp,
+    rejectScimStoreMigration,
   )
 where
 
@@ -59,6 +60,7 @@ import Util.Options
 import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts (..), StorageLocation (..))
 import Wire.PostgresMigrations (runAllMigrations)
 import Wire.ScimSubsystem.Interpreter
 
@@ -87,8 +89,23 @@ runServer sparCtxOpts = do
   let settings = newSettings $ defaultServer shost (fromIntegral sport) logger
   WU.runSettingsWithShutdown settings wrappedApp Nothing
 
+-- | There is no Cassandra -> Postgres data migration for the SCIM token and
+-- external-id stores, so @migration-to-postgresql@ would silently hide all
+-- existing tokens and mappings. Refuse to start instead; operators must pick
+-- @cassandra@ or @postgresql@ explicitly.
+rejectScimStoreMigration :: PostgresMigrationOpts -> IO ()
+rejectScimStoreMigration opts =
+  for_ [("scimTokens", opts.scimTokens), ("scimExternalIds", opts.scimExternalIds)] $ \case
+    (key, MigrationToPostgresql) ->
+      throwIO . ErrorCall $
+        "spar.yaml: postgresMigration."
+          <> key
+          <> ": migration-to-postgresql is not supported (no data migration exists); use cassandra or postgresql"
+    _ -> pure ()
+
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
+  rejectScimStoreMigration sparCtxOpts.postgresMigration
   let logLevel = saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger

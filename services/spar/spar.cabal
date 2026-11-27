@@ -530,6 +530,7 @@ test-suite spec
     Test.Spar.ErrorSpec
     Test.Spar.Intra.BrigSpec
     Test.Spar.Roundtrip.ByteString
+    Test.Spar.RunSpec
     Test.Spar.Saml.IdPSpec
     Test.Spar.Scim.UserSpec
     Test.Spar.ScimSpec

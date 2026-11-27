@@ -72,9 +72,6 @@ tests =
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,
       testRoundTrip @Int64 @CookieId,
-      testRoundTrip @Text @ScimToken,
-      testRoundTrip @Text @ScimTokenHash,
-      testRoundTrip @Text @ScimTokenLookupKey,
       testRoundTrip @Int32 @ScimUserCreationStatus
     ]
 

@@ -25,8 +25,10 @@ budgetStore: {{ $preferredStore }}
 nonceStore: {{ $preferredStore }}
 connectionsStore: {{ $preferredStore }}
 sessionsStore: {{ $preferredStore }}
-scimTokensStore: {{ $preferredStore }}
-scimExternalIdsStore: {{ $preferredStore }}
+{{- /* spar rejects migration-to-postgresql for the SCIM stores (no data migration) */}}
+{{- $scimStore := ternary "postgresql" $preferredStore (eq $preferredStore "migration-to-postgresql") }}
+scimTokensStore: {{ $scimStore }}
+scimExternalIdsStore: {{ $scimStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}
