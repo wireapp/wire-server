@@ -25,6 +25,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.User.EmailAddress (fromEmail)
+import Wire.PostgresMigrationOpts (StorageLocation (..))
 
 tests :: TestTree
 tests =
@@ -69,6 +70,17 @@ tests =
           testCase "rejects a meeting.sender with an invalid domain" $
             assertBool "expected invalid meeting sender to be rejected" . isLeft $
               senderOf (generalOpts (Just (object ["sender" .= ("meetings@diana.123" :: Text)])))
+        ],
+      testGroup
+        "properties storage validation"
+        [ testCase "rejects migration-to-postgresql" $
+            case validatePropertiesStorage MigrationToPostgresql of
+              Left err -> assertBool "error names the setting" ("postgresMigration.properties" `isPrefixOf` err)
+              Right () -> assertFailure "expected migration-to-postgresql to be rejected",
+          testCase "accepts cassandra" $
+            validatePropertiesStorage CassandraStorage @?= Right (),
+          testCase "accepts postgresql" $
+            validatePropertiesStorage PostgresqlStorage @?= Right ()
         ]
     ]
   where

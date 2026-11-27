@@ -106,3 +106,4 @@ postgresMigration:
   nonce: postgresql
   connections: postgresql
   sessions: postgresql
+  properties: postgresql

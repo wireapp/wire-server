@@ -25,6 +25,7 @@ budgetStore: {{ $preferredStore }}
 nonceStore: {{ $preferredStore }}
 connectionsStore: {{ $preferredStore }}
 sessionsStore: {{ $preferredStore }}
+propertiesStore: {{ if eq $preferredStore "migration-to-postgresql" }}cassandra{{ else }}{{ $preferredStore }}{{ end }} # brig rejects migration-to-postgresql for properties (no data migration)
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

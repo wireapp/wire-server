@@ -625,6 +625,18 @@ deriveSsoIdpChangeDetectionEnabled = \case
     not (Map.null inputs.multiIngressDomainConfigs)
       && not (null inputs.idpCertFingerprintAllowlist)
 
+-- | Properties have no dual-write or data migration, so reject
+-- 'MigrationToPostgresql' at startup instead of silently using Cassandra.
+validatePropertiesStorage :: StorageLocation -> Either String ()
+validatePropertiesStorage = \case
+  MigrationToPostgresql ->
+    Left $
+      "postgresMigration.properties: 'migration-to-postgresql' is not supported "
+        <> "(no dual-write or data migration for properties). Use 'cassandra'; "
+        <> "'postgresql' is only for fresh deployments, existing Cassandra properties are not copied."
+  CassandraStorage -> Right ()
+  PostgresqlStorage -> Right ()
+
 newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
   {federationDomainConfig :: FederationDomainConfig}
   deriving (Show, Eq, Generic)

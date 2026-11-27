@@ -139,6 +139,7 @@ import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
+import Wire.PropertyStore.Postgres (interpretPropertyStoreToPostgres)
 import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
 import Wire.RateLimit
@@ -454,6 +455,19 @@ runBrigToIO e (AppT ma) = do
             . interpretSessionStoreToPostgres
             . raiseUnder2
 
+      -- Like PasswordResetCodeStore below, the Postgres-backed property store
+      -- branches supply Input Pool and Error UsageError locally (raiseUnder2 +
+      -- runInputConst + mapError) so they are self-contained at this stack slot.
+      propertyStoreInterpreter = case e.postgresMigration.properties of
+        CassandraStorage -> interpretPropertyStoreCassandra e.casClient
+        MigrationToPostgresql ->
+          error "postgresMigration.properties: 'migration-to-postgresql' should have been rejected at startup (Brig.Options.validatePropertiesStorage)"
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretPropertyStoreToPostgres
+            . raiseUnder2
+
       domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
         CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
         PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
@@ -558,7 +572,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst e.casClient
               . connectionsStoreInterpreter
               . interpretSFT e.httpManager
-              . interpretPropertyStoreCassandra e.casClient
+              . propertyStoreInterpreter
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
