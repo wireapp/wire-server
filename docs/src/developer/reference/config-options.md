@@ -2485,6 +2485,7 @@ The current settings and their background-worker flags are:
 - `customBackend` -> `migrateCustomBackend`
 - `budget` -> none (ephemeral TTL'd rate-limit counters; no backfill worker, no `wire_budget_migration_finished` metric — Cassandra rows age out on their own while new writes go to PostgreSQL under `migration-to-postgresql`). Because there is no backfill, keep `budget` on `migration-to-postgresql` for at least the longest configured `limitFailedLogins.timeout` (with PostgreSQL mirror writes healthy) before cutting over to `postgresql`; otherwise counters that only exist in Cassandra are dropped and affected users get one extra rate-limit window.
 - `connections` -> `migrateConnections`
+- `properties` -> none. Data migration is not supported yet: only `cassandra` and `postgresql` are accepted, and `brig` refuses to start with `migration-to-postgresql`. Switching an existing deployment from `cassandra` to `postgresql` does not carry over user properties already stored in Cassandra, so use `postgresql` only for fresh deployments.
 
 **Migration pattern per migration setting**
 

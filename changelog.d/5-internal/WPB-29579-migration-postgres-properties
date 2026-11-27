@@ -1,1 +1,1 @@
-Implementation of alternative postgres store for user properties
+Implementation of alternative postgres store for user properties. Data migration is not supported yet: brig refuses to start with `postgresMigration.properties: migration-to-postgresql`.

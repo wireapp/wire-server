@@ -460,8 +460,8 @@ runBrigToIO e (AppT ma) = do
       -- runInputConst + mapError) so they are self-contained at this stack slot.
       propertyStoreInterpreter = case e.postgresMigration.properties of
         CassandraStorage -> interpretPropertyStoreCassandra e.casClient
-        -- Properties have no dual-write; this setting keeps using Cassandra.
-        MigrationToPostgresql -> interpretPropertyStoreCassandra e.casClient
+        MigrationToPostgresql ->
+          error "postgresMigration.properties: 'migration-to-postgresql' should have been rejected at startup (Brig.Options.validatePropertiesStorage)"
         PostgresqlStorage ->
           runInputConst e.hasqlPool
             . mapError postgresUsageErrorToHttpError

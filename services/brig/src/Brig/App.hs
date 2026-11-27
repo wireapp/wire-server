@@ -273,6 +273,7 @@ loadEmailTemplates opts = do
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
+  either error pure $ Opt.validatePropertiesStorage opts.postgresMigration.properties
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
