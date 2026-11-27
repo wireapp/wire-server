@@ -19,7 +19,7 @@
 --
 -- Mirrors the Cassandra interpreter (Wire.TeamStore.Cassandra) over the five
 -- tables @team@, @team_member@, @user_team@, @billing_team_member@ and
--- @team_admin@ (see @postgres-migrations/20261127100300-team-store.sql@).
+-- @team_admin@ (see @postgres-migrations/20261127100700-team-store.sql@).
 --
 -- Cassandra writetimes that are consumed by the API are replaced by
 -- explicitly maintained @*_time@ columns: @team.status_time@ (set whenever the
