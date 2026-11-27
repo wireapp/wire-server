@@ -522,6 +522,7 @@ library
     Wire.UserList
     Wire.UserPendingActivationStore
     Wire.UserPendingActivationStore.Cassandra
+    Wire.UserPendingActivationStore.Postgres
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
     Wire.UserSearch.Types
@@ -719,6 +720,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.TinyLog
     Wire.MockInterpreters.UserGroupStore
     Wire.MockInterpreters.UserKeyStore
+    Wire.MockInterpreters.UserPendingActivationStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
@@ -732,6 +734,7 @@ test-suite wire-subsystems-tests
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec
+    Wire.UserPendingActivationStoreSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
