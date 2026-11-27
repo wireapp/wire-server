@@ -1,0 +1,1 @@
+The user -> teams listing (ListItems) is read from PostgreSQL when `postgresMigration.teamStore` selects PostgreSQL, so it always reads the store that team memberships are written to. Internal user deletion now leaves all of the user's teams with keyset pagination instead of relying on a Cassandra-specific continuation.
