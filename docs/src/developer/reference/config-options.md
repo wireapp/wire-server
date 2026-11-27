@@ -2439,6 +2439,7 @@ galley:
       sessions: postgresql
       scimTokens: postgresql
       scimExternalIds: postgresql
+      scimUserMeta: postgresql
       samlUsers: postgresql
 background-worker:
   config:
@@ -2478,6 +2479,7 @@ spar:
       sessions: postgresql
       scimTokens: postgresql
       scimExternalIds: postgresql
+      scimUserMeta: postgresql
       samlUsers: postgresql
 ```
 
@@ -2625,12 +2627,14 @@ The current settings and their background-worker flags are:
          sessions: postgresql
          scimTokens: postgresql
          scimExternalIds: postgresql
+         scimUserMeta: postgresql
          samlUsers: postgresql
    spar:
      config:
        postgresMigration:
          scimTokens: postgresql
          scimExternalIds: postgresql
+         scimUserMeta: postgresql
          samlUsers: postgresql
    background-worker:
      config:

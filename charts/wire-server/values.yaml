@@ -110,6 +110,7 @@ galley:
       scimTokens: cassandra
       scimExternalIds: cassandra
       samlUsers: cassandra
+      scimUserMeta: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -915,6 +916,7 @@ spar:
       scimTokens: cassandra
       scimExternalIds: cassandra
       samlUsers: cassandra
+      scimUserMeta: cassandra
     richInfoLimit: 5000
     maxScimTokens: 0
 

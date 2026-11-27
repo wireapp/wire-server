@@ -30,6 +30,7 @@ sessionsStore: {{ $preferredStore }}
 scimTokensStore: {{ $scimStore }}
 scimExternalIdsStore: {{ $scimStore }}
 samlUsersStore: {{ $preferredStore }}
+scimUserMetaStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

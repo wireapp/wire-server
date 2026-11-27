@@ -508,7 +508,8 @@ spec = do
                 sessions = CassandraStorage,
                 scimTokens = CassandraStorage,
                 scimExternalIds = CassandraStorage,
-                samlUsers = CassandraStorage
+                samlUsers = CassandraStorage,
+                scimUserMeta = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -585,7 +586,8 @@ spec = do
                 sessions = CassandraStorage,
                 scimTokens = CassandraStorage,
                 scimExternalIds = CassandraStorage,
-                samlUsers = CassandraStorage
+                samlUsers = CassandraStorage,
+                scimUserMeta = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

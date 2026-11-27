@@ -1056,7 +1056,8 @@ defaultTestOpts =
             sessions = CassandraStorage,
             scimTokens = CassandraStorage,
             scimExternalIds = CassandraStorage,
-            samlUsers = CassandraStorage
+            samlUsers = CassandraStorage,
+            scimUserMeta = CassandraStorage
           },
       postgresqlPassword = Nothing
     }
