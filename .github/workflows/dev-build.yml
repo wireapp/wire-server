@@ -28,7 +28,6 @@ permissions: {}
 
 env:
   OCI_REPOSITORY: quay.io/wire/charts/dev
-  S3_REPOSITORY: charts-develop
   # The branch of wire-builds, not of wire-server.
   WIRE_BUILDS_BRANCH: dev
   # Quay deletes the dev charts after this delay, and the dev manifests say so
@@ -76,13 +75,11 @@ jobs:
 
       - uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63 # v2.0.3
 
-      - name: Package the charts
-        id: package
+      - name: Prepare the deployable charts
         working-directory: src
         env:
           VERSION: ${{ steps.inputs.outputs.version }}
-          CHARTS: ${{ steps.inputs.outputs.charts }}
-          OUT_DIR: ${{ runner.temp }}/charts
+          CHARTS: ${{ steps.inputs.outputs.oci-charts }}
         run: ../ci/.github/scripts/package-charts.sh
 
       - name: Checkout the scripts of wire-rm-actions
@@ -101,6 +98,7 @@ jobs:
           robot: wire+gha_wire-server
 
       - name: Publish the deployable charts to oci://quay.io/wire/charts/dev
+        id: publish_oci
         working-directory: src
         env:
           VERSION: ${{ steps.inputs.outputs.version }}
@@ -132,24 +130,11 @@ jobs:
           SOURCE_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
         run: ../ci/.github/scripts/declare-dev-build.sh
 
-      - name: Publish the charts to S3 charts-develop
-        if: vars.DEV_BUILD_PUBLISH_S3_WIRE_BUILDS == 'true'
+      - name: Pin the OCI charts in wire-builds dev
+        if: ${{ !cancelled() && steps.publish_oci.outcome == 'success' }}
         env:
           VERSION: ${{ steps.inputs.outputs.version }}
-          CHARTS: ${{ steps.inputs.outputs.charts }}
-          CHART_DIR: ${{ steps.package.outputs.dir }}
-          ON_DIFFERENT_SHA256: skip
-          AWS_ACCESS_KEY_ID: ${{ secrets.S3_HELM_CHARTS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_HELM_CHARTS_AWS_SECRET_ACCESS_KEY }}
-        run: ci/.github/scripts/publish-charts-s3.sh
-
-      - name: Bump the charts in wire-builds dev
-        if: vars.DEV_BUILD_PUBLISH_S3_WIRE_BUILDS == 'true'
-        env:
-          VERSION: ${{ steps.inputs.outputs.version }}
-          CHARTS: ${{ steps.inputs.outputs.charts }}
-          COMMIT: ${{ steps.inputs.outputs.commit }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
+          CHARTS: ${{ steps.inputs.outputs.oci-charts }}
+          DIGESTS_FILE: ${{ runner.temp }}/chart-digests.json
           WIRE_BUILDS_TOKEN: ${{ secrets.WIRE_BUILDS_WRITE_ACCESS_GH_TOKEN }}
         run: ci/.github/scripts/bump-wire-builds.sh

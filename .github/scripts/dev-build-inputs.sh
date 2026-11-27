@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Checks the inputs Concourse sends after a build of wire-server, run from the
-# source checkout, and writes them to GITHUB_OUTPUT. The charts come from the
-# Makefile of the built commit (make echo-release-charts, the same list a release
-# reads): all of them to S3 when that channel is on, and the deployable ones
-# (make echo-oci-charts) to OCI. The version is the dev form of
+# source checkout, and writes them to GITHUB_OUTPUT. The deployable charts come
+# from make echo-oci-charts at the built commit. They must also appear in
+# make echo-release-charts. The version is the dev form of
 # compute-version.sh, derived from a GA tag or from a pre-release tag.
 set -euo pipefail
 
@@ -48,13 +47,11 @@ done
 for chart in wire-server wire-server-enterprise; do
   [[ " ${oci_charts[*]} " == *" ${chart} "* ]] || die "echo-oci-charts does not list ${chart}"
 done
-echo "::notice::${#charts[@]} charts to S3: ${charts[*]}"
 echo "::notice::${#oci_charts[@]} charts to OCI: ${oci_charts[*]}"
 
 {
   echo "version=${VERSION}"
   echo "commit=${COMMIT}"
   echo "source-ref=${SOURCE_REF}"
-  echo "charts=${charts[*]}"
   echo "oci-charts=${oci_charts[*]}"
 } >>"$GITHUB_OUTPUT"

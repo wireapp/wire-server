@@ -1,0 +1,1 @@
+Pin Dev build charts in wire-builds by OCI repository and digest, and remove wire-builds updates from Publish release.
