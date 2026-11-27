@@ -1,6 +1,6 @@
 -- WPB-22958: delete expired team_notifications rows
 -- (ADR 0005: pg_cron for TTL deletions), replacing the externally-provisioned
--- purge job note in 20261026122128-team-notifications.sql.
+-- purge job note in 20261127100000-team-notifications.sql.
 -- Hourly at :10; volume (member-join events, 28d TTL) is far below the
 -- batching threshold of ADR-0005, so a single unbounded DELETE is used.
 -- Requires the operator to enable pg_cron (shared_preload_libraries + CREATE EXTENSION);
