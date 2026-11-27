@@ -1,0 +1,1 @@
+Listing SCIM users stored in PostgreSQL determines the pending users whose team invitation has expired from `team_invitation`, in the same transaction as the page, when invitations are stored in PostgreSQL as well (otherwise via the invitation store, as before). These users are hidden from the page and its count, and their deletion is queued once the page has been read.

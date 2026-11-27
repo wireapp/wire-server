@@ -34,7 +34,12 @@ data UserSubsystemConfig = UserSubsystemConfig
     activationCodeTimeout :: Timeout,
     blockedDomains :: HashSet Domain,
     -- | Whether MLS is enabled on this server (target-side input of the contactability rule).
-    mlsEnabled :: Bool
+    mlsEnabled :: Bool,
+    -- | Whether team invitations are stored in the same (PostgreSQL) database
+    -- as the users, so that the 'Wire.UserStore.UserStore' can tell expired
+    -- pending SCIM users itself instead of asking the
+    -- 'Wire.InvitationStore.InvitationStore'.
+    invitationsInUserStore :: Bool
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
@@ -53,5 +58,6 @@ instance Default UserSubsystemConfig where
         maxTeamSize = 100,
         activationCodeTimeout = Timeout . fromIntegral @Word $ 24 * 3600,
         blockedDomains = empty,
-        mlsEnabled = False
+        mlsEnabled = False,
+        invitationsInUserStore = False
       }

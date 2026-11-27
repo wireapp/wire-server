@@ -871,6 +871,31 @@ getScimUsersPaginatedImpl ::
   ) =>
   TeamId -> Range 0 500 Int32 -> Maybe Int32 -> Sem r (OffsetPage User)
 getScimUsersPaginatedImpl tid pageSize mOffset = do
+  inUserStore <- inputs @UserSubsystemConfig (.invitationsInUserStore)
+  expiredPendingScimUsers <-
+    if inUserStore
+      then pure ExpiredPendingScimUsersFromTeamInvitations
+      else ExpiredPendingScimUsersGiven <$> expiredPendingScimUsersFromInvitationStore tid
+  scimPage <-
+    UserStore.getScimUsersPaginated tid expiredPendingScimUsers (fromRange pageSize) mOffset
+      >>= note UserSubsystemOffsetPaginationNotSupported
+  -- Queue cleanup only after reading the page and its count, and only for the
+  -- users that have been hidden from them.
+  mapM_ enqueueUserDeletion scimPage.expiredPendingUsers
+  localDom <- inputs tDomain
+  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  pure $ mkUserFromStored localDom locale <$> scimPage.scimUsers
+
+-- | Pending SCIM users of the team without a live invitation, determined via
+-- the 'InvitationStore'.  Used when the invitations are not stored next to the
+-- users, so 'UserStore.getScimUsersPaginated' cannot determine them itself.
+expiredPendingScimUsersFromInvitationStore ::
+  ( Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member InvitationStore r
+  ) =>
+  TeamId -> Sem r [UserId]
+expiredPendingScimUsersFromInvitationStore tid = do
   pendingUsers <-
     UserStore.getPendingScimUsers tid
       >>= note UserSubsystemOffsetPaginationNotSupported
@@ -889,15 +914,7 @@ getScimUsersPaginatedImpl tid pageSize mOffset = do
                 findExpiredEmails remaining' (Just lastInvitation.invitationId)
               _ -> pure remaining'
   expiredEmails <- findExpiredEmails (Set.fromList $ map snd pendingUsers) Nothing
-  let expiredIds = [uid | (uid, email) <- pendingUsers, Set.member email expiredEmails]
-  storedPage <-
-    UserStore.getScimUsersPaginated tid expiredIds (fromRange pageSize) mOffset
-      >>= note UserSubsystemOffsetPaginationNotSupported
-  -- Queue cleanup only after reading the page and its count.
-  mapM_ enqueueUserDeletion expiredIds
-  localDom <- inputs tDomain
-  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
-  pure $ mkUserFromStored localDom locale <$> storedPage
+  pure [uid | (uid, email) <- pendingUsers, Set.member email expiredEmails]
 
 updateUserProfileImpl ::
   ( Member UserStore r,

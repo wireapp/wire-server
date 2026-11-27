@@ -58,6 +58,7 @@ import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.TemplateFixtures
 import Wire.GalleyAPIAccess
+import Wire.InvitationStore (StoredInvitation)
 import Wire.MockInterpreters
 import Wire.SAMLEmailSubsystem
 import Wire.SAMLEmailSubsystem.Interpreter (samlEmailSubsystemInterpreter)
@@ -365,7 +366,11 @@ runInterpreters users teamMap emailTemplates action = do
       . miniGalleyAPIAccess teamMap def
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
+      . evalState @(Map (TeamId, InvitationId) StoredInvitation) mempty
+      . evalState @InvitationExpiries mempty
+      . interpretNowConst defaultTime
       . inMemoryUserStoreInterpreter
+      . raiseUnder3
       . emailSubsystemInterpreter emailTemplates branding Nothing
       . interpretTeamSubsystemToGalleyAPI
       . samlEmailSubsystemInterpreter
