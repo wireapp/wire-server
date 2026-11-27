@@ -196,7 +196,7 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorUnsupportedResponseType
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
-validateAndCreateAuthorizationCode :: (Member OAuthAuthCodeStore r) => Local UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
+validateAndCreateAuthorizationCode :: forall r. (Member OAuthAuthCodeStore r) => Local UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
 validateAndCreateAuthorizationCode luid@(tUnqualified -> uid) (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ chal) = do
   failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.oAuthEnabled <$> asks (.settings))
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
@@ -204,6 +204,7 @@ validateAndCreateAuthorizationCode luid@(tUnqualified -> uid) (CreateOAuthAuthor
   failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ client.redirectUrl == redirectUrl)
   lift mkAuthorizationCode
   where
+    mkAuthorizationCode :: (Handler r) OAuthAuthorizationCode
     mkAuthorizationCode = do
       oauthCode <- OAuthAuthorizationCode <$> rand32Bytes
       ttl <- Opt.oAuthAuthorizationCodeExpirationTimeSecs <$> asks (.settings)

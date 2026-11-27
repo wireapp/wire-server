@@ -43,24 +43,21 @@ interpretOAuthAuthCodeStoreToPostgres = interpret $ \case
   InsertOAuthAuthCode ttl code cid uid scope uri chal ->
     runStatement (code, cid, uid, scope, uri, chal, ttl) insertOAuthAuthCodeStatement
   LookupAndDeleteOAuthAuthCode code ->
-    lookupAndDeleteOAuthAuthCodePg code
+    runStatement code lookupAndDeleteOAuthAuthCodeStatement
 
 insertOAuthAuthCodeStatement ::
   Hasql.Statement
     (OAuthAuthorizationCode, OAuthClientId, UserId, OAuthScopes, RedirectUrl, OAuthCodeChallenge, Int32)
     ()
 insertOAuthAuthCodeStatement =
-  lmapPG insertOAuthAuthCodeStatementDb
-
-insertOAuthAuthCodeStatementDb ::
-  Hasql.Statement
-    (Text, UUID, UUID, Vector Text, ByteString, Text, Int32)
-    ()
-insertOAuthAuthCodeStatementDb =
   -- @expires_at@ is computed from the database clock (the same clock the
   -- lookup compares against) from the TTL in seconds. Codes are random, so a
   -- conflict is not expected; @DO NOTHING@ keeps an existing row untouched.
-  [resultlessStatement|
+  lmapPG insertDb
+  where
+    insertDb :: Hasql.Statement (Text, UUID, UUID, Vector Text, ByteString, Text, Int32) ()
+    insertDb =
+      [resultlessStatement|
       INSERT INTO oauth_auth_code (code, client, user_id, scope, redirect_uri, code_challenge, expires_at)
       VALUES ($1 :: text, $2 :: uuid, $3 :: uuid, $4 :: text[], $5 :: bytea, $6 :: text, now() + make_interval(secs => $7 :: int4))
       ON CONFLICT (code) DO NOTHING
@@ -68,26 +65,16 @@ insertOAuthAuthCodeStatementDb =
 
 -- | Consume-on-read in a single atomic statement: a code is returned at most
 -- once and expired rows are indistinguishable from unknown ones.
-lookupAndDeleteOAuthAuthCodePg ::
-  (PGConstraints r) =>
-  OAuthAuthorizationCode ->
-  Sem r (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge))
-lookupAndDeleteOAuthAuthCodePg code =
-  runStatement code lookupAndDeleteOAuthAuthCodeStatement
-
 lookupAndDeleteOAuthAuthCodeStatement ::
   Hasql.Statement
     OAuthAuthorizationCode
     (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge))
 lookupAndDeleteOAuthAuthCodeStatement =
-  dimapPG lookupAndDeleteOAuthAuthCodeStatementDb
-
-lookupAndDeleteOAuthAuthCodeStatementDb ::
-  Hasql.Statement
-    Text
-    (Maybe (UUID, UUID, Vector Text, ByteString, Maybe Text))
-lookupAndDeleteOAuthAuthCodeStatementDb =
-  [maybeStatement|
+  dimapPG lookupAndDeleteDb
+  where
+    lookupAndDeleteDb :: Hasql.Statement Text (Maybe (UUID, UUID, Vector Text, ByteString, Maybe Text))
+    lookupAndDeleteDb =
+      [maybeStatement|
       DELETE FROM oauth_auth_code
       WHERE code = ($1 :: text) AND expires_at > now()
       RETURNING (client :: uuid), (user_id :: uuid), (scope :: text[]), (redirect_uri :: bytea), (code_challenge :: text?)
