@@ -114,3 +114,4 @@ postgresMigration:
   sessions: postgresql
   scimTokens: postgresql
   scimExternalIds: postgresql
+  samlUsers: postgresql

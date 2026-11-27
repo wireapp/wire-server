@@ -26,8 +26,6 @@ import Imports
 import Polysemy
 import Polysemy.TinyLog
 import Spar.Scim.User (deleteScimUser, scimPaginationOffset)
-import Spar.Sem.SAMLUserStore
-import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
 import System.Logger (Msg)
 import Test.Hspec
 import Test.QuickCheck
@@ -38,6 +36,8 @@ import Wire.BrigAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem (idPToMem)
 import Wire.IdPConfigStore.Orphans ()
+import Wire.SAMLUserStore
+import Wire.SAMLUserStore.Mem (samlUserStoreToMem)
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import Wire.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
 import Wire.ScimUserMetaStore

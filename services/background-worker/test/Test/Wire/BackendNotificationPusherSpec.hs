@@ -507,7 +507,8 @@ spec = do
                 connections = CassandraStorage,
                 sessions = CassandraStorage,
                 scimTokens = CassandraStorage,
-                scimExternalIds = CassandraStorage
+                scimExternalIds = CassandraStorage,
+                samlUsers = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -583,7 +584,8 @@ spec = do
                 connections = CassandraStorage,
                 sessions = CassandraStorage,
                 scimTokens = CassandraStorage,
-                scimExternalIds = CassandraStorage
+                scimExternalIds = CassandraStorage,
+                samlUsers = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

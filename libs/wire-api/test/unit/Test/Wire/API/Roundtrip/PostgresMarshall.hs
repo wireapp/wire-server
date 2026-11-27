@@ -43,6 +43,7 @@ import Data.Code qualified as Code
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
+import SAML2.WebSSO qualified as Saml2
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
@@ -54,6 +55,7 @@ import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
+import Wire.API.User.Saml qualified as Saml
 import Wire.API.User.Scim
 import Wire.Arbitrary qualified as Arbitrary ()
 
@@ -72,7 +74,9 @@ tests =
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,
       testRoundTrip @Int64 @CookieId,
-      testRoundTrip @Int32 @ScimUserCreationStatus
+      testRoundTrip @Int32 @ScimUserCreationStatus,
+      testRoundTrip @Text @Saml2.Issuer,
+      testRoundTrip @Text @Saml.NormalizedUNameID
     ]
 
 testRoundTrip ::

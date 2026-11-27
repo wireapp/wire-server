@@ -66,7 +66,6 @@ import Spar.Options
 import Spar.Scim
 import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.User as SU
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Test.Tasty.HUnit ((@?=))
 import qualified Text.XML.DSig as SAML
 import Util
@@ -92,6 +91,7 @@ import Wire.API.User.RichInfo
 import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
+import qualified Wire.SAMLUserStore as SAMLUserStore
 import qualified Wire.ScimExternalIdStore as ScimExternalIdStore
 import qualified Wire.ScimUserMetaStore as ScimUserMetaStore
 
