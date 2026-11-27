@@ -143,6 +143,7 @@ import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
 import Wire.ProviderServiceStore
 import Wire.ProviderServiceStore.Cassandra
+import Wire.ProviderServiceStore.Postgres
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
@@ -437,7 +438,16 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretBlockListStoreToPostgres
         MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
 
-      providerServiceStore = interpretProviderServiceStoreToCassandra e.casClient
+      providerServiceStore = case e.postgresMigration.providerService of
+        CassandraStorage -> interpretProviderServiceStoreToCassandra e.casClient
+        -- There is no data migration for provider services:
+        -- @migration-to-postgresql@ behaves like Cassandra-only storage.
+        MigrationToPostgresql -> interpretProviderServiceStoreToCassandra e.casClient
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretProviderServiceStoreToPostgres
+            . raiseUnder2
 
       nonceStore = case e.postgresMigration.nonce of
         CassandraStorage -> interpretNonceStoreToCassandra e.casClient
