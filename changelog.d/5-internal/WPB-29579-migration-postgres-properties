@@ -1,1 +1,1 @@
-Migration of user properties store from cassandra to postgres
+Implementation of alternative postgres store for user properties
