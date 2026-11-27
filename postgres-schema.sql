@@ -1832,6 +1832,37 @@ CREATE TABLE public.user_migration_pending_deletes (
 ALTER TABLE public.user_migration_pending_deletes OWNER TO "wire-server";
 
 --
+-- Name: vcodes; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.vcodes (
+    key text NOT NULL,
+    scope integer NOT NULL,
+    value text NOT NULL,
+    retries integer NOT NULL,
+    email text NOT NULL,
+    account uuid,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.vcodes OWNER TO "wire-server";
+
+--
+-- Name: vcodes_throttle; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.vcodes_throttle (
+    key text NOT NULL,
+    scope integer NOT NULL,
+    initial_delay integer NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.vcodes_throttle OWNER TO "wire-server";
+
+--
 -- Name: wire_user; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2299,6 +2330,22 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_migration_pending_deletes
     ADD CONSTRAINT user_migration_pending_deletes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: vcodes vcodes_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.vcodes
+    ADD CONSTRAINT vcodes_pkey PRIMARY KEY (key, scope);
+
+
+--
+-- Name: vcodes_throttle vcodes_throttle_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.vcodes_throttle
+    ADD CONSTRAINT vcodes_throttle_pkey PRIMARY KEY (key, scope);
 
 
 --
@@ -2805,6 +2852,20 @@ CREATE INDEX user_cookies_invalid_after_idx ON public.user_cookies USING btree (
 --
 
 CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
+-- Name: vcodes_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX vcodes_expires_at_idx ON public.vcodes USING btree (expires_at);
+
+
+--
+-- Name: vcodes_throttle_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX vcodes_throttle_expires_at_idx ON public.vcodes_throttle USING btree (expires_at);
 
 
 --

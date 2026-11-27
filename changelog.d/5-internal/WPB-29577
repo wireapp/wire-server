@@ -1,0 +1,1 @@
+Brig can store verification codes in PostgreSQL, selected via `postgresMigration.verificationCodes` (`cassandra` or `postgresql`). Existing codes are not copied; `migration-to-postgresql` keeps using Cassandra.

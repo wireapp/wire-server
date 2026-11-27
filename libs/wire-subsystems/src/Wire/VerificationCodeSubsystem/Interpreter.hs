@@ -106,6 +106,6 @@ verifyCodeImpl k s v = lookupCode k s >>= maybe (pure Nothing) continue
     continue c
       | codeValue c == v && codeRetries c > 0 = pure (Just c)
       | codeRetries c > 0 = do
-          insertCode (c {codeRetries = codeRetries c - 1})
+          decrementCodeRetries k s
           pure Nothing
       | otherwise = pure Nothing
