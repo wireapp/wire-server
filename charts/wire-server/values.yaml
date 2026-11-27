@@ -108,6 +108,7 @@ galley:
       connections: cassandra
       sessions: cassandra
       notifications: cassandra
+      pushTokens: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000

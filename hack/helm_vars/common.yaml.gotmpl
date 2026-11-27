@@ -26,6 +26,7 @@ nonceStore: {{ $preferredStore }}
 connectionsStore: {{ $preferredStore }}
 sessionsStore: {{ $preferredStore }}
 notificationsStore: {{ $preferredStore }}
+pushTokensStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}
