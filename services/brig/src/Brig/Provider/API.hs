@@ -133,6 +133,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
+import Wire.PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledMapConcurrentlyN_)
 import Wire.Sem.Now (Now)
@@ -212,6 +213,7 @@ providerAPI ::
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
     Member RateLimit r,
+    Member PasswordStore r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r
@@ -247,7 +249,8 @@ newAccount ::
     Member EmailSending r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member PasswordStore r
   ) =>
   IpAddr ->
   Public.NewProvider ->
@@ -269,7 +272,12 @@ newAccount ip new = do
       newPass <- genPassword
       safePass <- lift . liftSem $ HashPassword.hashPassword8 (RateLimitIp ip) newPass
       pure (safePass, Just newPass)
-  pid <- wrapClientE $ DB.insertAccount name safePass url descr
+  pid <- randomId
+  -- The password is written before the account: if creating the account
+  -- fails afterwards, only an unreachable password row for a random, unused
+  -- provider id is left behind, rather than a provider without a password.
+  lift . liftSem $ insertHashedProviderPassword pid safePass
+  wrapClientE $ DB.insertAccount pid name url descr
   let gen = mkVerificationCodeGen email
   code <-
     lift . liftSem $
@@ -372,7 +380,8 @@ completePasswordReset ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member PasswordStore r
   ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
@@ -385,7 +394,7 @@ completePasswordReset (Public.CompletePasswordReset key value newpwd) = do
       whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd)) do
         throwStd (errorToWai @E.ResetPasswordMustDiffer)
       hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) newpwd
-      wrapClientE $ DB.updateAccountPassword pid hashedPwd
+      lift . liftSem $ insertHashedProviderPassword pid hashedPwd
       lift . liftSem $ deleteCode key VerificationCode.PasswordReset
 
 --------------------------------------------------------------------------------
@@ -434,7 +443,8 @@ updateAccountPassword ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member PasswordStore r
   ) =>
   ProviderId ->
   Public.PasswordChange ->
@@ -446,7 +456,7 @@ updateAccountPassword pid upd = do
   whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword)) do
     throwStd (errorToWai @E.ResetPasswordMustDiffer)
   hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) upd.newPassword
-  wrapClientE $ DB.updateAccountPassword pid hashedPwd
+  lift . liftSem $ insertHashedProviderPassword pid hashedPwd
 
 addService ::
   (Member GalleyAPIAccess r) =>
@@ -610,7 +620,8 @@ finishDeleteService pid sid = do
 
 deleteAccount ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member PasswordStore r
   ) =>
   ProviderId ->
   Public.DeleteProvider ->
@@ -630,6 +641,7 @@ deleteAccount pid del = do
     wrapClientE $ DB.deleteService pid sid name tags
   wrapClientE $ DB.deleteKey (mkEmailKey (providerEmail prov))
   wrapClientE $ DB.deleteAccount pid
+  lift . liftSem $ deleteHashedProviderPassword pid
 
 --------------------------------------------------------------------------------
 -- User API

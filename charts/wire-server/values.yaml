@@ -107,6 +107,7 @@ galley:
       nonce: cassandra
       connections: cassandra
       sessions: cassandra
+      providerPassword: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
