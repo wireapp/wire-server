@@ -62,5 +62,6 @@ spec = describe "rejectScimStoreMigration" $ do
           sessions = CassandraStorage,
           scimTokens = tokens,
           scimExternalIds = externalIds,
-          samlUsers = CassandraStorage
+          samlUsers = CassandraStorage,
+          scimUserMeta = CassandraStorage
         }
