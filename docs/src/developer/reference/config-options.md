@@ -2321,6 +2321,49 @@ gundeck:
       insecureSkipVerifyTls: true
 ```
 
+
+## Configure the gundeck presence store
+
+Gundeck stores user presences either in Redis (default) or in PostgreSQL.  The
+backend is selected with the chart value `gundeck.presenceStore`
+(`"redis"` or `"postgresql"`); alternatively the environment variable
+`GUNDECK_PRESENCE_STORE` (same values) overrides the config file, which is how
+integration tests switch backends without touching YAML.
+
+When `postgresql` is selected, configure the database connection like this:
+
+```yaml
+gundeck:
+  config:
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      idlenessTimeout: 10m
+  secrets:
+    pgPassword: <postgres-password> # mounted at /etc/wire/gundeck/secrets/pgPassword
+```
+
+Besides the password file (`postgresqlPassword`), the fields correspond to
+[libpq-connect parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
+Gundeck runs its PostgreSQL migrations at startup, so the `presence` table is
+created automatically.  When presences are stored in PostgreSQL, the
+`redis-ephemeral` chart (and its TLS certificates/reaper) are unnecessary.
+
+Like with Redis, all presences of a user expire 7 days after the user's most
+recent presence registration.  Expired presences are ignored on read and
+deleted by gundeck when their user registers a new presence.  To also delete
+expired presences of users that never come back, enable the
+[pg_cron](https://github.com/citusdata/pg_cron) extension in gundeck's
+database (`cron.database_name` must point to it) before gundeck runs its
+migrations: the `expire-presence` job is then scheduled automatically.
+Without pg_cron, a warning is logged during the migration and these rows
+remain in the table (they are harmless, but take up space).
+
 ## Configure RabbitMQ
 
 RabbitMQ authentication must be configured on brig, galley and background-worker. For example:
