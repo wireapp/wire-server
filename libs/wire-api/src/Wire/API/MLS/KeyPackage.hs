@@ -30,6 +30,7 @@ module Wire.API.MLS.KeyPackage
     KeyPackageTBS (..),
     KeyPackageRef (..),
     sanIdentity,
+    rawKeyPackageSchema,
   )
 where
 

@@ -58,6 +58,9 @@ data BrigError
   | MLSIdentityMismatch
   | MLSProtocolError
   | MLSDuplicatePublicKey
+  | MLSInvalidKeyRotation
+  | MLSPublicKeyNotFound
+  | MLSKeyRotationConflict
   | InvalidPhone
   | PasswordExists
   | AccountSuspended
@@ -215,6 +218,12 @@ type instance MapError 'InvalidHandle = 'StaticError 400 "invalid-handle" "The g
 type instance MapError 'HandleNotFound = 'StaticError 404 "not-found" "Handle not found"
 
 type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
+
+type instance MapError 'MLSInvalidKeyRotation = 'StaticError 400 "mls-invalid-key-rotation" "Invalid proof of possession for the MLS key rotation"
+
+type instance MapError 'MLSPublicKeyNotFound = 'StaticError 404 "mls-public-key-not-found" "No MLS public key is registered for this client and signature scheme"
+
+type instance MapError 'MLSKeyRotationConflict = 'StaticError 409 "mls-key-rotation-conflict" "The MLS public key of this client was changed concurrently"
 
 type instance MapError 'AllowlistError = 'StaticError 403 "unauthorized" "Unauthorized e-mail address"
 

@@ -50,6 +50,7 @@ import Wire.API.Error.Brig as ErrorBrig
 import Wire.API.Error.Empty
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.KeyRotation
 import Wire.API.MLS.Servant
 import Wire.API.OAuth
 import Wire.API.Pagination
@@ -1056,6 +1057,28 @@ type UserClientAPI =
                :> CaptureClientId "client"
                :> ReqBody '[JSON] UpdateClient
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
+           )
+    :<|> Named
+           "rotate-mls-public-key"
+           ( Summary "Replace the MLS signature key of a client"
+               :> Description
+                    "Only for clients with x509 credentials. The key package must be signed with the new key and \
+                    \carry an x509 credential for this client. The signature, with the currently registered key and \
+                    \the label \"WireMLSKeyRotation\", is over the TLS-serialised struct { opaque client_identity<V>; \
+                    \opaque old_signature_key<V>; opaque new_signature_key<V>; }, where client_identity is \
+                    \\"{user_id}:{client_id}@{domain}\". All key packages of the client for ciphersuites using \
+                    \this signature scheme are deleted."
+               :> From 'V20
+               :> CanThrow 'ClientNotFound
+               :> CanThrow 'MLSInvalidKeyRotation
+               :> CanThrow 'MLSPublicKeyNotFound
+               :> CanThrow 'MLSKeyRotationConflict
+               :> ZLocalUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "mls-public-keys"
+               :> ReqBody '[JSON] MLSKeyRotation
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "MLS public key replaced")
            )
     :<|>
     -- This endpoint can lead to the following events being sent:

@@ -134,6 +134,7 @@ library
     Wire.API.MLS.GroupInfo
     Wire.API.MLS.HPKEPublicKey
     Wire.API.MLS.KeyPackage
+    Wire.API.MLS.KeyRotation
     Wire.API.MLS.Keys
     Wire.API.MLS.LeafNode
     Wire.API.MLS.Lifetime
@@ -726,6 +727,7 @@ test-suite wire-api-tests
     Test.Wire.API.Meeting
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
+    Test.Wire.API.MLS.KeyRotation
     Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
