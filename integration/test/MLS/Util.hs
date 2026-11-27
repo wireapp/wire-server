@@ -237,12 +237,19 @@ createMLSClient opts u = do
 -- and a new certificate for the same client identity.
 --
 -- This only changes local state. Returns the new signature public key, which
--- the backend does not know about yet.
+-- the backend does not know about yet. The new certificate is self-signed, not
+-- issued by a CA.
+--
+-- The client must not be a member of any group yet: its group states would
+-- still reference the discarded signer, and mls-test-cli cannot rotate the
+-- credential of an existing group member.
 rotateX509Credential :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ByteString
 rotateX509Credential suite cid = do
   gs <- getClientGroupState cid
   unless (gs.credType == X509CredentialType) $
     assertFailure "rotateX509Credential: client does not use an x509 credential"
+  unless (Map.null gs.groups) $
+    assertFailure "rotateX509Credential: client is already a member of a group"
   setClientGroupState cid gs {keystore = Map.delete (csSignatureScheme suite) gs.keystore}
   mlscli Nothing suite cid ["public-key"] Nothing
 
