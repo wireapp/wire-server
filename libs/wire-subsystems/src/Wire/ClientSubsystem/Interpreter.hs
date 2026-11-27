@@ -26,6 +26,7 @@ where
 import Control.Monad
 import Data.Bifunctor
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -46,6 +47,9 @@ import System.Logger.Message
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite (SignatureSchemeTag, csSignatureScheme)
+import Wire.API.MLS.Credential (mkClientIdentity)
+import Wire.API.MLS.KeyRotation
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.Internal
@@ -120,6 +124,7 @@ runClientSubsystem runAuth runUser =
       RemoveLegalHoldClient uid -> removeLegalHoldClient uid
       PublishLegalHoldClientRequested uid req -> publishLegalHoldClientRequested uid req
       UpdateClient uid cid payload -> updateClient uid cid payload
+      RotateMLSPublicKey luid cid rotation -> rotateMLSPublicKey luid cid rotation
       ClaimPrekey protectee uid domain cid -> claimPrekey protectee uid domain cid
       ClaimLocalPrekey protectee uid cid -> claimLocalPrekey protectee uid cid
       ClaimPrekeyBundle protectee domain uid -> claimPrekeyBundle protectee domain uid
@@ -446,6 +451,32 @@ updateClient uid cid req = do
   case mErr of
     Just DuplicateMLSPublicKey -> throw (ClientDataError MLSPublicKeyDuplicate)
     Nothing -> pure ()
+
+-- | See "Wire.API.MLS.KeyRotation" for the proof of possession. The key is
+-- replaced with a compare-and-set on the key the proof was checked against,
+-- so a replayed or concurrent request cannot succeed.
+rotateMLSPublicKey ::
+  ( Member ClientStore r,
+    Member (Error ClientError) r
+  ) =>
+  Local UserId ->
+  ClientId ->
+  MLSKeyRotation ->
+  Sem r SignatureSchemeTag
+rotateMLSPublicKey luid cid rotation = do
+  let uid = tUnqualified luid
+      identity = mkClientIdentity (tUntagged luid) cid
+      orInvalid = either (const (throw (ClientDataError MLSKeyRotationInvalid))) pure
+  void $ ClientStore.lookupClient uid cid >>= maybe (throw ClientNotFound) pure
+  (cs, new) <- orInvalid $ validateKeyRotationKeyPackage identity rotation
+  let scheme = csSignatureScheme cs
+  old <-
+    maybe (throw (ClientDataError MLSPublicKeyNotFound)) (pure . LBS.toStrict)
+      =<< ClientStore.lookupMLSPublicKey uid cid scheme
+  orInvalid $ verifyKeyRotationSignature cs identity old new rotation.signature
+  replaced <- ClientStore.replaceMLSPublicKey uid cid scheme old new
+  unless replaced $ throw (ClientDataError MLSKeyRotationConflict)
+  pure scheme
 
 ---------------------------------------------------------------------------------------
 -- Prekeys

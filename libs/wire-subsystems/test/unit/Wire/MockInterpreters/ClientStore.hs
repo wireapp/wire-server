@@ -24,6 +24,7 @@ import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.State
+import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap
@@ -134,13 +135,21 @@ handleClientStore = \case
        in stored {client = stored.client {clientMLSPublicKeys = merged}}
     pure Nothing
   LookupMLSPublicKey uid cid scheme ->
-    gets $
-      fmap (LBS.fromStrict)
-        . ( ( Map.lookup scheme
-                . (.client.clientMLSPublicKeys)
-            )
-              <=< (Map.lookup cid . Map.findWithDefault mempty uid . (.byUser))
-          )
+    gets $ fmap LBS.fromStrict . lookupMLSKey uid cid scheme
+  ReplaceMLSPublicKey uid cid scheme old new -> do
+    replace <- gets $ (== Just old) . lookupMLSKey uid cid scheme
+    when replace $
+      modifyStoredClient uid cid \stored ->
+        stored {client = stored.client {clientMLSPublicKeys = Map.insert scheme new stored.client.clientMLSPublicKeys}}
+    pure replace
+
+lookupMLSKey :: UserId -> ClientId -> SignatureSchemeTag -> ClientStoreState -> Maybe ByteString
+lookupMLSKey uid cid scheme =
+  Map.lookup scheme
+    . (.client.clientMLSPublicKeys)
+    <=< Map.lookup cid
+    . Map.findWithDefault mempty uid
+    . (.byUser)
 
 modifyStoredClient ::
   (Member (State ClientStoreState) r) =>
