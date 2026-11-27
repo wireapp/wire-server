@@ -52,6 +52,8 @@ import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2Hashed
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
+import Wire.API.Team.Role
+import Wire.API.User (InvitationCode)
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
 import Wire.Arbitrary qualified as Arbitrary ()
@@ -70,7 +72,9 @@ tests =
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,
-      testRoundTrip @Int64 @CookieId
+      testRoundTrip @Int64 @CookieId,
+      testRoundTrip @Int32 @Role,
+      testRoundTrip @Text @InvitationCode
     ]
 
 testRoundTrip ::

@@ -1764,6 +1764,38 @@ CREATE TABLE public.team_features (
 ALTER TABLE public.team_features OWNER TO "wire-server";
 
 --
+-- Name: team_invitation; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_invitation (
+    team uuid NOT NULL,
+    invitation_id uuid NOT NULL,
+    role integer,
+    created_at timestamp with time zone NOT NULL,
+    created_by uuid,
+    email text NOT NULL,
+    name text,
+    code text NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.team_invitation OWNER TO "wire-server";
+
+--
+-- Name: team_scim_pending_user_email; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_scim_pending_user_email (
+    team uuid NOT NULL,
+    email text NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.team_scim_pending_user_email OWNER TO "wire-server";
+
+--
 -- Name: user_cookies; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2252,6 +2284,21 @@ ALTER TABLE ONLY public.subconversation
 ALTER TABLE ONLY public.team_features
     ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
 
+
+--
+-- Name: team_invitation team_invitation_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_invitation
+    ADD CONSTRAINT team_invitation_pkey PRIMARY KEY (team, invitation_id);
+
+
+--
+-- Name: team_scim_pending_user_email team_scim_pending_user_email_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_scim_pending_user_email
+    ADD CONSTRAINT team_scim_pending_user_email_pkey PRIMARY KEY (team, email, user_id);
 
 --
 -- Name: user_cookies user_cookies_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -2780,6 +2827,19 @@ CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time)
 
 
 --
+-- Name: team_invitation_code_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_invitation_code_idx ON public.team_invitation USING btree (code);
+
+
+--
+-- Name: team_invitation_email_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_invitation_email_idx ON public.team_invitation USING btree (email);
+
+--
 -- Name: user_cookies_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -2798,6 +2858,13 @@ CREATE INDEX user_cookies_expires_idx ON public.user_cookies USING btree (user_i
 --
 
 CREATE INDEX user_cookies_invalid_after_idx ON public.user_cookies USING btree (invalid_after);
+
+
+--
+-- Name: team_invitation_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX team_invitation_expires_at_idx ON public.team_invitation USING btree (expires_at);
 
 
 --

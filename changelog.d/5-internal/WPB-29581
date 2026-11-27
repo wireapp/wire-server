@@ -1,0 +1,3 @@
+Add a PostgreSQL store for team invitations and pending SCIM users, selected via the new `postgresMigration.invitations` setting (`cassandra` by default). No data is copied from Cassandra: `migration-to-postgresql` behaves like `postgresql`.
+
+Expired team invitations are deleted daily by the new pg_cron job `expire-team-invitations`; this requires the pg_cron extension in `shared_preload_libraries` (the schema migration warns if it is absent).
