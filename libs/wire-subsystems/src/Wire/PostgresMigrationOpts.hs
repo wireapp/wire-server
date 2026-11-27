@@ -64,7 +64,8 @@ data PostgresMigrationOpts = PostgresMigrationOpts
     nonce :: StorageLocation,
     connections :: StorageLocation,
     sessions :: StorageLocation,
-    clients :: StorageLocation
+    clients :: StorageLocation,
+    userClientIndex :: StorageLocation
   }
   deriving (Show)
 
@@ -84,3 +85,4 @@ instance FromJSON PostgresMigrationOpts where
       <*> o .: "connections"
       <*> o .: "sessions"
       <*> o .: "clients"
+      <*> o .: "userClientIndex"
