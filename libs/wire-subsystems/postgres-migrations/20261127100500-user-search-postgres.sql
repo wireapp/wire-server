@@ -5,7 +5,7 @@
 ALTER TABLE wire_user ADD COLUMN name_normalized text;
 
 -- The CREATE INDEX CONCURRENTLY statements for this migration live in
--- 2026091100000{1,2,3}-user-search-*.sql: they cannot run inside a
+-- 2026112710050{1,2,3}-user-search-*.sql: they cannot run inside a
 -- transaction and are registered in 'Wire.PostgresMigrations.nonTransactionMigrations'
 -- (one statement per file: statements within a single script run in one
 -- implicit transaction, which CREATE INDEX CONCURRENTLY forbids).

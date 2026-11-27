@@ -15,10 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- Prefix-search index for name_normalized (LIKE 'abc%', no pg_trgm needed);
--- companion to 20260911000000-user-search-postgres.sql.  Runs outside a
--- transaction (CREATE INDEX CONCURRENTLY); see
+-- Index on wire_user.team; companion to
+-- 20261127100500-user-search-postgres.sql.  Runs outside a transaction
+-- (CREATE INDEX CONCURRENTLY); see
 -- 'Wire.PostgresMigrations.nonTransactionMigrations'.  One statement per file:
 -- statements within a single script run in one implicit transaction, which
 -- CREATE INDEX CONCURRENTLY forbids.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS wire_user_name_normalized_pattern_idx ON wire_user (name_normalized text_pattern_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS wire_user_team_idx ON wire_user (team);

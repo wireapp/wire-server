@@ -417,7 +417,7 @@ config; ElasticSearch remains the default (`searchBackend: elasticsearch`).
 To migrate an existing installation:
 
 1. Upgrade wire-server: the database migration
-   `20260911000000-user-search-postgres.sql` adds the `wire_user.name_normalized`
+   `20261127100500-user-search-postgres.sql` adds the `wire_user.name_normalized`
    column (with indexes) and the `team_search_visibility` table.
 2. Run the one-off backfill (this only writes to PostgreSQL, the
    ElasticSearch index keeps serving search in the meantime):
