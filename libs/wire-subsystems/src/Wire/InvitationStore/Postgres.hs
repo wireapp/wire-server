@@ -108,6 +108,8 @@ interpretInvitationStoreToPostgres = interpret $ \case
     deleteInvitationImpl (toUUID tid, toUUID invId)
   DeleteAllTeamInvitations tid ->
     deleteInvitationsImpl tid
+  UpdateInvitationRole tid iid role ->
+    updateInvitationRoleImpl (toUUID tid, toUUID iid, postgresMarshall role)
 
 -- | Flatten an 'InsertInvitation' (plus the code timeout in seconds) into the
 -- canonical row tuple.
@@ -263,6 +265,17 @@ deleteInvitationImpl = flip runStatement deleteInvitationStatement
 deleteInvitationStatement :: Hasql.Statement (UUID, UUID) ()
 deleteInvitationStatement =
   [resultlessStatement|DELETE FROM team_invitation WHERE team = ($1 :: uuid) AND invitation_id = ($2 :: uuid)
+     |]
+
+-- | Only the role changes: the expiry is kept (the code's lifetime is not
+-- renewed) and an expired or concurrently deleted invitation is not recreated.
+updateInvitationRoleImpl :: (PGConstraints r) => (UUID, UUID, Int32) -> Sem r ()
+updateInvitationRoleImpl = flip runStatement updateInvitationRoleStatement
+
+updateInvitationRoleStatement :: Hasql.Statement (UUID, UUID, Int32) ()
+updateInvitationRoleStatement =
+  [resultlessStatement|UPDATE team_invitation SET role = ($3 :: int4)
+     WHERE team = ($1 :: uuid) AND invitation_id = ($2 :: uuid) AND expires_at > now()
      |]
 
 deleteInvitationsImpl :: (PGConstraints r) => TeamId -> Sem r ()
