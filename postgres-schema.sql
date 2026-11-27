@@ -1670,6 +1670,21 @@ CREATE TABLE public.mls_history_client (
 ALTER TABLE public.mls_history_client OWNER TO "wire-server";
 
 --
+-- Name: mls_key_packages; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_key_packages (
+    user_id uuid NOT NULL,
+    client text NOT NULL,
+    cipher_suite integer NOT NULL,
+    ref bytea NOT NULL,
+    data bytea NOT NULL
+);
+
+
+ALTER TABLE public.mls_key_packages OWNER TO "wire-server";
+
+--
 -- Name: nonce; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -2211,6 +2226,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 ALTER TABLE ONLY public.mls_history_client
     ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
+-- Name: mls_key_packages mls_key_packages_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_key_packages
+    ADD CONSTRAINT mls_key_packages_pkey PRIMARY KEY (user_id, client, cipher_suite, ref);
 
 
 --
