@@ -54,6 +54,7 @@ import Wire.API.PostgresMarshall
 import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus)
 import Wire.API.Team (Icon, TeamBinding)
 import Wire.API.Team.Feature
+import Wire.API.Team.Permission (Permissions)
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
@@ -74,6 +75,7 @@ tests =
       testRoundTrip @Text @TeamBinding,
       testRoundTrip @Text @TeamSearchVisibility,
       testRoundTrip @Text @Icon,
+      testRoundTrip @(Int64, Int64) @Permissions,
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,

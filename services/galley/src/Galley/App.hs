@@ -135,6 +135,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.LegalHoldStore.Postgres (interpretLegalHoldStoreWithPostgresTeamMembers)
 import Wire.Licensing.Effect (Licensing)
 import Wire.Licensing.Interpreter (runLicense)
 import Wire.Licensing.License qualified as Licensing
@@ -189,6 +190,10 @@ import Wire.TeamMemberStore (TeamMemberStore)
 import Wire.TeamMemberStore.Cassandra
   ( interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
+  )
+import Wire.TeamMemberStore.Postgres
+  ( interpretTeamMemberStoreToPostgres,
+    interpretTeamMemberStoreToPostgresWithPaging,
   )
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
@@ -461,6 +466,23 @@ evalGalley e =
           CassandraStorage -> interpretTeamStoreToCassandra
           PostgresqlStorage -> interpretTeamStoreMetadataToPostgres
           MigrationToPostgresql -> interpretTeamStoreMetadataToPostgres
+      -- Team members (including their legal hold status) are stored together
+      -- with the team metadata.
+      teamMemberStoreWithPagingInterpreter =
+        case (e ^. options . postgresMigration).team of
+          CassandraStorage -> interpretTeamMemberStoreToCassandraWithPaging lh
+          PostgresqlStorage -> interpretTeamMemberStoreToPostgresWithPaging lh
+          MigrationToPostgresql -> interpretTeamMemberStoreToPostgresWithPaging lh
+      teamMemberStoreInterpreter =
+        case (e ^. options . postgresMigration).team of
+          CassandraStorage -> interpretTeamMemberStoreToCassandra lh
+          PostgresqlStorage -> interpretTeamMemberStoreToPostgres lh
+          MigrationToPostgresql -> interpretTeamMemberStoreToPostgres lh
+      legalHoldStoreInterpreter =
+        case (e ^. options . postgresMigration).team of
+          CassandraStorage -> interpretLegalHoldStoreToCassandra lh
+          PostgresqlStorage -> interpretLegalHoldStoreWithPostgresTeamMembers lh
+          MigrationToPostgresql -> interpretLegalHoldStoreWithPostgresTeamMembers lh
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -565,8 +587,8 @@ evalGalley e =
         . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
-        . interpretTeamMemberStoreToCassandraWithPaging lh
-        . interpretTeamMemberStoreToCassandra lh
+        . teamMemberStoreWithPagingInterpreter
+        . teamMemberStoreInterpreter
         . teamFeatureStoreInterpreter
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
@@ -574,7 +596,7 @@ evalGalley e =
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
-        . interpretLegalHoldStoreToCassandra lh
+        . legalHoldStoreInterpreter
         . interpretTeamJournal (e ^. aEnv)
         . teamStoreInterpreter
         . customBackendStoreInterpreter
