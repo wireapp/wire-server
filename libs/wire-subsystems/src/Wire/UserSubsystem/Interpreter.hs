@@ -177,10 +177,10 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         getUserProfilesWithErrorsImpl self others
       UpdateUserProfile self mconn mb update ->
         updateUserProfileImpl self mconn mb update
-      CheckHandle uhandle ->
-        checkHandleImpl uhandle
-      CheckHandles hdls cnt ->
-        checkHandlesImpl hdls cnt
+      CheckHandle msearcher uhandle ->
+        checkHandleImpl msearcher uhandle
+      CheckHandles msearcher hdls cnt ->
+        checkHandlesImpl msearcher hdls cnt
       UpdateHandle uid mconn mb uhandle ->
         updateHandleImpl uid mconn mb uhandle
       LookupLocaleWithDefault luid ->
@@ -986,17 +986,45 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
-checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
-checkHandleImpl uhandle = do
+checkHandleImpl ::
+  ( Member (Error UserSubsystemError) r,
+    Member UserStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  Maybe (Local UserId) ->
+  Text ->
+  Sem r CheckHandleResp
+checkHandleImpl msearcher uhandle = do
   xhandle :: Handle <- Handle.parseHandle uhandle & maybe (throw UserSubsystemInvalidHandle) pure
   when (isBlacklistedHandle xhandle) $
     throw UserSubsystemInvalidHandle
   owner <- lookupHandle xhandle
-  if isJust owner
-    then -- Handle is taken (=> getHandleInfo will return 200)
-      pure CheckHandleFound
-    else -- Handle is free and can be taken
-      pure CheckHandleNotFound
+  case owner of
+    Nothing -> pure CheckHandleNotFound
+    Just ownerId -> do
+      -- searchVisibilityHandle: if the handle belongs to a user of another
+      -- team and either team has the flag enabled, respond as if the handle
+      -- were free -- the only answer that does not leak its existence.
+      -- (Trusted internal callers pass 'Nothing' and always get the real
+      -- answer.)
+      mSearcherTeam <- traverse (UserStore.getUserTeam . tUnqualified) msearcher
+      ownerTeam <- (>>= (.teamId)) <$> getUser ownerId
+      blocked <- case (mSearcherTeam, ownerTeam) of
+        (Nothing, _) -> pure False
+        (_, Nothing) -> pure False
+        (Just mstid, Just tid)
+          | Just tid == mstid -> pure False
+          | otherwise -> do
+              searcherFlagOn <- maybe (pure False) searchVisibilityHandleEnabled mstid
+              ownerFlagOn <- searchVisibilityHandleEnabled tid
+              pure (searcherFlagOn || ownerFlagOn)
+      pure $ if blocked then CheckHandleNotFound else CheckHandleFound
+
+-- | Is the 'searchVisibilityHandle' team feature enabled for this team?
+searchVisibilityHandleEnabled :: (Member GalleyAPIAccess r) => TeamId -> Sem r Bool
+searchVisibilityHandleEnabled tid = do
+  f <- GalleyAPIAccess.getFeatureConfigForTeamOrDefault @_ @SearchVisibilityHandleConfig tid
+  pure $ f.status == FeatureStatusEnabled
 
 hasE2EId :: (Member GalleyAPIAccess r) => StoredUser -> Sem r Bool
 hasE2EId user =
@@ -1011,19 +1039,53 @@ hasE2EId user =
 
 -- | checks for handles @check@ to be available and returns
 --   at maximum @num@ of them
-checkHandlesImpl :: (Member UserStore r) => [Handle] -> Word -> Sem r [Handle]
-checkHandlesImpl check num = reverse <$> collectFree [] check num
+checkHandlesImpl ::
+  ( Member UserStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  Maybe (Local UserId) ->
+  [Handle] ->
+  Word ->
+  Sem r [Handle]
+checkHandlesImpl msearcher check num = do
+  mSearcherTeam <- traverse (UserStore.getUserTeam . tUnqualified) msearcher
+  -- searchVisibilityHandle (outbound): if the searcher's team has the flag
+  -- enabled, no handle outside that team is reported as taken.
+  searcherFlagOn <- case mSearcherTeam of
+    Just (Just tid) -> searchVisibilityHandleEnabled tid
+    _ -> pure False
+  reverse <$> collectFree mSearcherTeam searcherFlagOn mempty [] check num
   where
-    collectFree free _ 0 = pure free
-    collectFree free [] _ = pure free
-    collectFree free (h : hs) n =
+    collectFree _ _ _ free _ 0 = pure free
+    collectFree _ _ _ free [] _ = pure free
+    collectFree mSearcherTeam searcherFlagOn flagCache free (h : hs) n =
       if isBlacklistedHandle h
-        then collectFree free hs n
+        then collectFree mSearcherTeam searcherFlagOn flagCache free hs n
         else do
           owner <- glimpseHandle h
           case owner of
-            Nothing -> collectFree (h : free) hs (n - 1)
-            Just _ -> collectFree free hs n
+            Nothing -> collectFree mSearcherTeam searcherFlagOn flagCache (h : free) hs (n - 1)
+            Just ownerId -> do
+              ownerTeam <- (>>= (.teamId)) <$> getUser ownerId
+              -- searchVisibilityHandle: if resolution between the searcher
+              -- and the owner is blocked, report the handle as free -- the
+              -- only answer that does not leak its existence.  Flag lookups
+              -- are cached per distinct target team.  (Trusted internal
+              -- callers pass 'Nothing' as the searcher and always get the
+              -- real answer.)
+              (blocked, flagCache') <- case (mSearcherTeam, ownerTeam) of
+                (Nothing, _) -> pure (False, flagCache)
+                (_, Nothing) -> pure (False, flagCache)
+                (Just mstid, Just tid)
+                  | Just tid == mstid -> pure (False, flagCache)
+                  | otherwise -> do
+                      ownerFlagOn <- case Map.lookup tid flagCache of
+                        Just cached -> pure cached
+                        Nothing -> searchVisibilityHandleEnabled tid
+                      pure (searcherFlagOn || ownerFlagOn, Map.insert tid ownerFlagOn flagCache)
+              if blocked
+                then collectFree mSearcherTeam searcherFlagOn flagCache' (h : free) hs (n - 1)
+                else collectFree mSearcherTeam searcherFlagOn flagCache' free hs n
 
 -------------------------------------------------------------------------------
 -- Search
@@ -1195,7 +1257,19 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
       let isContactVisible =
             (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
-      if isContactVisible && fromMaybe True storedUser.searchable
+      -- searchVisibilityHandle: block cross-team handle resolution.  The
+      -- flag applies on both sides (searcher's team and owner's team);
+      -- intra-team resolution is never blocked.
+      let searcherTeamId = snd . tUnqualified $ searcher
+          ownerTeamId = storedUser.teamId
+      flagBlocks <-
+        if searcherTeamId == ownerTeamId
+          then pure False
+          else do
+            searcherFlagOn <- maybe (pure False) (lift . searchVisibilityHandleEnabled) searcherTeamId
+            ownerFlagOn <- maybe (pure False) (lift . searchVisibilityHandleEnabled) ownerTeamId
+            pure (searcherFlagOn || ownerFlagOn)
+      if isContactVisible && not flagBlocks && fromMaybe True storedUser.searchable
         then do
           pure $
             Contact

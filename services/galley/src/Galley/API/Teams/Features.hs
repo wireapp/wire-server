@@ -424,6 +424,10 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
   prepareFeature tid feat = do
     updateSearchVisibilityInbound $ Multi.TeamStatus tid feat.status
 
+-- | No side effects: the enforcement of 'searchVisibilityHandle' happens at
+-- runtime in brig (on every handle resolution), not in the search index.
+instance SetFeatureConfig SearchVisibilityHandleConfig
+
 instance SetFeatureConfig MLSConfig where
   type
     SetFeatureForTeamConstraints MLSConfig (r :: EffectRow) =

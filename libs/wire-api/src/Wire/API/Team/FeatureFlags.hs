@@ -198,6 +198,13 @@ newtype instance FeatureDefaults SearchVisibilityInboundConfig
   deriving (FromJSON, ToJSON) via Defaults (Feature SearchVisibilityInboundConfig)
   deriving (ParseFeatureDefaults) via OptionalField SearchVisibilityInboundConfig
 
+newtype instance FeatureDefaults SearchVisibilityHandleConfig
+  = SearchVisibilityHandleDefaults (Feature SearchVisibilityHandleConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON, ToJSON) via Defaults (Feature SearchVisibilityHandleConfig)
+  deriving (ParseFeatureDefaults) via OptionalField SearchVisibilityHandleConfig
+
 newtype instance FeatureDefaults RequireExternalEmailVerificationConfig
   = RequireExternalEmailVerificationDefaults (Feature RequireExternalEmailVerificationConfig)
   deriving stock (Eq, Show)

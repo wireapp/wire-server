@@ -73,6 +73,7 @@ type FeatureAPI =
     :<|> From 'V5 ::> FeatureAPIGetPut MLSConfig
     :<|> FeatureAPIGetPut ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureAPIGetPut SearchVisibilityInboundConfig
+    :<|> FeatureAPIGetPut SearchVisibilityHandleConfig
     :<|> FeatureAPIGetPut OutlookCalIntegrationConfig
     :<|> From 'V5 ::> FeatureAPIGet MlsE2EIdConfig
     :<|> From 'V5 ::> Until 'V6 ::> Named "put-MlsE2EIdConfig@v5" (ZUser :> FeatureStatusBasePutPublic MlsE2EIdConfig)

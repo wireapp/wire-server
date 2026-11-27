@@ -885,7 +885,7 @@ spec = describe "UserSubsystem.Interpreter" do
         not (isBlacklistedHandle handle) ==>
           let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle} :: StoredUser]}
               checkHandleResp =
-                runNoFederationStack localBackend mempty config $ checkHandle (fromHandle handle)
+                runNoFederationStack localBackend mempty config $ checkHandle Nothing (fromHandle handle)
            in checkHandleResp === CheckHandleFound
 
     prop
@@ -894,7 +894,7 @@ spec = describe "UserSubsystem.Interpreter" do
         not (isBlacklistedHandle handle) ==>
           let localBackend = def {users = []}
               checkHandleResp =
-                runNoFederationStack localBackend mempty config $ checkHandle (fromHandle handle)
+                runNoFederationStack localBackend mempty config $ checkHandle Nothing (fromHandle handle)
            in checkHandleResp === CheckHandleNotFound
 
     prop
@@ -906,7 +906,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
               runCheckHandles :: [Handle] -> [Handle]
               runCheckHandles handles = runNoFederationStack localBackend mempty config do
-                checkHandles handles maxCount
+                checkHandles Nothing handles maxCount
 
               takenHandles = snd <$> storedUsersAndHandles
               freeHandles = runCheckHandles (S.toList randomHandles)

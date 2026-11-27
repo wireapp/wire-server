@@ -746,3 +746,226 @@ assertCannotFind searcher searchee q domain = do
     foundDocs :: [Value] <- resp.json %. "documents" >>= asList
     foundIds <- objQidObject `mapM` foundDocs
     searcheeQid `shouldNotMatchOneOf` foundIds
+
+-- * searchVisibilityHandle behaviour tests
+
+-- | With the flag disabled (default), cross-team handle resolution works as before.
+-- Flag OFF on both teams → all endpoints resolve the handle normally.
+testSearchVisibilityHandleDefault :: (HasCallStack) => App ()
+testSearchVisibilityHandleDefault = do
+  -- Two separate teams, flag off on both (default).
+  (_, _, [alice]) <- createTeam OwnDomain 2
+  (_, _, [bob]) <- createTeam OwnDomain 2
+
+  bobHandle <- API.randomHandle
+  BrigP.putHandle bob bobHandle >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+
+  -- /search/contacts resolves by exact handle
+  BrigP.searchContacts alice bobHandle OwnDomain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    bobId <- objId bob
+    foundIds <- for docs objId
+    assertBool "alice must find bob by exact handle when flag is off" $ bobId `elem` foundIds
+
+  -- GET /users/by-handle returns the profile
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- POST /list-users returns the profile
+  BrigP.listUsersByHandles alice OwnDomain [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    bobId <- objId bob
+    foundIds <- for profiles objId
+    assertBool "alice must find bob via list-users when flag is off" $ bobId `elem` foundIds
+
+  -- HEAD /users/handles → 200 (taken)
+  BrigP.checkHandle alice bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- POST /users/check-handles → handle NOT in free list (it's taken)
+  BrigP.checkHandles alice [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList >>= mapM asString
+    assertBool "bob's handle must not appear as free when flag is off" $ bobHandle `notElem` freeHandles
+
+-- | Outbound flag: searcher's team has the flag enabled.
+-- Cross-team resolution is blocked from the searcher's side.
+testSearchVisibilityHandleOutboundBlocks :: (HasCallStack) => App ()
+testSearchVisibilityHandleOutboundBlocks = do
+  (_, searcherTid, [alice]) <- createTeam OwnDomain 2
+  (_, _, [bob]) <- createTeam OwnDomain 2
+
+  -- Enable the flag for alice's team (outbound effect).
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain searcherTid "searchVisibilityHandle" "enabled"
+
+  bobHandle <- API.randomHandle
+  BrigP.putHandle bob bobHandle >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+
+  -- /search/contacts: exact handle must not resolve cross-team
+  BrigP.searchContacts alice bobHandle OwnDomain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    bobId <- objId bob
+    foundIds <- for docs objId
+    assertBool "alice must not find bob by exact handle (outbound flag ON)" $ bobId `notElem` foundIds
+
+  -- GET /users/by-handle must return 404
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  -- POST /list-users must not return bob
+  BrigP.listUsersByHandles alice OwnDomain [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    bobId <- objId bob
+    foundIds <- for profiles objId
+    assertBool "alice must not resolve bob via list-users (outbound flag ON)" $ bobId `notElem` foundIds
+
+  -- HEAD /users/handles → 404 (appears free)
+  BrigP.checkHandle alice bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  -- POST /users/check-handles → handle IN free list (blocked → appears free)
+  BrigP.checkHandles alice [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList >>= mapM asString
+    assertBool "bob's handle must appear as free when outbound flag is ON" $ bobHandle `elem` freeHandles
+
+-- | Inbound flag: target's team has the flag enabled.
+-- Cross-team resolution is blocked from the target's side.
+testSearchVisibilityHandleInboundBlocks :: (HasCallStack) => App ()
+testSearchVisibilityHandleInboundBlocks = do
+  (_, _, [alice]) <- createTeam OwnDomain 2
+  (_, targetTid, [bob]) <- createTeam OwnDomain 2
+
+  -- Enable the flag for bob's team (inbound effect).
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain targetTid "searchVisibilityHandle" "enabled"
+
+  bobHandle <- API.randomHandle
+  BrigP.putHandle bob bobHandle >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+
+  -- /search/contacts: exact handle must not resolve cross-team
+  BrigP.searchContacts alice bobHandle OwnDomain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    bobId <- objId bob
+    foundIds <- for docs objId
+    assertBool "alice must not find bob by exact handle (inbound flag ON)" $ bobId `notElem` foundIds
+
+  -- GET /users/by-handle must return 404
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  -- POST /list-users must not return bob
+  BrigP.listUsersByHandles alice OwnDomain [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    bobId <- objId bob
+    foundIds <- for profiles objId
+    assertBool "alice must not resolve bob via list-users (inbound flag ON)" $ bobId `notElem` foundIds
+
+  -- HEAD /users/handles → 404 (appears free)
+  BrigP.checkHandle alice bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  -- POST /users/check-handles → handle IN free list (blocked → appears free)
+  BrigP.checkHandles alice [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList >>= mapM asString
+    assertBool "bob's handle must appear as free when inbound flag is ON" $ bobHandle `elem` freeHandles
+
+-- | Intra-team resolution is never blocked, even when the flag is enabled.
+testSearchVisibilityHandleIntraTeamNeverBlocked :: (HasCallStack) => App ()
+testSearchVisibilityHandleIntraTeamNeverBlocked = do
+  (_, tid, [alice, bob]) <- createTeam OwnDomain 3
+
+  -- Enable the flag for the shared team.
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain tid "searchVisibilityHandle" "enabled"
+
+  bobHandle <- API.randomHandle
+  BrigP.putHandle bob bobHandle >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+
+  -- /search/contacts: exact handle resolves within the same team
+  BrigP.searchContacts alice bobHandle OwnDomain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    bobId <- objId bob
+    foundIds <- for docs objId
+    assertBool "alice must find bob by exact handle (same team, flag ON)" $ bobId `elem` foundIds
+
+  -- GET /users/by-handle resolves
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- POST /list-users resolves
+  BrigP.listUsersByHandles alice OwnDomain [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    profiles <- resp.json %. "found" >>= asList
+    bobId <- objId bob
+    foundIds <- for profiles objId
+    assertBool "alice must resolve bob via list-users (same team, flag ON)" $ bobId `elem` foundIds
+
+  -- HEAD /users/handles → 200 (taken; intra-team never blocked)
+  BrigP.checkHandle alice bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- POST /users/check-handles → handle NOT in free list (taken, intra-team)
+  BrigP.checkHandles alice [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList >>= mapM asString
+    assertBool "bob's handle must not appear as free (same team)" $ bobHandle `notElem` freeHandles
+
+-- | When both teams have the flag enabled, resolution is still blocked.
+testSearchVisibilityHandleBothFlagsOn :: (HasCallStack) => App ()
+testSearchVisibilityHandleBothFlagsOn = do
+  (_, searcherTid, [alice]) <- createTeam OwnDomain 2
+  (_, targetTid, [bob]) <- createTeam OwnDomain 2
+
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain searcherTid "searchVisibilityHandle" "enabled"
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain targetTid "searchVisibilityHandle" "enabled"
+
+  bobHandle <- API.randomHandle
+  BrigP.putHandle bob bobHandle >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+
+  -- Blocked on all endpoints
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  BrigP.checkHandle alice bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  BrigP.checkHandles alice [bobHandle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList >>= mapM asString
+    assertBool "bob's handle must appear as free when both flags are ON" $ bobHandle `elem` freeHandles
+
+-- | Disabling the flag after it was enabled restores normal resolution.
+testSearchVisibilityHandleToggleRestores :: (HasCallStack) => App ()
+testSearchVisibilityHandleToggleRestores = do
+  (_, targetTid, [bob]) <- createTeam OwnDomain 2
+  (_, _, [alice]) <- createTeam OwnDomain 2
+
+  bobHandle <- API.randomHandle
+  BrigP.putHandle bob bobHandle >>= assertSuccess
+
+  -- Enable inbound flag: alice cannot find bob
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain targetTid "searchVisibilityHandle" "enabled"
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 404
+
+  -- Disable flag: alice can find bob again
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OwnDomain targetTid "searchVisibilityHandle" "disabled"
+  BrigP.getUserByHandleQualified alice OwnDomain bobHandle `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200

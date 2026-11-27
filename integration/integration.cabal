@@ -163,6 +163,7 @@ library
     Test.FeatureFlags.PreventAdminlessGroups
     Test.FeatureFlags.RequireExternalEmailVerification
     Test.FeatureFlags.SearchVisibilityAvailable
+    Test.FeatureFlags.SearchVisibilityHandle
     Test.FeatureFlags.SearchVisibilityInbound
     Test.FeatureFlags.SelfDeletingMessages
     Test.FeatureFlags.SimplifiedUserConnectionRequestQRCode

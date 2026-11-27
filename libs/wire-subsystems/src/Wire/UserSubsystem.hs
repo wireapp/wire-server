@@ -142,10 +142,13 @@ data UserSubsystem m a where
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
-  -- | Parse and lookup a handle.
-  CheckHandle :: Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
-  -- | Check a number of 'Handle's for availability and returns at most 'Word' amount of them
-  CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
+  -- | Parse and lookup a handle.  The first argument is the searcher (if
+  -- any): 'Nothing' marks trusted, service-to-service calls, which are not
+  -- subject to the 'searchVisibilityHandle' team feature.
+  CheckHandle :: Maybe (Local UserId) -> Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
+  -- | Check a number of 'Handle's for availability and returns at most 'Word' amount of them.
+  -- The first argument is the searcher (if any); see 'CheckHandle'.
+  CheckHandles :: Maybe (Local UserId) -> [Handle] -> Word -> UserSubsystem m [Handle]
   -- | Parse and update a handle. Parsing may fail so this is effectful.
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
   -- | Return the user's locale (or the default locale if the users exists and has none).

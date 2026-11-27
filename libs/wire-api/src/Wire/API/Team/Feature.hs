@@ -70,6 +70,7 @@ module Wire.API.Team.Feature
     ExposeInvitationURLsToTeamAdminConfig (..),
     SndFactorPasswordChallengeConfig (..),
     SearchVisibilityInboundConfig (..),
+    SearchVisibilityHandleConfig,
     ClassifiedDomainsConfig (..),
     AppLockConfig,
     AppLockConfigB (..),
@@ -271,6 +272,7 @@ data FeatureSingleton cfg where
   FeatureSingletonConferenceCallingConfig :: FeatureSingleton ConferenceCallingConfig
   FeatureSingletonSndFactorPasswordChallengeConfig :: FeatureSingleton SndFactorPasswordChallengeConfig
   FeatureSingletonSearchVisibilityInboundConfig :: FeatureSingleton SearchVisibilityInboundConfig
+  FeatureSingletonSearchVisibilityHandleConfig :: FeatureSingleton SearchVisibilityHandleConfig
   FeatureSingletonClassifiedDomainsConfig :: FeatureSingleton ClassifiedDomainsConfig
   FeatureSingletonAppLockConfig :: FeatureSingleton AppLockConfig
   FeatureSingletonSelfDeletingMessagesConfig :: FeatureSingleton SelfDeletingMessagesConfig
@@ -930,6 +932,31 @@ instance IsFeatureConfig SearchVisibilityInboundConfig where
   featureSingleton = FeatureSingletonSearchVisibilityInboundConfig
 
 instance ToSchema SearchVisibilityInboundConfig where
+  schema = object objectSchema
+
+--------------------------------------------------------------------------------
+-- SearchVisibilityHandle feature
+-- (blocks cross-team resolution and existence checks of handles; see
+-- docs/src/understand/searchability.md)
+
+data SearchVisibilityHandleConfig = SearchVisibilityHandleConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform SearchVisibilityHandleConfig)
+  deriving (S.ToSchema) via Schema SearchVisibilityHandleConfig
+  deriving (RenderableSymbol) via (RenderableTypeName SearchVisibilityHandleConfig)
+  deriving (ParseDbFeature, Default) via (TrivialFeature SearchVisibilityHandleConfig)
+
+instance Default (LockableFeature SearchVisibilityHandleConfig) where
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
+
+instance ToObjectSchema SearchVisibilityHandleConfig where
+  objectSchema = pure SearchVisibilityHandleConfig
+
+instance IsFeatureConfig SearchVisibilityHandleConfig where
+  type FeatureSymbol SearchVisibilityHandleConfig = "searchVisibilityHandle"
+  featureSingleton = FeatureSingletonSearchVisibilityHandleConfig
+
+instance ToSchema SearchVisibilityHandleConfig where
   schema = object objectSchema
 
 ----------------------------------------------------------------------
@@ -2623,7 +2650,8 @@ type Features =
     MeetingsConfig,
     MeetingsPremiumConfig,
     BackgroundEffectsConfig,
-    TotpConfig
+    TotpConfig,
+    SearchVisibilityHandleConfig
   ]
 
 -- | list of available features as a record

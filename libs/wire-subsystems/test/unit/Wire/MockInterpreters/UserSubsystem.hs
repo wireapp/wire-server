@@ -78,8 +78,8 @@ inMemoryUserSubsystemInterpreter =
     GetLocalContactStatuses _ _ -> pure mempty
     GetContactStatuses _ _ -> pure mempty
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
-    CheckHandle _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"
-    CheckHandles _ _ -> error "CheckHandles: implement on demand (userSubsystemInterpreter)"
+    CheckHandle _ _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"
+    CheckHandles _ _ _ -> error "CheckHandles: implement on demand (userSubsystemInterpreter)"
     UpdateHandle {} -> error "UpdateHandle: implement on demand (userSubsystemInterpreter)"
     LookupLocaleWithDefault _ -> error "LookupLocaleWithDefault: implement on demand (userSubsystemInterpreter)"
     GuardRegisterActivateUserEmailDomain {} -> error "GuardRegisterActivateUserEmailDomain: implemented on demand (userSubsystemInterpreter)"

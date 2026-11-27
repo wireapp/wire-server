@@ -169,6 +169,7 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationAPIAccess
 import Wire.FederationConfigStore (FederationConfigStore)
+import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), SearchVisibilityHandleConfig)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
@@ -1046,7 +1047,7 @@ getUserUnqualifiedH self uid = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  (Member UserSubsystem r, Member UserStore r) =>
+  (Member UserSubsystem r, Member UserStore r, Member GalleyAPIAccess r) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
@@ -1086,7 +1087,7 @@ listUsersByIdsOrHandlesGetUsers lself hs = do
 
 listUsersByIdsOrHandlesV3 ::
   forall r v.
-  (Member UserSubsystem r, Member UserStore r) =>
+  (Member UserSubsystem r, Member UserStore r, Member GalleyAPIAccess r) =>
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [V.Versioned v Public.UserProfile]
@@ -1097,7 +1098,21 @@ listUsersByIdsOrHandlesV3 self q = do
       byIds lself us
     Public.ListUsersByHandles hs -> do
       us <- listUsersByIdsOrHandlesGetUsers lself hs
-      Handle.filterHandleResults lself =<< byIds lself us
+      us' <- Handle.filterHandleResults lself =<< byIds lself us
+      -- searchVisibilityHandle: block cross-team handle resolution.  The
+      -- flag is resolved once per distinct target team (not per handle).
+      searcherTeam <- lift . liftSem $ UserStore.getUserTeam self
+      searcherFlagOn <- flagEnabled searcherTeam
+      let targetTeams = Map.keys (Map.fromList [(t, ()) | Just t <- Public.profileTeam <$> us'])
+      teamFlags <- Map.fromList <$> traverse (\t -> (,) t <$> flagEnabled (Just t)) targetTeams
+      pure $
+        filter
+          ( \p ->
+              let targetTeam = Public.profileTeam p
+                  flagOn = maybe False (teamFlags Map.!) targetTeam
+               in not (searcherTeam /= targetTeam && (searcherFlagOn || flagOn))
+          )
+          us'
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure $ fmap V.Versioned foundUsers
@@ -1105,11 +1120,20 @@ listUsersByIdsOrHandlesV3 self q = do
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = (lift . liftSem $ getUserProfiles lself uids) !>> fedError
 
+    -- Is the searchVisibilityHandle flag enabled for this team?  (A user
+    -- without a team is never protected by, or restricted by, the flag.)
+    flagEnabled mteam =
+      lift . liftSem $
+        maybe
+          (pure False)
+          (fmap handleFlagIsEnabled . getFeatureConfigForTeamOrDefault @_ @SearchVisibilityHandleConfig)
+          mteam
+
 -- Similar to listUsersByIdsOrHandlesV3, except that it allows partial successes
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r v.
-  (Member UserSubsystem r, Member UserStore r) =>
+  (Member UserSubsystem r, Member UserStore r, Member GalleyAPIAccess r) =>
   UserId ->
   Maybe Bool ->
   Public.ListUsersQuery ->
@@ -1123,7 +1147,21 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       us <- listUsersByIdsOrHandlesGetUsers lself hs
       (l, r) <- byIds lself us
       r' <- Handle.filterHandleResults lself r
-      pure (l, r')
+      -- searchVisibilityHandle: block cross-team handle resolution.  The
+      -- flag is resolved once per distinct target team (not per handle).
+      searcherTeam <- lift . liftSem $ UserStore.getUserTeam self
+      searcherFlagOn <- flagEnabled searcherTeam
+      let targetTeams = Map.keys (Map.fromList [(t, ()) | Just t <- Public.profileTeam <$> r'])
+      teamFlags <- Map.fromList <$> traverse (\t -> (,) t <$> flagEnabled (Just t)) targetTeams
+      let r'' =
+            filter
+              ( \p ->
+                  let targetTeam = Public.profileTeam p
+                      flagOn = maybe False (teamFlags Map.!) targetTeam
+                   in not (searcherTeam /= targetTeam && (searcherFlagOn || flagOn))
+              )
+              r'
+      pure (l, r'')
   foundUsers' <-
     if includeContactStatus == Just True
       then do
@@ -1137,6 +1175,20 @@ listUsersByIdsOrHandles self includeContactStatus q = do
       [Qualified UserId] ->
       Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
     byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
+
+    -- Is the searchVisibilityHandle flag enabled for this team?  (A user
+    -- without a team is never protected by, or restricted by, the flag.)
+    flagEnabled mteam =
+      lift . liftSem $
+        maybe
+          (pure False)
+          (fmap handleFlagIsEnabled . getFeatureConfigForTeamOrDefault @_ @SearchVisibilityHandleConfig)
+          mteam
+
+handleFlagIsEnabled :: LockableFeature SearchVisibilityHandleConfig -> Bool
+handleFlagIsEnabled = \case
+  LockableFeature FeatureStatusEnabled _ _ -> True
+  _ -> False
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -1227,20 +1279,24 @@ changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
   where
     upd = def {supportedProtocols = Just prots}
 
--- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
--- *any* account.)
+-- | (checking handles is allowed as long as you have *any* account; the
+-- zusr is used to enforce the searchVisibilityHandle flag, not for
+-- authorization.)
 checkHandle :: (Member UserSubsystem r) => UserId -> Text -> Handler r ()
-checkHandle _uid hndl =
-  lift (liftSem $ User.checkHandle hndl) >>= \case
+checkHandle uid hndl = do
+  luid <- qualifyLocal uid
+  lift (liftSem $ User.checkHandle (Just luid) hndl) >>= \case
     API.CheckHandleFound -> pure ()
     API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
--- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
--- *any* account.)
+-- | (checking handles is allowed as long as you have *any* account; the
+-- zusr is used to enforce the searchVisibilityHandle flag, not for
+-- authorization.)
 checkHandles :: (Member UserSubsystem r) => UserId -> Public.CheckHandles -> Handler r [Handle]
-checkHandles _ (Public.CheckHandles hs num) = do
+checkHandles uid (Public.CheckHandles hs num) = do
+  luid <- qualifyLocal uid
   let handles = mapMaybe Handle.parseHandle (fromRange hs)
-  lift $ liftSem $ API.checkHandles handles (fromRange num)
+  lift $ liftSem $ API.checkHandles (Just luid) handles (fromRange num)
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
@@ -1250,6 +1306,7 @@ getHandleInfoUnqualifiedH ::
   forall r m.
   ( Member UserSubsystem r,
     Member UserStore r,
+    Member GalleyAPIAccess r,
     HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>

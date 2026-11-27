@@ -140,6 +140,12 @@ data GalleyAPIAccess m a where
     ) =>
     TeamId ->
     GalleyAPIAccess m (LockableFeature feature)
+  GetFeatureConfigForTeamOrDefault ::
+    ( IsFeatureConfig feature,
+      Typeable feature
+    ) =>
+    TeamId ->
+    GalleyAPIAccess m (LockableFeature feature)
   GetVerificationCodeEnabled ::
     TeamId ->
     GalleyAPIAccess m Bool
