@@ -141,6 +141,8 @@ import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
 import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
+import Wire.ProviderServiceStore
+import Wire.ProviderServiceStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
@@ -236,6 +238,7 @@ type BrigLowerLevelEffects =
      DomainVerificationChallengeStore,
      NonceStore,
      BlockListStore,
+     ProviderServiceStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -434,6 +437,8 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretBlockListStoreToPostgres
         MigrationToPostgresql -> interpretBlockListStoreToCassandraAndPostgres e.casClient
 
+      providerServiceStore = interpretProviderServiceStoreToCassandra e.casClient
+
       nonceStore = case e.postgresMigration.nonce of
         CassandraStorage -> interpretNonceStoreToCassandra e.casClient
         PostgresqlStorage -> interpretNonceStoreToPostgres
@@ -585,6 +590,7 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . providerServiceStore
               . blockListStore
               . nonceStore
               . domainVerificationChallengeStore

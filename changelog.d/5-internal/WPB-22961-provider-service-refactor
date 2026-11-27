@@ -1,0 +1,1 @@
+Move brig's provider service persistence (`service`, `service_tag`, `service_prefix`, `service_whitelist`, `service_whitelist_rev`) behind a new `ProviderServiceStore` effect in `wire-subsystems` with a Cassandra interpreter; no behaviour change.
