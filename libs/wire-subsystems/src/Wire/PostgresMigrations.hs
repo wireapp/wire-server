@@ -49,7 +49,7 @@ nonTransactionMigrations =
       "20260708100000-meetings-end-time-nonrecurring-index.sql",
       "20261020124413-create-scim-user-index.sql",
       "20261022130000-create-pending-scim-user-index.sql",
-      "20261111090000-team-invitation-team-email-idx.sql"
+      "20261127101100-team-invitation-team-email-idx.sql"
     ]
 
 data PostgresMigrationError
