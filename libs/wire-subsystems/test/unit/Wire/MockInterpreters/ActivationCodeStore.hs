@@ -27,7 +27,13 @@ import Polysemy
 import Polysemy.State
 import Text.Printf (printf)
 import Wire.API.User.Activation
-import Wire.ActivationCodeStore (ActivationCodeStore (..))
+import Wire.API.User.EmailAddress
+import Wire.ActivationCodeStore
+  ( ActivationCodeCheck (..),
+    ActivationCodeStore (..),
+    ActivationKeyRow (..),
+    maxAttempts,
+  )
 import Wire.UserKeyStore
 
 emailKeyToCode :: EmailKey -> ActivationCode
@@ -39,19 +45,35 @@ emailKeyToCode =
     . length
     . show
 
+-- | Derive the 'ActivationKey' exactly as 'NewActivationCode' does below.
+-- (Intentionally NOT the SHA-256 derivation of 'mkActivationKey'; the mock
+-- only needs internal consistency.)
+mockKey :: EmailKey -> ActivationKey
+mockKey = ActivationKey . Ascii.encodeBase64Url . T.encodeUtf8 . emailKeyUniq
+
+-- | Stored per 'EmailKey': the associated user, the code and the retries left.
+type MockActivationCodes = Map EmailKey (Maybe UserId, ActivationCode, Int32)
+
 inMemoryActivationCodeStoreInterpreter ::
-  (Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r) =>
+  (Member (State MockActivationCodes) r) =>
   InterpreterFor ActivationCodeStore r
 inMemoryActivationCodeStoreInterpreter =
   interpret \case
-    LookupActivationCode ek -> gets (!? ek)
+    LookupActivationCode ek -> gets (fmap (\(uid, c, _) -> (uid, c)) . (!? ek))
     NewActivationCode ek _ uid -> do
-      let key =
-            ActivationKey
-              . Ascii.encodeBase64Url
-              . T.encodeUtf8
-              . emailKeyUniq
-              $ ek
+      let key = mockKey ek
           c = emailKeyToCode ek
-      modify (insert ek (uid, c)) $> Activation key c
+      modify (insert ek (uid, c, maxAttempts)) $> Activation key c
     DeleteActivationCode ek -> modify (delete ek)
+    CheckActivationCode key code -> do
+      m <- get
+      case [(ek, v) | (ek, v) <- Data.Map.toList m, mockKey ek == key] of
+        [] -> pure ActivationKeyNotFound
+        ((ek, (uid, c, retries)) : _)
+          | c == code -> pure $ ActivationCodeMatches (ActivationKeyRow "email" (fromEmail (emailKeyOrig ek)) uid)
+          | retries >= 1 -> do
+              put (insert ek (uid, c, retries - 1) m)
+              pure ActivationCodeMismatch
+          | otherwise -> pure ActivationRetriesExhausted
+    DeleteActivationKey key ->
+      modify (Data.Map.filterWithKey (\ek _ -> mockKey ek /= key))

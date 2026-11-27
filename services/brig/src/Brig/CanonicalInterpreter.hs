@@ -54,6 +54,11 @@ import Wire.API.Federation.Version qualified as Federation
 import Wire.API.Team.Collaborator
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
+import Wire.ActivationCodeStore.Postgres (interpretActivationCodeStoreToPostgres)
+import Wire.ActivationCodeVerificationStore
+  ( ActivationCodeVerificationStore,
+    interpretActivationCodeVerificationStore,
+  )
 import Wire.AppStore
 import Wire.AppStore.Postgres
 import Wire.AppSubsystem
@@ -260,6 +265,7 @@ type BrigLowerLevelEffects =
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
+     ActivationCodeVerificationStore,
      ActivationCodeStore,
      InvitationStore,
      PropertyStore,
@@ -428,6 +434,16 @@ runBrigToIO e (AppT ma) = do
         CassandraStorage -> interpretDomainRegistrationStoreToCassandra e.casClient
         PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
+      activationCodeStoreInterpreter = case e.postgresMigration.activationKeys of
+        CassandraStorage -> interpretActivationCodeStoreToCassandra e.casClient
+        -- There is no data migration for activation keys:
+        -- 'MigrationToPostgresql' keeps using Cassandra only.
+        MigrationToPostgresql -> interpretActivationCodeStoreToCassandra e.casClient
+        PostgresqlStorage ->
+          runInputConst e.hasqlPool
+            . mapError postgresUsageErrorToHttpError
+            . interpretActivationCodeStoreToPostgres
+            . raiseUnder2
 
       blockListStore = case e.postgresMigration.blockList of
         CassandraStorage -> interpretBlockListStoreToCassandra e.casClient
@@ -560,7 +576,8 @@ runBrigToIO e (AppT ma) = do
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
-              . interpretActivationCodeStoreToCassandra e.casClient
+              . activationCodeStoreInterpreter
+              . interpretActivationCodeVerificationStore
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient
               . sessionStoreInterpreter

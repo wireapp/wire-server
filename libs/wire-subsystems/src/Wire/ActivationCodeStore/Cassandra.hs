@@ -19,15 +19,9 @@ module Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassand
 
 import Cassandra
 import Data.Id
-import Data.Text (pack)
-import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding qualified as T
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import OpenSSL.EVP.Digest
 import Polysemy
 import Polysemy.Embed
-import Text.Printf (printf)
 import Util.Timeout
 import Wire.API.User.Activation
 import Wire.API.User.EmailAddress
@@ -40,12 +34,14 @@ interpretActivationCodeStoreToCassandra casClient =
     runEmbedded (runClient casClient) . embed . \case
       LookupActivationCode ek -> do
         liftIO (mkActivationKey ek)
-          >>= retry x1 . query1 cql . params LocalQuorum . Identity
+          >>= retry x1 . query1 lookupCode . params LocalQuorum . Identity
       NewActivationCode ek timeout uid -> newActivationCodeImpl ek timeout uid
       DeleteActivationCode ek -> deleteActivationCodeImpl ek
+      CheckActivationCode key code -> checkActivationCodeImpl key code
+      DeleteActivationKey key -> deleteActivationKeyImpl key
   where
-    cql :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
-    cql =
+    lookupCode :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
+    lookupCode =
       [sql|
       SELECT user, code FROM activation_keys WHERE key = ?
       |]
@@ -62,16 +58,10 @@ newActivationCodeImpl ::
 newActivationCodeImpl uk timeout u = do
   let typ = "email"
       key = fromEmail (emailKeyOrig uk)
-  code <- liftIO $ genCode
-  insert typ key code
-  where
-    insert t k c = do
-      key <- liftIO $ mkActivationKey uk
-      retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, maxAttempts, round timeout)
-      pure $ Activation key c
-    genCode =
-      ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
-        <$> randIntegerZeroToNMinusOne 1000000
+  code <- liftIO genActivationCode
+  key' <- liftIO $ mkActivationKey uk
+  retry x5 . write keyInsert $ params LocalQuorum (key', typ, key, code, u, maxAttempts, round timeout)
+  pure $ Activation key' code
 
 -- | Delete a pending activation code for a given 'EmailKey', if any.
 deleteActivationCodeImpl ::
@@ -82,18 +72,39 @@ deleteActivationCodeImpl uk = do
   key <- liftIO $ mkActivationKey uk
   retry x5 . write keyDelete $ params LocalQuorum (Identity key)
 
---------------------------------------------------------------------------------
--- Utilities
+-- | Check a code against the row of an opaque 'ActivationKey'. Expired rows
+-- are dropped by Cassandra's TTL, so no expiry filter is needed. A mismatch
+-- rewrites the row with one retry less, keeping the remaining TTL read along
+-- with the row.
+checkActivationCodeImpl ::
+  (MonadClient m) =>
+  ActivationKey ->
+  ActivationCode ->
+  m ActivationCodeCheck
+checkActivationCodeImpl key code = do
+  s <- retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
+  case s of
+    Nothing -> pure ActivationKeyNotFound
+    Just (ttl, Ascii t, k, c, u, r)
+      | c == code -> pure $ ActivationCodeMatches (ActivationKeyRow t k u)
+      | r >= 1 -> do
+          retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, r - 1, ttl)
+          pure ActivationCodeMismatch
+      | otherwise -> pure ActivationRetriesExhausted
 
-mkActivationKey :: EmailKey -> IO ActivationKey
-mkActivationKey k = do
-  Just d <- getDigestByName "SHA256"
-  pure do
-    ActivationKey
-      . Ascii.encodeBase64Url
-      . digestBS d
-      . T.encodeUtf8
-      $ emailKeyUniq k
+-- | Delete the row for an opaque 'ActivationKey' (brute-force exhaustion).
+deleteActivationKeyImpl ::
+  (MonadClient m) =>
+  ActivationKey ->
+  m ()
+deleteActivationKeyImpl key =
+  retry x5 . write keyDelete $ params LocalQuorum (Identity key)
+
+--------------------------------------------------------------------------------
+-- CQL queries
+
+keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
+keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"
 
 keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
 keyInsert =
@@ -103,7 +114,3 @@ keyInsert =
 
 keyDelete :: PrepQuery W (Identity ActivationKey) ()
 keyDelete = "DELETE FROM activation_keys WHERE key = ?"
-
--- | Max. number of activation attempts per 'ActivationKey'.
-maxAttempts :: Int32
-maxAttempts = 3
