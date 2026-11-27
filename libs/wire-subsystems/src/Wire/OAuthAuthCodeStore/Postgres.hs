@@ -35,7 +35,7 @@ import Wire.Postgres
 -- | Rows carry an @expires_at@ deadline that every read filters on, so expired
 -- codes are unusable even before they are physically removed. Expired rows are
 -- purged by the @expire-oauth-auth-code@ pg_cron job (see migration
--- @20261020130000-oauth-auth-code-ttl-cleanup.sql@).
+-- @20261127110318-oauth-auth-code-ttl-cleanup.sql@).
 interpretOAuthAuthCodeStoreToPostgres ::
   (PGConstraints r) =>
   InterpreterFor OAuthAuthCodeStore r
