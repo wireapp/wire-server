@@ -277,3 +277,5 @@ postgresMigration:
   budget: postgresql
   connections: postgresql
   sessions: postgresql
+  scimTokens: cassandra
+  scimExternalIds: cassandra

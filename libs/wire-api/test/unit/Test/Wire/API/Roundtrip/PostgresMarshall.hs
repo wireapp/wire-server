@@ -54,6 +54,7 @@ import Wire.API.PostgresMarshall
 import Wire.API.Team.Feature
 import Wire.API.User.Auth (CookieId, CookieLabel, CookieType)
 import Wire.API.User.Password (PasswordResetCode, PasswordResetKey)
+import Wire.API.User.Scim
 import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
@@ -70,7 +71,8 @@ tests =
       testRoundTrip @A.Value @DbConfig,
       testRoundTrip @Int32 @CookieType,
       testRoundTrip @Text @CookieLabel,
-      testRoundTrip @Int64 @CookieId
+      testRoundTrip @Int64 @CookieId,
+      testRoundTrip @Int32 @ScimUserCreationStatus
     ]
 
 testRoundTrip ::

@@ -112,3 +112,5 @@ postgresMigration:
   nonce: postgresql
   connections: postgresql
   sessions: postgresql
+  scimTokens: postgresql
+  scimExternalIds: postgresql

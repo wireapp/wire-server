@@ -87,6 +87,7 @@ import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
+import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role)
@@ -532,3 +533,19 @@ data ScimUserCreationStatus = ScimUserCreating | ScimUserCreated
 
 instance Arbitrary ScimUserCreationStatus where
   arbitrary = elements [ScimUserCreating, ScimUserCreated]
+
+----------------------------------------------------------------------------
+-- Postgres marshall
+
+-- | Mirrors @instance Cql ScimUserCreationStatus@ in
+-- "Wire.ScimExternalIdStore.Cassandra": 0 = Created, 1 = Creating.
+instance PostgresMarshall Int32 ScimUserCreationStatus where
+  postgresMarshall = \case
+    ScimUserCreated -> 0
+    ScimUserCreating -> 1
+
+instance PostgresUnmarshall Int32 ScimUserCreationStatus where
+  postgresUnmarshall = \case
+    0 -> pure ScimUserCreated
+    1 -> pure ScimUserCreating
+    n -> Left ("unexpected ScimUserCreationStatus: " <> T.pack (show n))
