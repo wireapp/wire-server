@@ -103,6 +103,7 @@ library
     API.Proxy
     API.Spar
     API.SparInternal
+    MLS.KeyRotation
     MLS.Util
     Notifications
     RunAllTests
