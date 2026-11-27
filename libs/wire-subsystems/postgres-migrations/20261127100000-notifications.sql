@@ -40,7 +40,7 @@ CREATE INDEX notification_payload_expires_at_idx
 
 -- TTL garbage collection per ADR-0005: expired notifications and
 -- notification_payload rows are deleted by the pg_cron jobs scheduled in
--- 20261110120000-notifications-ttl-cleanup.sql (hourly, batched deletes).
+-- 20261127100100-notifications-ttl-cleanup.sql (hourly, batched deletes).
 -- pg_cron itself (superuser + shared_preload_libraries) remains an
 -- operator/DBA prerequisite — no migration on develop creates extensions;
 -- they are provisioned externally. Without pg_cron the jobs are skipped
