@@ -81,8 +81,8 @@ testRotateX509CredentialKeyPackages suite = do
     resp.json %. "count" `shouldMatchInt` 1
 
 -- | After rotating its x509 credential, a client can be added to a
--- conversation with a key package signed by its new key, and can then send
--- messages as the same client.
+-- conversation with a key package signed by its new key, and can then commit
+-- as the same client.
 testRotateX509CredentialJoinConversation :: (HasCallStack) => Ciphersuite -> App ()
 testRotateX509CredentialJoinConversation suite = do
   let scheme = csSignatureScheme suite
@@ -103,8 +103,11 @@ testRotateX509CredentialJoinConversation suite = do
   event %. "type" `shouldMatch` "conversation.member-join"
   event %. "data.users.0.qualified_id" `shouldMatch` (bob %. "qualified_id")
 
-  -- the backend attributes messages signed with the new key to the same client
-  void $ createApplicationMessage convId bob1 "hello" >>= sendAndConsumeMessage
+  -- An empty commit carries an update path whose leaf node is signed with the
+  -- new key; galley checks that key against the one registered in brig.
+  -- Application messages would not do: their signatures are never checked by
+  -- the backend.
+  void $ createPendingProposalCommit convId bob1 >>= sendAndConsumeCommitBundle
 
 b64 :: ByteString -> String
 b64 = T.unpack . T.decodeUtf8 . Base64.encode
