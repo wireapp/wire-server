@@ -20,6 +20,7 @@
 module Wire.ConversationSubsystem.Interpreter
   ( interpretConversationSubsystem,
     GroupInfoCheckEnabled (..),
+    GroupInfoRepairEnabled (..),
     IntraListing (..),
     ConversationSubsystemError (..),
   )
@@ -62,6 +63,7 @@ import Wire.ConversationSubsystem.MLS.GroupInfo qualified as MLSGroupInfo
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (GroupInfoCheckEnabled (..))
 import Wire.ConversationSubsystem.MLS.Message qualified as MLSMessage
 import Wire.ConversationSubsystem.MLS.Removal qualified as MLSRemoval
+import Wire.ConversationSubsystem.MLS.Repair (GroupInfoRepairEnabled (..))
 import Wire.ConversationSubsystem.MLS.Reset qualified as MLSReset
 import Wire.ConversationSubsystem.MLS.SubConversation qualified as MLSSubConversation
 import Wire.ConversationSubsystem.Message (IntraListing (..))
@@ -125,6 +127,7 @@ interpretConversationSubsystem ::
     Member (Input ConversationSubsystemConfig) r,
     Member (Input (Local ())) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe GroupInfoRepairEnabled)) r,
     Member ProposalStore r,
     Member LegalHoldStore r,
     Member TeamStore r,

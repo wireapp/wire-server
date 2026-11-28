@@ -1305,6 +1305,7 @@ CREATE TABLE galley_test.conversation (
     epoch bigint,
     group_conv_type int,
     group_id blob,
+    group_info_validated_hash blob,
     history_depth bigint,
     message_timer bigint,
     name text,
@@ -1715,6 +1716,7 @@ CREATE TABLE galley_test.subconversation (
     cipher_suite int,
     epoch bigint,
     group_id blob,
+    group_info_validated_hash blob,
     public_group_state blob,
     PRIMARY KEY (conv_id, subconv_id)
 ) WITH CLUSTERING ORDER BY (subconv_id ASC)

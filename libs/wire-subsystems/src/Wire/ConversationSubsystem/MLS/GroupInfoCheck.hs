@@ -17,6 +17,7 @@
 
 module Wire.ConversationSubsystem.MLS.GroupInfoCheck
   ( checkGroupState,
+    groupInfoLeaves,
     GroupInfoMismatch (..),
     GroupInfoCheckEnabled (..),
   )
@@ -76,6 +77,12 @@ checkGroupState convOrSub newLeaves groupInfo = do
 
 groupStateMismatch :: IndexMap -> GroupInfo -> Either Text (Maybe GroupInfoMismatch)
 groupStateMismatch leaves groupInfo = do
+  giLeaves <- groupInfoLeaves groupInfo
+  pure $ guard (leaves /= giLeaves) $> GroupInfoMismatch (imAssocs leaves)
+
+-- | Build the 'IndexMap' implied by the ratchet tree stored in a GroupInfo.
+groupInfoLeaves :: GroupInfo -> Either Text IndexMap
+groupInfoLeaves groupInfo = do
   trees <-
     first
       (const "Could not parse ratchet tree extension in GroupInfo")
@@ -83,8 +90,7 @@ groupStateMismatch leaves groupInfo = do
   tree :: RatchetTree <- case trees of
     (tree : _) -> pure tree
     _ -> Left "No ratchet tree extension found in GroupInfo"
-  giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-  pure $ guard (leaves /= giLeaves) $> GroupInfoMismatch (imAssocs leaves)
+  imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
   where
     getIdentity :: LeafNode -> Either Text GroupMember
     getIdentity leaf = fst <$> credentialIdentityAndKey leaf.credential

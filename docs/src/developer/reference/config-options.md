@@ -1377,6 +1377,77 @@ Enabling consistency checks makes Galley parse the ratchet tree
 extension in the group info of every commit and compare it to the
 group state after applying the commit.
 
+#### MLS group info repair
+
+To enable repairing MLS member-client rows from the ratchet tree stored
+in the group info on every commit:
+```
+# galley.yaml
+config:
+  settings:
+    mlsGroupInfoRepair: true
+```
+
+Enabling the repair makes Galley reconcile the
+`mls_group_member_client`/`mls_history_client` rows with the ratchet
+tree of the previously processed commit bundle before validating a new
+bundle, restoring rows lost to e.g. the external-commit re-join race
+(WPB-29648). Off by default; enabling it is the rollout step, and
+disabling it is the rollback.
+
+The group info is uploaded by the committing client, so its tree is
+only used for the repair if Galley validated it when storing it: the
+group info must belong to the group, claim the post-commit epoch, and
+its tree must match the membership Galley validated for that commit.
+Galley stores a digest of such a group info
+(`group_info_validated_hash` on the `conversation` and `subconversation`
+tables) in the same write as the group info itself. Group infos without
+a matching digest are never used for repair.
+
+Which groups are eligible:
+
+- Group infos stored before this column existed have no digest. Groups
+  whose rows were already lost before the upgrade therefore are not
+  healed by this mechanism: as long as a row is missing, the tree of a
+  new commit does not match the membership Galley validates either, so
+  such a group never obtains a digest. Only rows lost after a validated
+  commit are healed.
+- Validated group infos keep their digest through the
+  Cassandra-to-Postgres conversation migration, so migrated groups
+  remain eligible.
+
+What the repair writes:
+
+- Repair writes skip rows that are pending removal (in Cassandra, both
+  the repair writes and the removal planning are lightweight
+  transactions).
+- A missing row whose leaf is the target of a pending backend remove
+  proposal is restored as pending removal, not as an active member
+  client.
+- `mls_history_client` rows are stored in Postgres only and are healed
+  there for all conversations; `mls_group_member_client` rows are
+  healed in the store that holds the conversation.
+
+The repair runs under the per-group commit lock, which is a 60 second
+lease. In Cassandra, the row writes are lightweight transactions run one
+after another; no write is started after 30 seconds, and the lock is
+not released once the lease may have expired. A repair that hits that
+deadline fails the request with a retryable error (as for a concurrent
+commit), and the next commit continues the repair.
+
+Independently of this setting, a commit may remove a leaf that has no
+member-client row (a ghost client). This lets the affected client rejoin
+by external commit (with the self-remove of its old leaf), and lets other
+members remove it. For an external commit, the removed leaf must hold
+the committing client in the stored group info of the current epoch, if
+there is one. Once the ghost leaf is gone, the tree matches the rows
+again and the group obtains a validation digest with its next commit.
+
+The repair is still needed for the rest: before the ghost rejoins, it
+receives no messages, and a client added meanwhile may be recorded at
+the ghost's leaf index (Galley allocates the lowest index without a
+row, while clients skip the ghost's leaf).
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won’t be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.

@@ -32,6 +32,7 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.SubConversation (ConvOrSubChoice (..))
 import Wire.API.PostgresMarshall
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
@@ -77,7 +78,15 @@ getAllConvData cid = do
         Nothing -> pure Nothing
         Just (mlsData, _) -> do
           (cm, im) <- lookupMLSClientLeafIndices mlsData.cnvmlsGroupId
-          pure $ ConvMLSDetails <$> mGroupInfo <*> pure cm <*> pure im
+          validatedHash <- getGroupInfoValidatedHash (Conv cid)
+          pure $
+            mGroupInfo <&> \gi ->
+              ConvMLSDetails
+                { groupInfoData = gi,
+                  groupInfoValidatedHash = validatedHash,
+                  clientMap = cm,
+                  indexMap = im
+                }
       subConvs <- fmap Map.elems $ flip Map.traverseWithKey subConvMlsData $ \subConvId mlsData -> do
         (cm, im) <- lookupMLSClientLeafIndices mlsData.cnvmlsGroupId
         let subconv =
@@ -89,7 +98,13 @@ getAllConvData cid = do
                   scIndexMap = im
                 }
         gi <- getSubConversationGroupInfo cid subConvId
-        pure $ AllSubConvData subconv gi
+        validatedHash <- getGroupInfoValidatedHash (SubConv cid subConvId)
+        pure
+          AllSubConvData
+            { subConv = subconv,
+              groupInfoData = gi,
+              groupInfoValidatedHash = validatedHash
+            }
       pure . Just $ AllConvData {..}
 
 deleteConv :: (Member ConversationStore r) => AllConvData -> Sem r ()

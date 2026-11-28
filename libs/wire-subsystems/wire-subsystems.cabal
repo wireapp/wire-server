@@ -17,6 +17,7 @@ extra-source-files:
   templates/version
   test/resources/**/*.html
   test/resources/**/*.json
+  test/resources/**/*.mls
   test/resources/**/*.pem
   test/resources/**/*.txt
   test/resources/**/*.yaml
@@ -280,6 +281,7 @@ library
     Wire.ConversationStore.Migration
     Wire.ConversationStore.Migration.Cleanup
     Wire.ConversationStore.Migration.Types
+    Wire.ConversationStore.MLS.Reconcile
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
@@ -317,6 +319,7 @@ library
     Wire.ConversationSubsystem.MLS.Propagate
     Wire.ConversationSubsystem.MLS.Proposal
     Wire.ConversationSubsystem.MLS.Removal
+    Wire.ConversationSubsystem.MLS.Repair
     Wire.ConversationSubsystem.MLS.Reset
     Wire.ConversationSubsystem.MLS.SubConversation
     Wire.ConversationSubsystem.MLS.Util
@@ -666,10 +669,13 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
+    Wire.ConversationStore.MLS.ReconcileSpec
     Wire.ConversationSubsystem.AdminlessGroupsSpec
     Wire.ConversationSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.MLS.CheckClientsSpec
+    Wire.ConversationSubsystem.MLS.ProposalSpec
+    Wire.ConversationSubsystem.MLS.RepairSpec
     Wire.ConversationSubsystem.MLS.TargetedMessageSpec
     Wire.ConversationSubsystem.One2OneSpec
     Wire.EmailSending.SESSpec

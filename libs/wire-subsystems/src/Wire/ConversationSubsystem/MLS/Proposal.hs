@@ -30,6 +30,7 @@ module Wire.ConversationSubsystem.MLS.Proposal
 
     -- * Types
     ProposalAction (..),
+    UntrackedRemoval (..),
     HasProposalEffects,
   )
 where
@@ -38,6 +39,7 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
+import GHC.Generics (Generically (..))
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -81,16 +83,21 @@ data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
     paRemove :: ClientMap LeafIndex,
     paHistoryClientAdd :: Set (HistoryClientId, LeafIndex),
-    paHistoryClientRemove :: Set (HistoryClientId, LeafIndex)
+    paHistoryClientRemove :: Set (HistoryClientId, LeafIndex),
+    -- | Removed leaves that have no member row (ghost clients, WPB-29949).
+    -- Their identity is unknown to the server, so no row is touched.
+    paRemoveUntracked :: Set LeafIndex
   }
-  deriving (Show)
+  deriving stock (Show, Generic)
+  deriving (Semigroup, Monoid) via Generically ProposalAction
 
-instance Semigroup ProposalAction where
-  ProposalAction add1 rem1 hadd1 hrem1 <> ProposalAction add2 rem2 hadd2 hrem2 =
-    ProposalAction (add1 <> add2) (rem1 <> rem2) (hadd1 <> hadd2) (hrem1 <> hrem2)
-
-instance Monoid ProposalAction where
-  mempty = ProposalAction mempty mempty mempty mempty
+-- | Whether a Remove proposal may target a leaf without a member row (a ghost
+-- client, WPB-29949), instead of failing with
+-- 'ConversationSubsystemErrorMLSInvalidLeafNodeIndex'. Only commits may do
+-- this: a ghost leaf must stay removable, otherwise neither its owner (rejoin)
+-- nor other members can get rid of it.
+data UntrackedRemoval = AllowUntrackedRemoval | RejectUntrackedRemoval
+  deriving stock (Eq, Show)
 
 paAddClient :: GroupMember -> LeafIndex -> Maybe KeyPackage -> ProposalAction
 paAddClient (RegularClient cid) idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
@@ -150,27 +157,29 @@ derefOrCheckProposalFrom ::
     Member (Error ConversationSubsystemError) r,
     Member (State IndexMap) r
   ) =>
+  UntrackedRemoval ->
   [StoredProposal] ->
   CipherSuiteTag ->
   ProposalOrRef ->
   Sem r Proposal
-derefOrCheckProposalFrom stored _ciphersuite (Ref ref) =
+derefOrCheckProposalFrom _untracked stored _ciphersuite (Ref ref) =
   note ConversationSubsystemErrorMLSProposalNotFound $
     (.proposal.value) <$> find ((== ref) . (.ref)) stored
-derefOrCheckProposalFrom _stored ciphersuite (Inline p) = do
+derefOrCheckProposalFrom untracked _stored ciphersuite (Inline p) = do
   im <- get
-  checkProposal ciphersuite im p
+  checkProposal untracked ciphersuite im p
   pure p
 
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r
   ) =>
+  UntrackedRemoval ->
   CipherSuiteTag ->
   IndexMap ->
   Proposal ->
   Sem r ()
-checkProposal ciphersuite im p = void $ evalState im $ applyProposal ciphersuite p
+checkProposal untracked ciphersuite im p = void $ evalState im $ applyProposal untracked ciphersuite p
 
 addProposedClient ::
   ( Member (State IndexMap) r,
@@ -194,41 +203,52 @@ applyProposals ::
     Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r
   ) =>
+  UntrackedRemoval ->
   CipherSuiteTag ->
   [Proposal] ->
   Sem r ProposalAction
-applyProposals ciphersuite =
+applyProposals untracked ciphersuite proposals = do
+  -- A leaf can only be removed once. Untracked leaves are absent from the
+  -- 'IndexMap', so a second removal would not be caught when applying it.
+  let removed = [idx | RemoveProposal idx <- proposals]
+  when (length removed /= Set.size (Set.fromList removed)) $
+    throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
   -- proposals are sorted before processing
-  foldMap (applyProposal ciphersuite)
-    . sortOn proposalProcessingStage
+  foldMap (applyProposal untracked ciphersuite) (sortOn proposalProcessingStage proposals)
 
 applyProposal ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
     Member (Error ConversationSubsystemError) r
   ) =>
+  UntrackedRemoval ->
   CipherSuiteTag ->
   Proposal ->
   Sem r ProposalAction
-applyProposal ciphersuite (AddProposal kp) = do
-  (cs, _lifetime) <-
-    either
-      ( \case
-          InvalidLeafNodeSignature -> throw ConversationSubsystemErrorMLSInvalidLeafNodeSignature
-          validationError -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> (toText validationError)))
-      )
-      pure
-      $ validateKeyPackage Nothing kp.value
-  unless (ciphersuite == cs) $
-    throw (mlsProtocolError "Key package ciphersuite does not match conversation")
-  -- we are not checking lifetime constraints here
-  addProposedClient (Right kp.value)
-applyProposal _ciphersuite (RemoveProposal idx) = do
-  im <- get
-  (cid, im') <- note ConversationSubsystemErrorMLSInvalidLeafNodeIndex $ imRemoveClient im idx
-  put im'
-  pure (paRemoveClient cid idx)
-applyProposal _activeData _ = pure mempty
+applyProposal untracked ciphersuite = \case
+  AddProposal kp -> do
+    (cs, _lifetime) <-
+      either
+        ( \case
+            InvalidLeafNodeSignature -> throw ConversationSubsystemErrorMLSInvalidLeafNodeSignature
+            validationError -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> (toText validationError)))
+        )
+        pure
+        $ validateKeyPackage Nothing kp.value
+    unless (ciphersuite == cs) $
+      throw (mlsProtocolError "Key package ciphersuite does not match conversation")
+    -- we are not checking lifetime constraints here
+    addProposedClient (Right kp.value)
+  RemoveProposal idx -> do
+    im <- get
+    case imRemoveClient im idx of
+      Just (cid, im') -> do
+        put im'
+        pure (paRemoveClient cid idx)
+      Nothing
+        | untracked == AllowUntrackedRemoval -> pure mempty {paRemoveUntracked = Set.singleton idx}
+        | otherwise -> throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
+  _ -> pure mempty
 
 processProposal ::
   (HasProposalEffects r) =>
@@ -258,7 +278,7 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
       unless (epoch == activeData.epoch) $ throw ConversationSubsystemErrorMLSStaleMessage
 
       -- FUTUREWORK: validate the member's conversation role
-      checkProposal activeData.ciphersuite (tUnqualified lConvOrSub).indexMap prop.value
+      checkProposal RejectUntrackedRemoval activeData.ciphersuite (tUnqualified lConvOrSub).indexMap prop.value
       when (isExternal pub.sender) $ checkExternalProposalUser qusr prop.value
       let propRef =
             authContentRef
