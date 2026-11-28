@@ -37,6 +37,7 @@ import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.CreateScimTokenResponse
 import Test.Wire.API.Golden.Manual.DomainVerification
 import Test.Wire.API.Golden.Manual.EnterpriseLogin
+import Test.Wire.API.Golden.Manual.FanIn qualified as FanIn
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationDomainConfig
 import Test.Wire.API.Golden.Manual.FederationRestriction
@@ -76,7 +77,8 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ -- One body stands in for all of them: the field is the very same
+    [ FanIn.tests,
+      -- One body stands in for all of them: the field is the very same
       -- 'totpCodeFieldSchema' everywhere, and that every body accepts and
       -- retains it is asserted generically in
       -- 'Test.Wire.API.User.Auth.TOTP.requestBodyTests'.

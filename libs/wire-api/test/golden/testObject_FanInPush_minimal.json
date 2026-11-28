@@ -1,0 +1,17 @@
+{
+    "apsData": null,
+    "conn": null,
+    "isCellsEvent": false,
+    "json": {},
+    "nativePriority": null,
+    "notificationId": "019ef8d3-ed95-7781-9c19-df5c8dfa4c7a",
+    "origin": null,
+    "route": "any",
+    "targets": [
+        {
+            "contents": "00000001-0000-0000-0000-000000000001",
+            "tag": "FanInTargetUser"
+        }
+    ],
+    "transient": false
+}
