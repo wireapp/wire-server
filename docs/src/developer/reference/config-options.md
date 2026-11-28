@@ -2437,6 +2437,7 @@ galley:
       nonce: postgresql
       connections: postgresql
       sessions: postgresql
+      oauthAuthCode: postgresql
 background-worker:
   config:
     migrateConversations: false
@@ -2510,6 +2511,7 @@ The current settings and their background-worker flags are:
          budget: cassandra
          nonce: cassandra
          connections: cassandra
+         oauthAuthCode: cassandra
    background-worker:
      config:
        migrateConversations: false
@@ -2592,6 +2594,7 @@ The current settings and their background-worker flags are:
          nonce: postgresql
          connections: postgresql
          sessions: postgresql
+         oauthAuthCode: postgresql
    background-worker:
      config:
        migrateConversations: false
