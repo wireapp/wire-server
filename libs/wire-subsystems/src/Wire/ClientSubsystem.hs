@@ -27,6 +27,8 @@ import Data.Qualified
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
+import Wire.API.MLS.KeyRotation (MLSKeyRotation)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
@@ -68,6 +70,9 @@ data ClientSubsystem m a where
   RemoveLegalHoldClient :: UserId -> ClientSubsystem m ()
   PublishLegalHoldClientRequested :: UserId -> LegalHoldClientRequest -> ClientSubsystem m ()
   UpdateClient :: UserId -> ClientId -> UpdateClient -> ClientSubsystem m ()
+  -- | Replace the MLS signature key of a client, given a proof of possession
+  -- of both keys. Returns the signature scheme of the replaced key.
+  RotateMLSPublicKey :: Local UserId -> ClientId -> MLSKeyRotation -> ClientSubsystem m SignatureSchemeTag
   -- Prekeys
   ClaimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)
   ClaimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)

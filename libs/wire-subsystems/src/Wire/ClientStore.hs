@@ -54,5 +54,8 @@ data ClientStore m a where
   -- MLS
   AddMLSPublicKeys :: UserId -> ClientId -> [(SignatureSchemeTag, ByteString)] -> ClientStore m (Maybe DuplicateMLSPublicKey)
   LookupMLSPublicKey :: UserId -> ClientId -> SignatureSchemeTag -> ClientStore m (Maybe LByteString)
+  -- | Replace the key for a signature scheme, only if it is still the given
+  -- old key. Returns whether the key was replaced.
+  ReplaceMLSPublicKey :: UserId -> ClientId -> SignatureSchemeTag -> ByteString -> ByteString -> ClientStore m Bool
 
 makeSem ''ClientStore

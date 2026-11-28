@@ -103,6 +103,7 @@ library
     API.Proxy
     API.Spar
     API.SparInternal
+    MLS.KeyRotation
     MLS.Util
     Notifications
     RunAllTests
@@ -194,6 +195,7 @@ library
     Test.Migration.Util
     Test.MLS
     Test.MLS.Clients
+    Test.MLS.CredentialRotation
     Test.MLS.History
     Test.MLS.KeyPackage
     Test.MLS.Keys

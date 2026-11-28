@@ -33,6 +33,9 @@ data ClientDataError
   | ClientMissingAuth
   | MalformedPrekeys
   | MLSPublicKeyDuplicate
+  | MLSKeyRotationInvalid
+  | MLSPublicKeyNotFound
+  | MLSKeyRotationConflict
   | MLSNotEnabled
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
@@ -80,6 +83,9 @@ clientDataErrorToHttpError = \case
   ClientMissingAuth -> StdError (errorToWai @'E.MissingAuth)
   MalformedPrekeys -> StdError (errorToWai @'E.MalformedPrekeys)
   MLSPublicKeyDuplicate -> StdError (errorToWai @'E.MLSDuplicatePublicKey)
+  MLSKeyRotationInvalid -> StdError (errorToWai @'E.MLSInvalidKeyRotation)
+  MLSPublicKeyNotFound -> StdError (errorToWai @'E.MLSPublicKeyNotFound)
+  MLSKeyRotationConflict -> StdError (errorToWai @'E.MLSKeyRotationConflict)
   KeyPackageDecodingError -> StdError (errorToWai @'E.KeyPackageDecodingError)
   InvalidKeyPackageRef -> StdError (errorToWai @'E.InvalidKeyPackageRef)
   MLSNotEnabled -> StdError (errorToWai @'E.MLSNotEnabled)

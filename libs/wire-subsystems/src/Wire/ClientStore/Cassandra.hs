@@ -87,6 +87,7 @@ interpretClientStoreCassandra env =
       -- MLS
       AddMLSPublicKeys uid cid keys -> addMLSPublicKeysImpl uid cid keys
       LookupMLSPublicKey uid cid scheme -> runCasClient $ lookupMLSPublicKeyImpl uid cid scheme
+      ReplaceMLSPublicKey uid cid scheme old new -> replaceMLSPublicKeyImpl uid cid scheme old new
 
 runCasClient :: (Member (Input ClientStoreCassandraEnv) r, Member (Final IO) r) => C.Client a -> Sem r a
 runCasClient action = do
@@ -301,6 +302,30 @@ addMLSPublicKey u c ss pk = do
           throw DuplicateMLSPublicKey
     _ -> pure ()
 
+-- | Compare-and-set, so that concurrent rotations cannot both succeed.
+replaceMLSPublicKeyImpl ::
+  (Member (Input ClientStoreCassandraEnv) r, Member (Final IO) r) =>
+  UserId ->
+  ClientId ->
+  SignatureSchemeTag ->
+  ByteString ->
+  ByteString ->
+  Sem r Bool
+replaceMLSPublicKeyImpl u c ss old new = do
+  rows <-
+    runCasClient $
+      trans
+        updateMLSPublicKey
+        ( params
+            LocalQuorum
+            (Blob (LBS.fromStrict new), u, c, ss, Blob (LBS.fromStrict old))
+        )
+          { serialConsistency = Just LocalSerialConsistency
+          }
+  pure $ case rows of
+    [row] -> C.fromRow 0 row == Right (Just True)
+    _ -> False
+
 -------------------------------------------------------------------------------
 -- Queries
 
@@ -360,6 +385,11 @@ selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = 
 
 selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (ClientId, SignatureSchemeTag, Blob)
 selectMLSPublicKeysByUser = "SELECT client, sig_scheme, key from mls_public_keys where user = ?"
+
+updateMLSPublicKey :: PrepQuery W (Blob, UserId, ClientId, SignatureSchemeTag, Blob) Row
+updateMLSPublicKey =
+  "UPDATE mls_public_keys SET key = ? \
+  \WHERE user = ? AND client = ? AND sig_scheme = ? IF key = ?"
 
 insertMLSPublicKeys :: PrepQuery W (UserId, ClientId, SignatureSchemeTag, Blob) Row
 insertMLSPublicKeys =

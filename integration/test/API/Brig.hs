@@ -210,6 +210,28 @@ updateClient cid args = do
             <> ["mls_public_keys" .= k | k <- toList args.mlsPublicKeys]
         )
 
+-- | Replace the MLS signature key of a client, given a key package signed
+-- with the new key and a signature with the registered key. See
+-- 'MLS.KeyRotation.prepareX509Rotation'.
+rotateMLSPublicKey ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  -- | client id
+  String ->
+  -- | key package
+  ByteString ->
+  -- | signature
+  ByteString ->
+  App Response
+rotateMLSPublicKey user client keyPackage signature = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["clients", client, "mls-public-keys"]
+  submit "PUT" $
+    req
+      & addJSONObject
+        [ "key_package" .= T.decodeUtf8 (Base64.encode keyPackage),
+          "signature" .= T.decodeUtf8 (Base64.encode signature)
+        ]
+
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_clients__client_
 deleteClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>

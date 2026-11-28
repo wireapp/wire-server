@@ -34,6 +34,7 @@ import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.MLS.Util (assertMLSEnabled)
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Public.Swagger
 import Brig.API.TOTP.Mock (totpAPI)
@@ -106,6 +107,8 @@ import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
+import Wire.API.MLS.CipherSuite (csSignatureScheme)
+import Wire.API.MLS.KeyRotation (MLSKeyRotation)
 import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.Bearer
@@ -176,6 +179,7 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.JwtTools (JwtTools)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
+import Wire.MlsKeyPackageSubsystem qualified as Mls
 import Wire.NonceStore (NonceStore, insertNonce)
 import Wire.NotificationSubsystem
 import Wire.OAuthAuthCodeStore (OAuthAuthCodeStore)
@@ -532,6 +536,7 @@ servantSitemap =
         :<|> Named @"update-client@v6" updateClient
         :<|> Named @"update-client@v7" updateClient
         :<|> Named @"update-client" updateClient
+        :<|> Named @"rotate-mls-public-key" rotateMLSPublicKey
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients@v6" listClients
         :<|> Named @"list-clients@v7" listClients
@@ -769,6 +774,25 @@ addClient lusr con new = do
 
 updateClient :: (Member ClientSubsystem r) => UserId -> ClientId -> Public.UpdateClient -> Handler r ()
 updateClient uid cid payload = lift $ liftSem $ ClientSubsystem.updateClient uid cid payload
+
+-- | Key packages signed with the replaced key are useless, and would be
+-- rejected when used, so they are deleted.
+rotateMLSPublicKey ::
+  ( Member ClientSubsystem r,
+    Member MlsKeyPackageSubsystem r
+  ) =>
+  Local UserId ->
+  ClientId ->
+  MLSKeyRotation ->
+  Handler r ()
+rotateMLSPublicKey luid cid rotation = do
+  assertMLSEnabled
+  lift . liftSem $ do
+    scheme <- ClientSubsystem.rotateMLSPublicKey luid cid rotation
+    Mls.deleteAllMlsKeyPackages
+      (tUnqualified luid)
+      cid
+      (filter ((== scheme) . csSignatureScheme) [minBound ..])
 
 deleteClient ::
   (Member ClientSubsystem r) =>
