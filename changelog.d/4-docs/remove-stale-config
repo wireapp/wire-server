@@ -1,0 +1,1 @@
+the configuration options `usersThreshold` and `clientsThreshold` of the feature flag `mlsMigration` where not used and have been removed from the documentation and helm default values
