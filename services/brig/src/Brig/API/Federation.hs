@@ -61,8 +61,9 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Routes.Version qualified as V
 import Wire.API.Routes.Versioned qualified as V
+import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), SearchVisibilityHandleConfig)
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
-import Wire.API.User (UserProfile, profileSearchable)
+import Wire.API.User (UserProfile, profileSearchable, profileTeam)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
@@ -76,7 +77,7 @@ import Wire.ConnectionStore (ConnectionStore)
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore qualified as E
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess (GalleyAPIAccess, getFeatureConfigForTeamOrDefault)
 import Wire.MlsKeyPackageSubsystem (MlsKeyPackageSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
@@ -164,7 +165,8 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
 getUserByHandle ::
   ( Member FederationConfigStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member GalleyAPIAccess r
   ) =>
   Domain ->
   Handle ->
@@ -187,7 +189,27 @@ getUserByHandle domain handle = do
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
           mProfile <- liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
-          pure $ fmap (V.Versioned @V.V18) $ mProfile >>= \profile -> if profileSearchable profile then Just profile else Nothing
+          case mProfile of
+            Nothing -> pure Nothing
+            Just profile -> do
+              -- searchVisibilityHandle (federated, inbound-only): only the
+              -- flag of the target's team applies.  If it is enabled, the
+              -- handle does not resolve, not even by exact handle.
+              targetFlagOn <- flagEnabled (profileTeam profile)
+              pure . fmap (V.Versioned @V.V18) $
+                if profileSearchable profile && not targetFlagOn
+                  then Just profile
+                  else Nothing
+
+  where
+    -- Is the searchVisibilityHandle flag enabled for this team?  (A user
+    -- without a team is never protected by the flag.)
+    flagEnabled mteam =
+      liftSem $
+        maybe
+          (pure False)
+          (fmap handleFlagIsEnabled . getFeatureConfigForTeamOrDefault @_ @SearchVisibilityHandleConfig)
+          mteam
 
 getUsersByIds ::
   (Member UserSubsystem r) =>
@@ -250,7 +272,8 @@ searchUsers ::
   forall r.
   ( Member FederationConfigStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member GalleyAPIAccess r
   ) =>
   Domain ->
   SearchRequest ->
@@ -295,7 +318,11 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
                 then do
                   mFoundUser <- lift . liftSem $ UserSubsystem.getLocalUserProfile localFoundUser
-                  fmap contactFromProfile <$> filterHandleResults localFoundUser (maybeToList mFoundUser)
+                  filtered <- fmap contactFromProfile <$> filterHandleResults localFoundUser (maybeToList mFoundUser)
+                  -- searchVisibilityHandle (federated, inbound-only): only
+                  -- the flag of the target's team applies.
+                  targetFlagOn <- lift $ flagEnabled mFoundUserTeamId
+                  pure $ if targetFlagOn then [] else filtered
                 else pure []
           let filterTypes = case mbUserTypeFilter of
                 Just [] -> id
@@ -304,10 +331,25 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
           pure $ filterTypes matches
       | otherwise = pure []
 
+    -- Is the searchVisibilityHandle flag enabled for this team?  (A user
+    -- without a team is never protected by the flag.)
+    flagEnabled :: Maybe TeamId -> AppT r Bool
+    flagEnabled mteam =
+      liftSem $
+        maybe
+          (pure False)
+          (fmap handleFlagIsEnabled . getFeatureConfigForTeamOrDefault @_ @SearchVisibilityHandleConfig)
+          mteam
+
     isTeamAllowed :: Maybe [TeamId] -> Maybe TeamId -> Bool
     isTeamAllowed Nothing _ = True
     isTeamAllowed (Just _) Nothing = False
     isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
+
+handleFlagIsEnabled :: LockableFeature SearchVisibilityHandleConfig -> Bool
+handleFlagIsEnabled = \case
+  LockableFeature FeatureStatusEnabled _ _ -> True
+  _ -> False
 
 getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = lift (liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError

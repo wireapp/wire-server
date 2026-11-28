@@ -161,6 +161,7 @@ defAllFeatures =
                 ]
           ],
       "searchVisibilityInbound" .= disabled,
+      "searchVisibilityHandle" .= disabled,
       "exposeInvitationURLsToTeamAdmin" .= disabledLocked,
       "outlookCalIntegration" .= disabledLocked,
       "mlsE2EId"

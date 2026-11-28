@@ -65,6 +65,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
     pure $ memberIsTeamOwnerImpl teams tid uid
   GetAllTeamFeaturesForUser _ -> pure configs
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
+  GetFeatureConfigForTeamOrDefault tid -> pure $ getFeatureConfigForTeamImpl configs tid
   GetVerificationCodeEnabled _ ->
     pure $
       case npProject' (Proxy @SndFactorPasswordChallengeConfig) configs of

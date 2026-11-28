@@ -123,6 +123,8 @@ instance GetFeatureConfig SndFactorPasswordChallengeConfig
 
 instance GetFeatureConfig SearchVisibilityInboundConfig
 
+instance GetFeatureConfig SearchVisibilityHandleConfig
+
 instance GetFeatureConfig MLSConfig
 
 instance GetFeatureConfig ChannelsConfig

@@ -1054,7 +1054,9 @@ updateUserNameH uid (NameUpdate nameUpd) =
 
 checkHandleInternalH :: (Member UserSubsystem r) => Handle -> Handler r CheckHandleResponse
 checkHandleInternalH h = lift $ liftSem do
-  API.checkHandle (fromHandle h) <&> \case
+  -- Trusted service-to-service call: no searcher, hence no enforcement of
+  -- the searchVisibilityHandle team feature.
+  API.checkHandle Nothing (fromHandle h) <&> \case
     API.CheckHandleFound -> CheckHandleResponseFound
     API.CheckHandleNotFound -> CheckHandleResponseNotFound
 

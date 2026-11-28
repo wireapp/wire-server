@@ -39,7 +39,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog (TinyLog, debug)
+import Polysemy.TinyLog (TinyLog, debug, warn)
 import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
@@ -95,6 +95,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
           GetFeatureConfigForTeam tid -> getFeatureConfigForTeam tid
+          GetFeatureConfigForTeamOrDefault tid -> getFeatureConfigForTeamOrDefault tid
           GetUserLegalholdStatus id' tid -> getUserLegalholdStatus id' tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
           FinalizeDeleteTeam lusr mconn tid -> finalizeDeleteTeam lusr mconn tid
@@ -516,6 +517,38 @@ getFeatureConfigForTeam tid = do
       method GET
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @feature]
         . expect2xx
+
+-- | Like 'getFeatureConfigForTeam', but fails safe during rolling deploys:
+-- if galley does not know the feature yet (404), return it as /disabled/
+-- rather than failing the request.  Any other non-2xx status still throws.
+-- (Pattern: 'getUserLegalholdStatus'.)
+getFeatureConfigForTeamOrDefault ::
+  forall feature r.
+  ( IsFeatureConfig feature,
+    Typeable feature,
+    Member Rpc r,
+    Member (Error ParseException) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem (Input Endpoint : r) (LockableFeature feature)
+getFeatureConfigForTeamOrDefault tid = do
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    404 -> do
+      warn $
+        msg (val "galley returned 404 for feature; treating as disabled")
+          . field "feature" (featureNameBS @feature)
+          . field "team" (toByteString' tid)
+      -- galley does not know the feature -> fail safe: disabled, regardless
+      -- of what the instance default would be.
+      pure $ setLockableFeatureStatus defUnlockedFeature FeatureStatusDisabled
+    _ -> decodeBodyOrThrow "galley" rs
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @feature]
+        . expect2xxOr404
 
 getVerificationCodeEnabled ::
   ( Member (Error ParseException) r,

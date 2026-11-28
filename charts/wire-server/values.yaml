@@ -229,6 +229,9 @@ galley:
         searchVisibilityInbound:
           defaults:
             status: disabled
+        searchVisibilityHandle:
+          defaults:
+            status: disabled
         selfDeletingMessages:
           defaults:
             config:

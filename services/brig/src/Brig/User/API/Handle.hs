@@ -39,11 +39,13 @@ import Wire.API.Component
 import Wire.API.Federation.API (fedClient)
 import Wire.API.Federation.Error
 import Wire.API.Routes.Versioned qualified as V
+import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), SearchVisibilityHandleConfig)
 import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
 import Wire.FederationAPIAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess, getFeatureConfigForTeamOrDefault)
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
@@ -52,6 +54,7 @@ getHandleInfo ::
   forall r m.
   ( Member UserSubsystem r,
     Member UserStore r,
+    Member GalleyAPIAccess r,
     HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
@@ -82,7 +85,10 @@ getRemoteHandleInfo handle = do
       (fmap V.unVersioned <$> fedClient @'Brig @"get-user-by-handle" (tUnqualified handle))
 
 getLocalHandleInfo ::
-  (Member UserSubsystem r, Member UserStore r) =>
+  ( Member UserSubsystem r,
+    Member UserStore r,
+    Member GalleyAPIAccess r
+  ) =>
   Local UserId ->
   Handle ->
   Handler r (Maybe Public.UserProfile)
@@ -97,7 +103,37 @@ getLocalHandleInfo self handle = do
         (lift . liftSem $ getUserProfile self (Qualified ownerId domain))
           !>> fedError
       owner <- filterHandleResults self (maybeToList ownerProfile)
-      pure $ listToMaybe owner
+      -- searchVisibilityHandle: block cross-team handle resolution.  The
+      -- handle resolves only within the same team, or if neither team has
+      -- the flag enabled.
+      owner' <- case owner of
+        [] -> pure []
+        p : _ -> do
+          searcherTeam <- lift . liftSem $ UserStore.getUserTeam (tUnqualified self)
+          let ownerTeam = Public.profileTeam p
+          blocked <-
+            if searcherTeam == ownerTeam
+              then pure False
+              else do
+                searcherFlagOn <- flagEnabled searcherTeam
+                ownerFlagOn <- flagEnabled ownerTeam
+                pure (searcherFlagOn || ownerFlagOn)
+          pure $ if blocked then [] else [p]
+      pure $ listToMaybe owner'
+  where
+    -- Is the searchVisibilityHandle flag enabled for this team?  (A user
+    -- without a team is never protected by, or restricted by, the flag.)
+    flagEnabled mteam =
+      lift . liftSem $
+        maybe
+          (pure False)
+          (fmap handleFlagIsEnabled . getFeatureConfigForTeamOrDefault @_ @SearchVisibilityHandleConfig)
+          mteam
+
+handleFlagIsEnabled :: LockableFeature SearchVisibilityHandleConfig -> Bool
+handleFlagIsEnabled = \case
+  LockableFeature FeatureStatusEnabled _ _ -> True
+  _ -> False
 
 -- | Checks search permissions and filters accordingly
 filterHandleResults :: (Member UserStore r) => Local UserId -> [Public.UserProfile] -> Handler r [Public.UserProfile]

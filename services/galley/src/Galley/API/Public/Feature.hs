@@ -56,6 +56,7 @@ featureAPI =
     <@> hoistAPI id featureAPIGetPut
     <@> featureAPIGetPut
     <@> featureAPIGetPut
+    <@> featureAPIGetPut @SearchVisibilityHandleConfig
     <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", MlsE2EIdConfig) getFeature
     <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" setFeature
