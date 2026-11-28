@@ -407,6 +407,45 @@ adding this information for your cloud provider, feel free to read the
   creating such automation, feel free to read the [contributing
   guidelines](https://github.com/wireapp/wire-server-deploy/blob/master/CONTRIBUTING.md) and open a PR.
 
+## ElasticSearch user-search backend deprecation
+
+The ElasticSearch-based user search backend of brig is **deprecated** and will
+be removed in a future release.  brig can now serve user search directly from
+its PostgreSQL user store by setting `searchBackend: postgres` in brig's
+config; ElasticSearch remains the default (`searchBackend: elasticsearch`).
+
+To migrate an existing installation:
+
+1. Upgrade wire-server: the database migration
+   `20261127100500-user-search-postgres.sql` adds the `wire_user.name_normalized`
+   column (with indexes) and the `team_search_visibility` table.
+2. Run the one-off backfill (this only writes to PostgreSQL, the
+   ElasticSearch index keeps serving search in the meantime):
+
+   ```bash
+   brig-index backfill-normalized-names --pg-settings "host=... dbname=... user=... password=..."
+   ```
+
+   Note: brig itself maintains `name_normalized` on every user creation and
+   name change, so the one-off backfill only needs to cover users that
+   existed before this upgrade.
+3. Set `searchBackend: postgres` in brig's config.  brig will stop writing
+   to the ElasticSearch index.
+4. After verifying that search works as expected, ElasticSearch can be
+   decommissioned.
+
+   Note: the `team_search_visibility` table starts out empty.  From this
+   upgrade on, brig records changes of the inbound search-visibility team
+   feature there with either search backend, but settings made before the
+   upgrade are not copied.  Teams that had the feature enabled before the
+   upgrade should toggle it off and on again; otherwise inbound search
+   silently falls back to own-team-only for those teams.
+
+To roll back, set `searchBackend: elasticsearch` again: the index is only kept
+fresh while brig runs with the ElasticSearch backend, so user changes made
+while running with `searchBackend: postgres` will only appear in the index
+after a re-index (e.g. `brig-index reindex`).
+
 ## Persistence and high-availability
 
 Currently, due to the way kubernetes and cassandra

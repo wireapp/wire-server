@@ -69,6 +69,17 @@ tests =
           testCase "rejects a meeting.sender with an invalid domain" $
             assertBool "expected invalid meeting sender to be rejected" . isLeft $
               senderOf (generalOpts (Just (object ["sender" .= ("meetings@diana.123" :: Text)])))
+        ],
+      testGroup
+        "searchBackend"
+        [ testCase "elasticsearch parses" $
+            (eitherDecode "\"elasticsearch\"" :: Either String SearchBackend) @?= Right SearchBackendElasticSearch,
+          testCase "postgres parses" $
+            (eitherDecode "\"postgres\"" :: Either String SearchBackend) @?= Right SearchBackendPostgres,
+          testCase "invalid value fails to parse" $
+            case eitherDecode "\"sqlite\"" :: Either String SearchBackend of
+              Left _ -> pure ()
+              Right _ -> assertFailure "expected invalid searchBackend to fail parsing"
         ]
     ]
   where

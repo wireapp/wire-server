@@ -48,7 +48,10 @@ nonTransactionMigrations =
       "20260708090000-meetings-recurrence-eff-end-index.sql",
       "20260708100000-meetings-end-time-nonrecurring-index.sql",
       "20261020124413-create-scim-user-index.sql",
-      "20261022130000-create-pending-scim-user-index.sql"
+      "20261022130000-create-pending-scim-user-index.sql",
+      "20261127100501-user-search-name-normalized-index.sql",
+      "20261127100502-user-search-handle-index.sql",
+      "20261127100503-user-search-team-index.sql"
     ]
 
 data PostgresMigrationError
