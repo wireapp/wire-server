@@ -33,6 +33,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Resource (Resource)
 import Polysemy.State
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
@@ -47,6 +48,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core
+import Wire.ConversationSubsystem.MLS.GroupInfoCheck (resolveUnknownLeaves)
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
 import Wire.ConversationSubsystem.MLS.Removal
@@ -60,7 +62,9 @@ data ExternalCommitAction = ExternalCommitAction
 getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member ConversationStore r,
+    Member TinyLog r
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
@@ -93,32 +97,32 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
     throw (mlsProtocolError "External commits must contain exactly one ExternalInit proposal")
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
+  unless (Map.findWithDefault 0 RemoveProposalTag counts <= 1) $
+    throw (mlsProtocolError "External commits must contain at most one Remove proposal")
 
-  runState convOrSub.indexMap $ do
-    -- process optional removal
-    propAction <- applyProposals activeData.ciphersuite proposals
-    removedIndex <- case cmAssocs (paRemove propAction) of
-      [(cid, idx)]
-        | cid /= senderIdentity ->
-            throw $ mlsProtocolError "Only the self client can be removed by an external commit"
-        | otherwise -> pure (Just idx)
-      [] -> do
-        -- no remove proposal, make sure the client is not already part of the conversation
-        when (isJust (cmLookupIndex senderIdentity convOrSub.members)) $
-          throw (mlsProtocolError "External commits for existing members must contain a Remove proposal")
-        pure Nothing
-      _ -> throw (mlsProtocolError "External commits must contain at most one Remove proposal")
+  (im, propAction) <- runState convOrSub.indexMap $ applyProposals activeData.ciphersuite proposals
+  let sender = RegularClient senderIdentity
+      senderHasRow = any ((== sender) . snd) (imAssocs convOrSub.indexMap)
+  when (senderHasRow && not (Set.null propAction.paRemoveUnknown)) $
+    throw (mlsProtocolError "External commits for existing members must remove their own leaf")
+  unknownRemoved <- resolveUnknownLeaves convOrSub propAction.paRemoveUnknown
+  let removed =
+        map (RegularClient . fst) (cmAssocs propAction.paRemove)
+          <> map (HistoryClient . fst) (Set.toList propAction.paHistoryClientRemove)
+          <> Map.elems unknownRemoved
+  unless (all (== sender) removed) $
+    throw (mlsProtocolError "Only the self client can be removed by an external commit")
+  when (null removed && isJust (cmLookupIndex senderIdentity convOrSub.members)) $
+    throw (mlsProtocolError "External commits for existing members must contain a Remove proposal")
 
-    -- add sender client
-    im <- get
-    let (addedIndex, im') = imAddClient im (RegularClient senderIdentity)
-    put im'
-
-    pure
+  let (addedIndex, im') = imAddClient im sender
+  pure
+    ( im',
       ExternalCommitAction
         { add = addedIndex,
-          remove = removedIndex
+          remove = listToMaybe [idx | RemoveProposal idx <- proposals]
         }
+    )
   where
     allowedProposals = [ExternalInitProposalTag, RemoveProposalTag, PreSharedKeyProposalTag]
 
