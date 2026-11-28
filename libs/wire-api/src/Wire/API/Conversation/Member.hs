@@ -50,6 +50,7 @@ import Test.QuickCheck qualified as QC
 import Wire.API.Conversation.Role
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
+import Wire.API.User (UserType (UserTypeRegular))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 -- | This type means that the requestor is a member of the conversation,
@@ -168,6 +169,7 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
 
 data OtherMember = OtherMember
   { omQualifiedId :: Qualified UserId,
+    omType :: UserType,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }
@@ -181,6 +183,7 @@ instance ToSchema OtherMember where
       OtherMember
         <$> omQualifiedId .= field "qualified_id" schema
         <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
+        <*> omType .= (fromMaybe UserTypeRegular <$> optField "type" schema)
         <*> omService .= maybe_ (optFieldWithDocModifier "service" (description ?~ desc) schema)
         <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
         <* const (0 :: Int) .= optional (fieldWithDocModifier "status" ((deprecated ?~ True) . (description ?~ "deprecated")) schema) -- TODO: remove

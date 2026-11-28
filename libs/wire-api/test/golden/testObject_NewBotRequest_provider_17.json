@@ -14,7 +14,8 @@
                     "id": "00000001-0000-0000-0000-000100000000",
                     "provider": "00000000-0000-0000-0000-000100000000"
                 },
-                "status": 0
+                "status": 0,
+                "type": "app"
             },
             {
                 "conversation_role": "c67nu5cxj9cru8018oquz_74mazgewq5fa6mwgwzktvep_7ftdtitzlwewqe",
@@ -27,7 +28,8 @@
                     "id": "00000001-0000-0000-0000-000100000000",
                     "provider": "00000000-0000-0001-0000-000000000001"
                 },
-                "status": 0
+                "status": 0,
+                "type": "app"
             }
         ],
         "name": ""

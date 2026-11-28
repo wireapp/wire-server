@@ -33,7 +33,8 @@
                         "domain": "golden.example.com",
                         "id": "00000000-0000-0001-0000-000100000001"
                     },
-                    "status": 0
+                    "status": 0,
+                    "type": "regular"
                 }
             ],
             "self": {

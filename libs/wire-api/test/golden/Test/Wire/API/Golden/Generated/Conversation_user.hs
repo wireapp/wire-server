@@ -42,6 +42,7 @@ import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
+import Wire.API.User
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -138,6 +139,7 @@ testObject_Conversation_user_2 =
               [ OtherMember
                   { omQualifiedId =
                       Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) domain,
+                    omType = UserTypeBot,
                     omService =
                       Just
                         ( ServiceRef
