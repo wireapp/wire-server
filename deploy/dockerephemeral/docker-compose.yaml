@@ -283,6 +283,26 @@ services:
       POSTGRES_DB: "backendA"
     command: postgres -c max_connections=1000
 
+  postgres-fan-in:
+    container_name: demo_wire_postgres_fan_in
+    build: ./docker/postgres-fan-in
+    ports:
+      - "127.0.0.1:55432:5432"
+    networks:
+      - demo_wire
+    volumes:
+      - ./docker/postgres-fan-in-initdb/00-partman.sql:/docker-entrypoint-initdb.d/00-partman.sql:ro
+    environment:
+      POSTGRES_PASSWORD: "posty-the-gres"
+      POSTGRES_USER: "wire-server"
+      POSTGRES_DB: "wire_fan_in"
+    command: >-
+      postgres -c max_connections=1000
+      -c shared_preload_libraries=pg_partman_bgw
+      -c pg_partman_bgw.dbname=wire_fan_in
+      -c pg_partman_bgw.role=partman_maintainer
+      -c pg_partman_bgw.interval=60
+
   cassandra:
     container_name: demo_wire_cassandra
     image: cassandra:4.1.11

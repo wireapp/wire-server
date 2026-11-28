@@ -500,6 +500,16 @@ gundeck:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
         key: "ca.crt"
+    notificationFanInPostgres:
+      connection:
+        host: postgresql
+        port: "5432"
+        user: wire-server
+        dbname: wire_fan_in
+      pool:
+        size: 5
+        acquisitionTimeout: 10s
+        idlenessTimeout: 10m
     redis:
       host: redis-ephemeral
       connectionMode: master
@@ -523,6 +533,7 @@ gundeck:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
     redisPassword: very-secure-redis-master-password
+    notificationFanInPostgresPassword: posty-the-gres
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}

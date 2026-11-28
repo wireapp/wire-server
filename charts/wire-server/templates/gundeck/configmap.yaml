@@ -71,6 +71,15 @@ data:
     {{- end }}
     {{- end }}
 
+    {{- with .notificationFanInPostgres }}
+    notificationFanInPostgres:
+      connection: {{ toYaml .connection | nindent 8 }}
+      pool: {{ toYaml .pool | nindent 8 }}
+      {{- if hasKey $.Values.gundeck.secrets "notificationFanInPostgresPassword" }}
+      password: /etc/wire/gundeck/secrets/notificationFanInPostgresPassword
+      {{- end }}
+    {{- end }}
+
     # Gundeck uses discovery for AWS access key / secrets
     # For more details, check amazonka's documentation at:
     # https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials

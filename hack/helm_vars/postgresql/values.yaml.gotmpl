@@ -2,7 +2,17 @@ auth:
   postgresPassword: "posty-the-gres"
   username: wire-server
   password: "posty-the-gres"
+global:
+  # Use the per-image registry below instead of the global mirror override.
+  imageRegistry: ""
+image:
+  registry: quay.io/wire
+  repository: postgresql-fan-in
+  tag: 17.5.0-partman-5.5.0
 primary:
+  initdb:
+    user: postgres
+    password: "posty-the-gres"
   resources:
     requests:
       cpu: 1
@@ -10,3 +20,7 @@ primary:
     limits: {}
   extendedConfiguration: |
     max_connections = 1500
+    shared_preload_libraries = 'pg_partman_bgw'
+    pg_partman_bgw.dbname = 'wire_fan_in'
+    pg_partman_bgw.role = 'partman_maintainer'
+    pg_partman_bgw.interval = 60

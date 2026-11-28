@@ -332,6 +332,20 @@ upload-images:
 upload-images-dev:
 	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
+POSTGRES_FAN_IN_IMAGE := quay.io/wire/postgresql-fan-in
+POSTGRES_FAN_IN_IMAGE_TAG := 17.5.0-partman-5.5.0
+
+.PHONY: build-postgres-fan-in-image
+build-postgres-fan-in-image:
+	docker build --platform linux/amd64 \
+	  --file deploy/dockerephemeral/docker/postgres-fan-in/Dockerfile.bitnami \
+	  --tag $(POSTGRES_FAN_IN_IMAGE):$(POSTGRES_FAN_IN_IMAGE_TAG) \
+	  deploy/dockerephemeral/docker/postgres-fan-in
+
+.PHONY: push-postgres-fan-in-image
+push-postgres-fan-in-image: build-postgres-fan-in-image
+	docker push $(POSTGRES_FAN_IN_IMAGE):$(POSTGRES_FAN_IN_IMAGE_TAG)
+
 HOOGLE_IMAGE_DIR := $(shell mktemp -d -t wire-server-hoogle-image.XXXXXX)
 
 upload-hoogle-image:

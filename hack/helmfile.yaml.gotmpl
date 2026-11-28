@@ -174,8 +174,6 @@ releases:
     values:
       - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/postgresql/values.yaml.gotmpl'
-      - image:
-          repository: postgresql
       - primary:
           initdb:
             scripts:
@@ -184,11 +182,42 @@ releases:
                 CREATE DATABASE "dyn-1";
                 CREATE DATABASE "dyn-2";
                 CREATE DATABASE "dyn-3";
+                CREATE DATABASE "wire_fan_in";
 
                 GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
                 GRANT ALL PRIVILEGES ON DATABASE "dyn-1" TO "wire-server";
                 GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server";
                 GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server";
+                GRANT ALL PRIVILEGES ON DATABASE "wire_fan_in" TO "wire-server";
+
+                \connect "wire-server"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect "dyn-1"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect "dyn-2"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect "dyn-3"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+
+                \connect postgres
+                CREATE ROLE partman_maintainer WITH LOGIN PASSWORD 'local-partman-password';
+                GRANT partman_maintainer TO "wire-server";
+
+                \connect "wire_fan_in"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                CREATE SCHEMA partman AUTHORIZATION "wire-server";
+                CREATE EXTENSION pg_partman SCHEMA partman;
+
+                GRANT ALL ON SCHEMA partman TO partman_maintainer;
+                GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_maintainer;
+                GRANT ALL ON ALL SEQUENCES IN SCHEMA partman TO partman_maintainer;
+                GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_maintainer;
+                GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_maintainer;
+                GRANT CREATE ON SCHEMA public TO partman_maintainer;
+                GRANT TEMPORARY ON DATABASE "wire_fan_in" TO partman_maintainer;
+                ALTER DEFAULT PRIVILEGES FOR ROLE partman_maintainer IN SCHEMA public
+                    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "wire-server";
+                ALTER ROLE partman_maintainer SET search_path = partman, public;
 
   - name: "postgresql"
     namespace: "{{ .Values.namespace2 }}"
@@ -196,15 +225,37 @@ releases:
     values:
       - './helm_vars/wire-image-mirror.yaml'
       - './helm_vars/postgresql/values.yaml.gotmpl'
-      - image:
-          repository: postgresql
       - primary:
           initdb:
             scripts:
               init.sql: |
                 CREATE DATABASE "wire-server";
+                CREATE DATABASE "wire_fan_in";
 
                 GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
+                GRANT ALL PRIVILEGES ON DATABASE "wire_fan_in" TO "wire-server";
+
+                \connect "wire-server"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                \connect postgres
+                CREATE ROLE partman_maintainer WITH LOGIN PASSWORD 'local-partman-password';
+                GRANT partman_maintainer TO "wire-server";
+
+                \connect "wire_fan_in"
+                GRANT CREATE ON SCHEMA public TO "wire-server";
+                CREATE SCHEMA partman AUTHORIZATION "wire-server";
+                CREATE EXTENSION pg_partman SCHEMA partman;
+
+                GRANT ALL ON SCHEMA partman TO partman_maintainer;
+                GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_maintainer;
+                GRANT ALL ON ALL SEQUENCES IN SCHEMA partman TO partman_maintainer;
+                GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_maintainer;
+                GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_maintainer;
+                GRANT CREATE ON SCHEMA public TO partman_maintainer;
+                GRANT TEMPORARY ON DATABASE "wire_fan_in" TO partman_maintainer;
+                ALTER DEFAULT PRIVILEGES FOR ROLE partman_maintainer IN SCHEMA public
+                    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "wire-server";
+                ALTER ROLE partman_maintainer SET search_path = partman, public;
 
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
