@@ -24,6 +24,7 @@ module Wire.FanInEpochMembershipStore
   ( FanInEpochMember (..),
     FanInEpochRef (..),
     FanInEpochMembershipStore (..),
+    FanInEpochMembershipStoreError (..),
     getFanInEpochMembers,
     getFanInEpochsForClient,
     replaceFanInCurrentEpochMembers,
@@ -41,7 +42,7 @@ data FanInEpochMember = FanInEpochMember
   { fanInEpochMemberUserId :: UserId,
     fanInEpochMemberClientId :: ClientId
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Ord, Show)
 
 data FanInEpochRef = FanInEpochRef
   { fanInEpochRefGroupId :: GroupId,
@@ -55,7 +56,16 @@ data FanInEpochMembershipStore m a where
   -- client, which lets a reader find the relevant epoch notification streams.
   GetFanInEpochsForClient :: UserId -> ClientId -> FanInEpochMembershipStore m [FanInEpochRef]
   -- | Atomically archive the previous current members at the supplied time and
-  -- replace them with the members for the new current epoch.
+  -- replace them with the members for the new current epoch. Identical retries
+  -- are no-ops (member order and duplicates are ignored); stale epochs and
+  -- conflicting membership for the current epoch are rejected under the same
+  -- lock. Empty membership still records the current epoch.
   ReplaceFanInCurrentEpochMembers :: GroupId -> Epoch -> UTCTime -> [FanInEpochMember] -> FanInEpochMembershipStore m ()
 
 makeSem ''FanInEpochMembershipStore
+
+-- | Failed conditional replacements leave current membership and history intact.
+data FanInEpochMembershipStoreError
+  = FanInStaleEpoch
+  | FanInConflictingEpoch
+  deriving stock (Eq, Show)

@@ -52,6 +52,7 @@ import Database.Redis qualified as Redis
 import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
 import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
+import Gundeck.CanonicalInterpreter (GundeckApp, runCanonicalInterpreter)
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
@@ -72,6 +73,7 @@ import Network.Wai.Utilities.Server hiding (serverPort)
 import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
 import OpenTelemetry.Trace (defaultSpanArguments, inSpan, kind)
 import OpenTelemetry.Trace qualified as Otel
+import Polysemy (embed)
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
 import System.Logger qualified as Log
@@ -89,8 +91,7 @@ run opts = withTracer \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
 
-  forM_ (env ^. Env.notificationFanInPostgresPool) $ \pool ->
-    FanInMigrations.runMigrations (HasqlPoolExt.rawPool pool) logger
+  FanInMigrations.runMigrations (HasqlPoolExt.rawPool (env ^. Env.notificationFanInPostgresPool)) logger
 
   runDirect env setUpRabbitMqExchangesAndQueues
 
@@ -171,10 +172,10 @@ mkApp env0 req cont = do
   Servant.serve (Proxy @(GundeckAPI :<|> InternalAPI)) (servantSitemap' env) req cont
 
 servantSitemap' :: Env -> Servant.Server (GundeckAPI :<|> InternalAPI)
-servantSitemap' env = Servant.hoistServer (Proxy @(GundeckAPI :<|> InternalAPI)) toServantHandler (Public.servantSitemap :<|> Internal.servantSitemap)
+servantSitemap' env = Servant.hoistServer (Proxy @(GundeckAPI :<|> InternalAPI)) toServantHandler (Servant.hoistServer (Proxy @GundeckAPI) embed Public.servantSitemap :<|> Internal.servantSitemap)
   where
-    toServantHandler :: Gundeck a -> Handler a
-    toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m
+    toServantHandler :: GundeckApp a -> Handler a
+    toServantHandler m = Handler . ExceptT $ Right <$> runCanonicalInterpreter env m
 
 collectAuthMetrics :: (MonadIO m) => AWS.Env -> m ()
 collectAuthMetrics env = do

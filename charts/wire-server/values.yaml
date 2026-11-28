@@ -767,6 +767,17 @@ gundeck:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
+    # Required database, provisioned separately with pg_partman installed.
+    notificationFanInPostgres:
+      connection:
+        host: postgresql
+        port: "5432"
+        user: wire-server
+        dbname: wire_fan_in
+      pool:
+        size: 5
+        acquisitionTimeout: 10s
+        idlenessTimeout: 10m
     redis:
       host: redis-ephemeral
       port: 6379

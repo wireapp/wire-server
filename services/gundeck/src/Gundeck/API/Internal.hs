@@ -24,23 +24,33 @@ where
 import Cassandra qualified
 import Control.Lens (view, (^.))
 import Data.Id
+import Gundeck.CanonicalInterpreter (GundeckApp)
 import Gundeck.Client
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
+import Gundeck.NotificationFanIn.Ingestion (pushFanInH, updateFanInMembershipH)
 import Gundeck.Options (consumableNotifications, settings)
 import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
 import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
 import Imports
+import Polysemy (embed)
 import Servant
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Push.V2
 import Wire.API.Routes.Internal.Gundeck
 import Wire.API.Routes.Named
 
-servantSitemap :: ServerT InternalAPI Gundeck
+servantSitemap :: ServerT InternalAPI GundeckApp
 servantSitemap =
+  hoistServer (Proxy @LegacyInternalAPI) embed legacySitemap
+    :<|> ( Named @"i-fan-in-push" pushFanInH
+             :<|> Named @"i-fan-in-membership" updateFanInMembershipH
+         )
+
+legacySitemap :: ServerT LegacyInternalAPI Gundeck
+legacySitemap =
   Named @"i-status" statusH
     :<|> Named @"i-push" pushH
     :<|> ( Named @"i-presences-get-for-users" Presence.listAllH

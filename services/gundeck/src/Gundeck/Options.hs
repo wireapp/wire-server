@@ -22,6 +22,7 @@ module Gundeck.Options where
 
 import Control.Lens hiding (Level)
 import Data.Aeson.TH
+import Data.Domain (Domain)
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
 import Hasql.Pool.Extended (PoolConfig)
@@ -87,7 +88,9 @@ data Settings = Settings
     -- | The name of the RabbitMQ queue to be used to forward events to Cells.
     _cellsEventQueue :: !(Maybe Text),
     -- | Determines if consumable notifications are enabled
-    _consumableNotifications :: !Bool
+    _consumableNotifications :: !Bool,
+    -- | Needed to classify local and remote fan-in connection targets.
+    _federationDomain :: !(Maybe Domain)
   }
   deriving (Show, Generic)
 
@@ -149,8 +152,8 @@ data Opts = Opts
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,
     _rabbitmq :: !AmqpEndpoint,
-    -- | Separate PostgreSQL connection used by the notification fan-in path.
-    _notificationFanInPostgres :: !(Maybe NotificationFanInPostgres),
+    -- | Required separate PostgreSQL connection for notification fan-in.
+    _notificationFanInPostgres :: !NotificationFanInPostgres,
     _discoUrl :: !(Maybe Text),
     _settings :: !Settings,
     -- Logging

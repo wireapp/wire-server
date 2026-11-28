@@ -55,6 +55,8 @@
 , network
 , network-uri
 , optparse-applicative
+, polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , psqueues
 , QuickCheck
@@ -143,6 +145,8 @@ mkDerivation {
     metrics-wai
     mtl
     network-uri
+    polysemy
+    polysemy-wire-zoo
     prometheus-client
     psqueues
     raw-strings-qq
@@ -221,6 +225,7 @@ mkDerivation {
     bytestring-conversion
     containers
     exceptions
+    hasql-resource-pool
     HsOpenSSL
     imports
     lens
@@ -242,6 +247,8 @@ mkDerivation {
     tinylog
     types-common
     wire-api
+    wire-subsystems
+    yaml
   ];
   benchmarkHaskellDepends = [
     amazonka
