@@ -1,0 +1,196 @@
+name: Set Jira Fix Version
+
+on:
+  push:
+    tags:
+      - "test/*"
+
+jobs:
+  set-fix-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract and calculate version
+        id: version
+        run: |
+          # Extract version from tag (e.g., chart/5.28.31 -> 5.28.31)
+          TAG_NAME="${GITHUB_REF#refs/tags/test/}"
+          echo "chart_version=$TAG_NAME" >> $GITHUB_OUTPUT
+
+          # Parse version components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$TAG_NAME"
+
+          # Round up: if patch > 0, increment minor and set patch to 0
+          if [ "$PATCH" -gt 0 ]; then
+            MINOR=$((MINOR + 1))
+          fi
+
+          RELEASE_VERSION="${MAJOR}.${MINOR}.0"
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+
+          echo "Chart version: $TAG_NAME"
+          echo "Release version (rounded up): $RELEASE_VERSION"
+
+      - name: Find associated PR
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Get the commit SHA for this tag
+          COMMIT_SHA=$(git rev-list -n 1 "${GITHUB_REF}")
+          echo "Commit SHA: $COMMIT_SHA"
+
+          # Get the commit message
+          COMMIT_MESSAGE=$(git log -1 --format=%s "$COMMIT_SHA")
+          echo "Commit message: $COMMIT_MESSAGE"
+
+          # Extract PR number from commit message (format: "... (#1234)")
+          # This is the standard format when PRs are merged via GitHub
+          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || echo "")
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR number found in commit message"
+            echo "pr_number=" >> $GITHUB_OUTPUT
+          else
+            echo "Found PR #$PR_NUMBER"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract Jira issues
+        id: jira_issues
+        if: steps.find_pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ steps.find_pr.outputs.pr_number }}"
+
+          # Get PR title and body
+          PR_DATA=$(gh pr view "$PR_NUMBER" --json title,body)
+          PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
+          PR_BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
+
+          echo "PR Title: $PR_TITLE"
+          echo "PR Body:"
+          echo "$PR_BODY"
+          echo "---"
+
+          JIRA_ISSUE=""
+          FOUND_AT=""
+
+          # Priority 1: Check title for WPB-* pattern
+          echo "Checking PR title for Jira issues..."
+          TITLE_ISSUES=$(echo "$PR_TITLE" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u || true)
+          if [ -z "$TITLE_ISSUES" ]; then
+            TITLE_COUNT=0
+          else
+            TITLE_COUNT=$(echo -n "$TITLE_ISSUES" | grep -c '^')
+          fi
+
+          if [ "$TITLE_COUNT" -gt 1 ]; then
+            echo "ERROR: Multiple Jira issues found in title (ambiguous):"
+            echo "$TITLE_ISSUES"
+            exit 1
+          elif [ "$TITLE_COUNT" -eq 1 ]; then
+            JIRA_ISSUE="$TITLE_ISSUES"
+            FOUND_AT="title"
+            echo "Found Jira issue in title: $JIRA_ISSUE"
+          else
+            # Priority 2: Check for ticket:<url> or bare Jira URL pattern with WPB-* (case-insensitive)
+            echo "No issue in title, checking for ticket URL patterns..."
+            # Match both: ticket:<url> or https://.../browse/WPB-* or .../WPB-*
+            TICKET_ISSUES=$(echo "$PR_BODY" | grep -ioE '(ticket:|https?://[^ ]*/browse/)WPB-[0-9]+' | grep -ioE 'WPB-[0-9]+' | sort -u || true)
+            if [ -z "$TICKET_ISSUES" ]; then
+              TICKET_COUNT=0
+            else
+              TICKET_COUNT=$(echo -n "$TICKET_ISSUES" | grep -c '^')
+            fi
+
+            if [ "$TICKET_COUNT" -gt 1 ]; then
+              echo "ERROR: Multiple Jira issues found in ticket URLs (ambiguous):"
+              echo "$TICKET_ISSUES"
+              exit 1
+            elif [ "$TICKET_COUNT" -eq 1 ]; then
+              JIRA_ISSUE="$TICKET_ISSUES"
+              FOUND_AT="ticket URL"
+              echo "Found Jira issue in ticket URL: $JIRA_ISSUE"
+            else
+              # Priority 3: Check anywhere in description for WPB-*
+              echo "No ticket URL found, checking entire description..."
+              DESC_ISSUES=$(echo "$PR_BODY" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u || true)
+              if [ -z "$DESC_ISSUES" ]; then
+                DESC_COUNT=0
+              else
+                DESC_COUNT=$(echo -n "$DESC_ISSUES" | grep -c '^')
+              fi
+
+              if [ "$DESC_COUNT" -gt 1 ]; then
+                echo "ERROR: Multiple Jira issues found in description (ambiguous):"
+                echo "$DESC_ISSUES"
+                exit 1
+              elif [ "$DESC_COUNT" -eq 1 ]; then
+                JIRA_ISSUE="$DESC_ISSUES"
+                FOUND_AT="description"
+                echo "Found Jira issue in description: $JIRA_ISSUE"
+              fi
+            fi
+          fi
+
+          if [ -z "$JIRA_ISSUE" ]; then
+            echo "No Jira issue found in PR #$PR_NUMBER"
+            echo "issue=" >> $GITHUB_OUTPUT
+            echo "found_at=" >> $GITHUB_OUTPUT
+          else
+            echo "Final Jira issue: $JIRA_ISSUE (found in $FOUND_AT)"
+            echo "issue=$JIRA_ISSUE" >> $GITHUB_OUTPUT
+            echo "found_at=$FOUND_AT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        run: |
+          echo "========================================="
+          echo "Chart Tag: ${GITHUB_REF#refs/tags/}"
+          echo "Chart Version: ${{ steps.version.outputs.chart_version }}"
+          echo "Release Version (Fix Version): ${{ steps.version.outputs.release_version }}"
+          echo "Associated PR: ${{ steps.find_pr.outputs.pr_number || 'None found' }}"
+          echo "Jira Issue: ${{ steps.jira_issues.outputs.issue || 'None found' }}"
+          echo "Found in: ${{ steps.jira_issues.outputs.found_at || 'N/A' }}"
+          echo "========================================="
+
+          # Create a formatted summary for GitHub Actions UI
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Jira Fix Version Assignment
+
+          - **Chart Tag**: \`${GITHUB_REF#refs/tags/}\`
+          - **Chart Version**: \`${{ steps.version.outputs.chart_version }}\`
+          - **Release Version (Fix Version)**: \`${{ steps.version.outputs.release_version }}\`
+          - **Associated PR**: ${{ steps.find_pr.outputs.pr_number && format('#{0}', steps.find_pr.outputs.pr_number) || 'None found' }}
+          - **Jira Issue**: \`${{ steps.jira_issues.outputs.issue || 'None found' }}\`
+          - **Found in**: ${{ steps.jira_issues.outputs.found_at || 'N/A' }}
+
+          ### Next Steps
+          When ready to enable Jira updates:
+          1. Add Jira credentials to GitHub Secrets
+          2. Uncomment the "Update Jira" step in this workflow
+          3. Test with a real chart tag
+          EOF
+
+      # TODO: Uncomment this step when ready to actually update Jira
+      # - name: Update Jira
+      #   if: steps.jira_issues.outputs.issue != ''
+      #   run: |
+      #     # This is where you would make API calls to Jira
+      #     # to set the fix version on the issue
+      #     ISSUE="${{ steps.jira_issues.outputs.issue }}"
+      #     FIX_VERSION="${{ steps.version.outputs.release_version }}"
+      #
+      #     echo "Would update $ISSUE with fix version $FIX_VERSION"
+      #
+      #     # Example Jira API call:
+      #     # curl -X PUT \
+      #     #   -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN }}" \
+      #     #   -H "Content-Type: application/json" \
+      #     #   -d "{\"update\":{\"fixVersions\":[{\"add\":{\"name\":\"$FIX_VERSION\"}}]}}" \
+      #     #   "https://your-jira-instance.atlassian.net/rest/api/2/issue/$ISSUE"
