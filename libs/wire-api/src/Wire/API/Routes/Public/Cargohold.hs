@@ -34,6 +34,7 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Cargohold.Backup (BackupAPI)
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 
@@ -130,6 +131,7 @@ type CargoholdAPI =
     :<|> QualifiedAPI
     :<|> LegacyAPI
     :<|> MainAPI
+    :<|> BackupAPI
 
 -- | Asset API for a given principal (user/bot/provider).
 --

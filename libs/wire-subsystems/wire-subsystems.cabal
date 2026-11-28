@@ -242,6 +242,13 @@ library
     Wire.BackgroundJobsPublisher.RabbitMQ
     Wire.BackgroundJobsRunner
     Wire.BackgroundJobsRunner.Interpreter
+    Wire.BackupBlobStore
+    Wire.BackupBlobStore.Key
+    Wire.BackupSubsystem
+    Wire.BackupSubsystem.Disabled
+    Wire.BackupSubsystem.Interpreter
+    Wire.BackupSubsystem.Rules
+    Wire.BackupSubsystem.UUIDv7
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BlockListStore.DualWrite
@@ -255,6 +262,7 @@ library
     Wire.BudgetStore.Cassandra
     Wire.BudgetStore.DualWrite
     Wire.BudgetStore.Postgres
+    Wire.CargoholdAPIAccess
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
@@ -664,6 +672,11 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.BackupBlobStore.KeySpec
+    Wire.BackupSubsystem.DisabledSpec
+    Wire.BackupSubsystem.InterpreterSpec
+    Wire.BackupSubsystem.RulesSpec
+    Wire.BackupSubsystem.UUIDv7Spec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
     Wire.ConversationSubsystem.AdminlessGroupsSpec
@@ -689,6 +702,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.AuthenticationSubsystem
     Wire.MockInterpreters.BackgroundJobPublisher
+    Wire.MockInterpreters.BackupBlobStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore
     Wire.MockInterpreters.CodeStore
@@ -749,6 +763,7 @@ test-suite wire-subsystems-tests
     , crypton-x509-store
     , filepath
     , hspec
+    , http-api-data
     , QuickCheck
     , quickcheck-instances
     , random

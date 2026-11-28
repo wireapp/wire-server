@@ -1508,6 +1508,7 @@ deleteSelfUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1530,6 +1531,7 @@ verifyDeleteUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.VerifyDeleteUser ->

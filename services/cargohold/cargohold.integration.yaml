@@ -10,6 +10,13 @@ brig:
   host: 127.0.0.1
   port: 8082
 
+galley:
+  host: 127.0.0.1
+  port: 8085
+
+# Test-only key, see test/resources/backup-hmac.key
+backupHmacKey: test/resources/backup-hmac.key
+
 aws:
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
   s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
@@ -33,6 +40,10 @@ settings:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []
   disabledFederationAPIVersions: []
+  backupLimits:
+    maxFullBytes: 1073741824
+    maxIncrementalBytes: 10485760
+    maxFilesPerEpoch: 3650
 
 logLevel: Warn
 logNetStrings: false

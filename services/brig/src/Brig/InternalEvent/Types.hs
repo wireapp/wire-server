@@ -29,12 +29,16 @@ data InternalNotification
   = DeleteClient !ClientId !UserId !(Maybe ConnId)
   | DeleteUser !UserId
   | DeleteService !ProviderId !ServiceId
+  | DeleteBackups !UserId
+  | DeleteClientBackups !UserId !ClientId
   deriving (Eq, Show)
 
 data InternalNotificationType
   = ClientDeletion
   | UserDeletion
   | ServiceDeletion
+  | BackupDeletion
+  | ClientBackupDeletion
   deriving (Eq, Show)
 
 instance FromJSON InternalNotificationType where
@@ -42,12 +46,16 @@ instance FromJSON InternalNotificationType where
     "client.delete" -> pure ClientDeletion
     "user.delete" -> pure UserDeletion
     "service.delete" -> pure ServiceDeletion
+    "backup.delete" -> pure BackupDeletion
+    "client-backup.delete" -> pure ClientBackupDeletion
     x -> fail $ "InternalNotificationType: Unknown type " <> show x
 
 instance ToJSON InternalNotificationType where
   toJSON ClientDeletion = "client.delete"
   toJSON UserDeletion = "user.delete"
   toJSON ServiceDeletion = "service.delete"
+  toJSON BackupDeletion = "backup.delete"
+  toJSON ClientBackupDeletion = "client-backup.delete"
 
 instance FromJSON InternalNotification where
   parseJSON = withObject "InternalNotification" $ \o -> do
@@ -56,6 +64,8 @@ instance FromJSON InternalNotification where
       ClientDeletion -> DeleteClient <$> (adaptOldFormat =<< (o .: "client")) <*> o .: "user" <*> o .: "connection"
       UserDeletion -> DeleteUser <$> o .: "user"
       ServiceDeletion -> DeleteService <$> o .: "provider" <*> o .: "service"
+      BackupDeletion -> DeleteBackups <$> o .: "user"
+      ClientBackupDeletion -> DeleteClientBackups <$> o .: "user" <*> o .: "client"
     where
       adaptOldFormat :: Value -> Parser ClientId
       adaptOldFormat (Object ob) = ob .: "id"
@@ -80,4 +90,15 @@ instance ToJSON InternalNotification where
       [ "provider" .= pid,
         "service" .= sid,
         "type" .= ServiceDeletion
+      ]
+  toJSON (DeleteBackups uid) =
+    object
+      [ "user" .= uid,
+        "type" .= BackupDeletion
+      ]
+  toJSON (DeleteClientBackups uid cid) =
+    object
+      [ "user" .= uid,
+        "client" .= cid,
+        "type" .= ClientBackupDeletion
       ]

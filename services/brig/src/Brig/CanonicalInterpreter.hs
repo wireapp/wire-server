@@ -74,6 +74,7 @@ import Wire.BudgetStore
 import Wire.BudgetStore.Cassandra
 import Wire.BudgetStore.DualWrite (interpretBudgetStoreToCassandraAndPostgres)
 import Wire.BudgetStore.Postgres (interpretBudgetStoreToPostgres)
+import Wire.CargoholdAPIAccess
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
@@ -277,6 +278,7 @@ type BrigLowerLevelEffects =
      Input (AuthenticationSubsystemConfig),
      Input InvitationUrlTemplates,
      Input ClientSubsystemConfig,
+     CargoholdAPIAccess,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -568,6 +570,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
+              . runCargoholdAPIAccess e.cargoholdEndpoint
               . runInputConst clientSubsystemConfig
               . runInputConst (invitationUrlTemplates e)
               . runInputConst authenticationSubsystemConfig

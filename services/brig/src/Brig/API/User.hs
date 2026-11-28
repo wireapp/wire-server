@@ -1030,6 +1030,7 @@ deleteSelfUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1106,6 +1107,7 @@ verifyDeleteUser ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   VerifyDeleteUser ->
@@ -1138,6 +1140,7 @@ ensureAccountDeleted ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
@@ -1163,7 +1166,10 @@ ensureAccountDeleted luid@(tUnqualified -> uid) = do
         then do
           liftSem $ deleteAccount acc
           pure AccountDeleted
-        else pure AccountAlreadyDeleted
+        else do
+          -- The backups are not visible here; their deletion is idempotent.
+          liftSem $ enqueueBackupDeletion uid
+          pure AccountAlreadyDeleted
 
 -- | Internal deletion without validation.
 --
@@ -1191,6 +1197,7 @@ deleteAccount ::
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
     Member ClientStore r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   User ->
@@ -1221,6 +1228,10 @@ deleteAccount user = do
   --       they need to be notified.
   Data.deleteConnections uid
   Auth.revokeAllCookies uid
+  -- Last: the backups of an active user must not be deleted, and a deletion that failed before
+  -- this point leaves them for the retry. If only this enqueue fails, 'ensureAccountDeleted'
+  -- enqueues again.
+  enqueueBackupDeletion uid
 
 -------------------------------------------------------------------------------
 -- Lookups

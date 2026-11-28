@@ -1,0 +1,1 @@
+Automatic backups need the optional cargohold secret `cargohold.secrets.backupHmacKey` (random, at least 32 bytes). Without it, backups are disabled. Never change or lose it: existing backups become unreachable and undeletable. The S3 store must provide strong list-after-write consistency; see `docs/src/developer/reference/config-options.md`. Cargohold does not use PostgreSQL.

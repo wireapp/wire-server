@@ -28,11 +28,13 @@ import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Data.Text qualified as ST
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
+import Web.HttpApiData (parseUrlPiece)
 import Wire.API.Asset qualified as Asset
 import Wire.API.BackgroundJobs qualified as BackgroundJobs
+import Wire.API.Backup qualified as Backup
 import Wire.API.Call.Config qualified as Call.Config
 import Wire.API.Connection qualified as Connection
 import Wire.API.Conversation qualified as Conversation
@@ -253,6 +255,8 @@ tests =
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
       testRoundTrip @(Team.Feature.LockableFeature Team.Feature.LegalholdConfig),
+      testRoundTrip @(Team.Feature.LockableFeature Team.Feature.AutomaticBackupsConfig),
+      testRoundTrip @Team.Feature.AutomaticBackupsConfig,
       testRoundTrip @(Team.Feature.LockableFeaturePatch Team.Feature.LegalholdConfig),
       testRoundTrip @(Team.Feature.LockableFeaturePatch Team.Feature.SelfDeletingMessagesConfig),
       testRoundTrip @(Team.Feature.Feature Team.Feature.LegalholdConfig),
@@ -421,7 +425,27 @@ tests =
       testRoundTripWithSwagger @[Meeting.MeetingV18],
       meetingTypeVersioningTests,
       meetingLinkVersioningTests,
+      testRoundTripWithSwagger @Backup.BackupEpoch,
+      testRoundTripWithSwagger @Backup.BackupFile,
+      testRoundTripWithSwagger @Backup.BackupFiles,
+      testRoundTripWithSwagger @Backup.EpochSummary,
+      testRoundTripWithSwagger @Backup.ClientBackups,
+      testRoundTripWithSwagger @Backup.UserBackups,
+      backupEpochUrlPieceTests,
       testFeatureFlagsCanonicalJsonRoundtrip
+    ]
+
+backupEpochUrlPieceTests :: T.TestTree
+backupEpochUrlPieceTests =
+  T.testGroup
+    "BackupEpoch url piece"
+    [ testCase "0 is rejected" $
+        assertBool "expected Left" (isLeft (parseUrlPiece @Backup.BackupEpoch "0")),
+      testCase "maxBound is accepted" $
+        assertEqual
+          "epoch"
+          (Right (Backup.BackupEpoch maxBound))
+          (parseUrlPiece @Backup.BackupEpoch "4294967295")
     ]
 
 testFeatureFlagsCanonicalJsonRoundtrip :: T.TestTree

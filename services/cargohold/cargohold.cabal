@@ -19,6 +19,7 @@ flag static
 library
   exposed-modules:
     CargoHold.API.AuditLog
+    CargoHold.API.Backup
     CargoHold.API.Error
     CargoHold.API.Federation
     CargoHold.API.Legacy
@@ -27,6 +28,7 @@ library
     CargoHold.API.V3
     CargoHold.App
     CargoHold.AWS
+    CargoHold.Backup
     CargoHold.CloudFront
     CargoHold.Federation
     CargoHold.Metrics
@@ -117,6 +119,8 @@ library
     , metrics-core
     , metrics-wai            >=0.4
     , mime                   >=0.4
+    , polysemy
+    , polysemy-wire-zoo
     , prometheus-client
     , QuickCheck             >=2.14
     , resourcet              >=1.1
@@ -140,6 +144,7 @@ library
     , wai-utilities          >=0.16.1
     , wire-api
     , wire-api-federation
+    , wire-subsystems
     , yaml                   >=0.8
 
   default-language:   Haskell2010
@@ -307,7 +312,9 @@ test-suite cargohold-tests
   hs-source-dirs:     test/unit
   other-modules:
     Test.CargoHold.API.AuditLogTest
+    Test.CargoHold.API.BackupStreamingTest
     Test.CargoHold.API.LogJSON
+    Test.CargoHold.BackupHmacKeyTest
     Test.CargoHold.S3Test
 
   default-extensions:
@@ -364,16 +371,29 @@ test-suite cargohold-tests
     , bytestring-conversion
     , cargohold
     , cargohold-types
+    , conduit
+    , containers
+    , data-default
     , extended
+    , http-client
+    , http-types
     , imports
     , mime                   >=0.4
+    , polysemy
+    , polysemy-wire-zoo
+    , QuickCheck
+    , servant-server
+    , stm
     , tasty                  >=1.0
+    , tasty-hunit
     , tasty-quickcheck       >=0.10
     , text                   >=1.1
     , types-common
     , unix
     , unliftio
     , uri-bytestring         >=0.2
+    , warp
     , wire-api
+    , wire-subsystems
 
   default-language:   Haskell2010

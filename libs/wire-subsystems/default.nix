@@ -359,6 +359,7 @@ mkDerivation {
     HsOpenSSL
     hspec
     html-entities
+    http-api-data
     http-client
     http-client-openssl
     http-types
