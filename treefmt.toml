@@ -10,6 +10,13 @@ excludes = [
   "dist-newstyle/"
 ]
 
+[formatter.headroom]
+command = "hack/bin/headroom-treefmt.sh"
+includes = ["*.hs", "*.hsc", "*.rs"]
+excludes = [
+  "dist-newstyle/",
+  "services/wire-server-enterprise/*",
+]
 
 [formatter.shellcheck]
 command = "shellcheck"
