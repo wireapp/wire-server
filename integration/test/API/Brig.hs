@@ -164,6 +164,13 @@ deleteUserWithPassword user mPassword = do
   submit "DELETE" $
     req & addJSONObject ["password" .= mPassword]
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_delete
+verifyDeleteUser :: (HasCallStack, MakesValue domain, MakesValue deleteCode) => domain -> deleteCode -> App Response
+verifyDeleteUser domain deleteCode = do
+  req <- baseRequest domain Brig Versioned "/delete"
+  body <- make deleteCode
+  submit "POST" $ req & addJSON body
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_clients
 addClient ::
   (HasCallStack, MakesValue user) =>

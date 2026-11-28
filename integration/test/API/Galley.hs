@@ -163,7 +163,9 @@ deleteTeamMember tid owner mem = do
   req <- baseRequest owner Galley Versioned path
   submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
+-- TODO: wrong name, should be `TeamRole`!
 data TeamPermissions = Partner | Member | Admin | Owner
+  deriving (Show, Generic)
 
 instance ToJSON TeamPermissions where
   toJSON perms = object ["self" .= toInt perms, "copy" .= toInt perms]

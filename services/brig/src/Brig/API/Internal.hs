@@ -204,6 +204,7 @@ servantSitemap =
     :<|> accountAPI
     :<|> mlsAPI
     :<|> Named @"get-verification-code" getVerificationCode
+    :<|> Named @"get-delete-code" getDeleteCode
     :<|> teamsAPI
     :<|> userAPI
     :<|> clientAPI
@@ -515,13 +516,18 @@ getMLSClient status lusr cid suiteTag = do
       }
 
 getVerificationCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r, Member (Input (Local ())) r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
-getVerificationCode uid action = runMaybeT do
+getVerificationCode uid action = fmap (.codeValue) <$> lookupUserCode uid (scopeFromAction action)
+
+getDeleteCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r, Member (Input (Local ())) r) => UserId -> Handler r (Maybe VerifyDeleteUser)
+getDeleteCode uid = fmap (\code -> VerifyDeleteUser code.codeKey code.codeValue) <$> lookupUserCode uid AccountDeletion
+
+lookupUserCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r, Member (Input (Local ())) r) => UserId -> Scope -> Handler r (Maybe Code)
+lookupUserCode uid scope = runMaybeT do
   getBy <- lift . lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [uid], includePendingInvitations = NoPendingInvitations}
   user <- MaybeT . fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   email <- MaybeT . pure $ userEmail user
   let key = mkKey email
-  code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
-  pure code.codeValue
+  MaybeT . lift . liftSem $ internalLookupCode key scope
 
 internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
