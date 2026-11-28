@@ -364,6 +364,11 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FanInAckStore
+    Wire.FanInEpochMembershipStore
+    Wire.FanInNotificationStore
+    Wire.FanInNotificationStore.Postgres
+    Wire.FanInNotificationStore.Postgres.Queries
     Wire.FeaturesConfigSubsystem
     Wire.FeaturesConfigSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem.Types
@@ -677,6 +682,7 @@ test-suite wire-subsystems-tests
     Wire.EmailSubsystem.TemplateFixtures
     Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.FanInNotificationStore.TimestampSpec
     Wire.FederationAPIAccess.GalleySpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
