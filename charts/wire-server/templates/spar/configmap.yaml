@@ -29,6 +29,13 @@ data:
       tlsCa: /etc/wire/spar/cassandra/{{- (include "spar.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- if $.Values.spar.secrets.pgPassword }}
+    postgresqlPassword: /etc/wire/spar/secrets/pgPassword
+    {{- end }}
+    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+
     maxttlAuthreq: {{ .maxttlAuthreq }}
     maxttlAuthresp: {{ .maxttlAuthresp }}
 
