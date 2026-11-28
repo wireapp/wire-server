@@ -22,6 +22,7 @@ module Cannon.API.Internal (internalServer) where
 
 import Cannon.App
 import Cannon.Dict qualified as D
+import Cannon.NotificationFanIn
 import Cannon.Types
 import Cannon.WS
 import Control.Monad.Catch
@@ -35,6 +36,7 @@ import System.Logger.Class (msg, val)
 import System.Logger.Class qualified as LC
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
+import Wire.API.Notification.FanIn qualified
 import Wire.API.RawJson
 import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Named
@@ -44,8 +46,7 @@ internalServer =
   Named @"get-status" (pure ())
     :<|> Named @"push-notification" pushHandler
     :<|> Named @"bulk-push-notifications" bulkPushHandler
-    -- TODO: Implement fan-in wake-up and transient delivery handling.
-    :<|> Named @"fan-in-notifications" (const undefined)
+    :<|> Named @"fan-in-notifications" notifyFanInH
     :<|> Named @"check-presence" checkPresenceHandler
 
 pushHandler :: UserId -> ConnId -> RawJson -> Cannon (Maybe ())
@@ -92,3 +93,9 @@ checkPresenceHandler u c = do
   if registered
     then pure $ Just ()
     else pure Nothing
+
+notifyFanInH :: Wire.API.Notification.FanIn.FanInCannonRequest -> Cannon NoContent
+notifyFanInH request = do
+  (options, runtime, environment) <- fanInEnvironment
+  liftIO $ notifyFanIn options environment runtime request
+  pure NoContent

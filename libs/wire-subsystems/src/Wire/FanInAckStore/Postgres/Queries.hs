@@ -22,9 +22,11 @@
 -- concurrent or reordered writes cannot move the cursor backwards.
 module Wire.FanInAckStore.Postgres.Queries where
 
+import Data.Bifunctor (first)
 import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Profunctor (dimap, lmap)
+import Data.Time.Clock (UTCTime)
 import Hasql.Statement (Statement)
 import Hasql.TH
 import Imports
@@ -34,6 +36,7 @@ import Wire.API.Notification (NotificationId)
 
 data AckStatements key = AckStatements
   { selectAck :: Statement key (Maybe NotificationId),
+    initializeAck :: Statement (key, NotificationId) NotificationId,
     upsertAck :: Statement (key, NotificationId) (),
     advanceAck :: Statement (key, NotificationId) (),
     deleteAck :: Statement key ()
@@ -48,6 +51,15 @@ userAckStatements =
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM user_notification_acks
         WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8)|],
+      initializeAck =
+        dimap
+          (\((uid, cid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID nid))
+          Id
+          [singletonStatement|INSERT INTO user_notification_acks (user_id, client_id, last_notification_id)
+        VALUES ($1 :: uuid, $2 :: int8, $3 :: uuid)
+        ON CONFLICT (user_id, client_id) DO UPDATE
+          SET last_notification_id = user_notification_acks.last_notification_id
+        RETURNING last_notification_id :: uuid|],
       upsertAck =
         lmap
           (\((uid, cid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID nid))
@@ -78,6 +90,15 @@ clientAckStatements =
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM client_notification_acks
         WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8)|],
+      initializeAck =
+        dimap
+          (\((uid, cid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID nid))
+          Id
+          [singletonStatement|INSERT INTO client_notification_acks (user_id, client_id, last_notification_id)
+        VALUES ($1 :: uuid, $2 :: int8, $3 :: uuid)
+        ON CONFLICT (user_id, client_id) DO UPDATE
+          SET last_notification_id = client_notification_acks.last_notification_id
+        RETURNING last_notification_id :: uuid|],
       upsertAck =
         lmap
           (\((uid, cid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID nid))
@@ -108,6 +129,15 @@ teamAckStatements =
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM team_notification_acks
         WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8) AND team_id = ($3 :: uuid)|],
+      initializeAck =
+        dimap
+          (\((uid, cid, tid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID tid, toUUID nid))
+          Id
+          [singletonStatement|INSERT INTO team_notification_acks (user_id, client_id, team_id, last_notification_id)
+        VALUES ($1 :: uuid, $2 :: int8, $3 :: uuid, $4 :: uuid)
+        ON CONFLICT (user_id, client_id, team_id) DO UPDATE
+          SET last_notification_id = team_notification_acks.last_notification_id
+        RETURNING last_notification_id :: uuid|],
       upsertAck =
         lmap
           (\((uid, cid, tid), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), toUUID tid, toUUID nid))
@@ -138,6 +168,15 @@ epochAckStatements =
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM epoch_notification_acks
         WHERE user_id = ($1 :: uuid) AND client_id = ($2 :: int8) AND group_id = ($3 :: bytea) AND epoch = ($4 :: int8)|],
+      initializeAck =
+        dimap
+          (\((uid, cid, GroupId gid, Epoch epoch), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), gid, fromIntegral epoch, toUUID nid))
+          Id
+          [singletonStatement|INSERT INTO epoch_notification_acks (user_id, client_id, group_id, epoch, last_notification_id)
+        VALUES ($1 :: uuid, $2 :: int8, $3 :: bytea, $4 :: int8, $5 :: uuid)
+        ON CONFLICT (user_id, client_id, group_id, epoch) DO UPDATE
+          SET last_notification_id = epoch_notification_acks.last_notification_id
+        RETURNING last_notification_id :: uuid|],
       upsertAck =
         lmap
           (\((uid, cid, GroupId gid, Epoch epoch), nid) -> (toUUID uid, fromIntegral (clientToWord64 cid), gid, fromIntegral epoch, toUUID nid))
@@ -168,6 +207,15 @@ localConnectionAckStatements =
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM local_connection_acks
         WHERE user_id = ($1 :: uuid) AND connected_user_id = ($2 :: uuid)|],
+      initializeAck =
+        dimap
+          (\((uid, connected), nid) -> (toUUID uid, toUUID connected, toUUID nid))
+          Id
+          [singletonStatement|INSERT INTO local_connection_acks (user_id, connected_user_id, last_notification_id)
+        VALUES ($1 :: uuid, $2 :: uuid, $3 :: uuid)
+        ON CONFLICT (user_id, connected_user_id) DO UPDATE
+          SET last_notification_id = local_connection_acks.last_notification_id
+        RETURNING last_notification_id :: uuid|],
       upsertAck =
         lmap
           (\((uid, connected), nid) -> (toUUID uid, toUUID connected, toUUID nid))
@@ -198,6 +246,15 @@ remoteConnectionAckStatements =
           (fmap Id)
           [maybeStatement|SELECT last_notification_id :: uuid FROM remote_connection_acks
         WHERE user_id = ($1 :: uuid) AND connected_user_domain = ($2 :: text) AND connected_user_id = ($3 :: uuid)|],
+      initializeAck =
+        dimap
+          (\((uid, domain, connected), nid) -> (toUUID uid, domainText domain, toUUID connected, toUUID nid))
+          Id
+          [singletonStatement|INSERT INTO remote_connection_acks (user_id, connected_user_domain, connected_user_id, last_notification_id)
+        VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: uuid)
+        ON CONFLICT (user_id, connected_user_domain, connected_user_id) DO UPDATE
+          SET last_notification_id = remote_connection_acks.last_notification_id
+        RETURNING last_notification_id :: uuid|],
       upsertAck =
         lmap
           (\((uid, domain, connected), nid) -> (toUUID uid, domainText domain, toUUID connected, toUUID nid))
@@ -218,3 +275,19 @@ remoteConnectionAckStatements =
           [resultlessStatement|DELETE FROM remote_connection_acks
         WHERE user_id = ($1 :: uuid) AND connected_user_domain = ($2 :: text) AND connected_user_id = ($3 :: uuid)|]
     }
+
+-- An empty-stream cursor is a retained watermark, never a notification payload.
+insertEmptyCursor :: Statement (NotificationId, UTCTime) ()
+insertEmptyCursor =
+  lmap
+    (first toUUID)
+    [resultlessStatement|INSERT INTO fan_in_empty_cursors (cursor_id, created_at)
+    VALUES ($1 :: uuid, $2 :: timestamptz)
+    ON CONFLICT (cursor_id, created_at) DO NOTHING|]
+
+emptyCursorExists :: Statement (NotificationId, UTCTime) Bool
+emptyCursorExists =
+  lmap
+    (first toUUID)
+    [singletonStatement|SELECT EXISTS (SELECT 1 FROM fan_in_empty_cursors
+    WHERE cursor_id = ($1 :: uuid) AND created_at = ($2 :: timestamptz)) :: bool|]

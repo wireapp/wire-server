@@ -95,9 +95,7 @@ data:
     {{- end }}
 
     settings:
-      {{- with .federationDomain }}
-      federationDomain: {{ . }}
-      {{- end }}
+      federationDomain: {{ required "brig.config.optSettings.setFederationDomain is required" $.Values.brig.config.optSettings.setFederationDomain | quote }}
       httpPoolSize: 1024
       notificationTTL: {{ required "config.notificationTTL" .notificationTTL }}
       {{- if hasKey . "perNativePushConcurrency" }}

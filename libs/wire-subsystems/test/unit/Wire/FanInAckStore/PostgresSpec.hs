@@ -45,7 +45,7 @@ spec = describe "Fan-in acknowledgement write validation" $
         result `shouldBe` Right (Left (InvalidFanInAckNotificationId nid))
 
 operations :: [(String, FanInAckKey -> NotificationId -> Sem TestEffects ())]
-operations = [("advance", advanceFanInAck), ("explicit reset", upsertFanInAck)]
+operations = [("advance", advanceFanInAck), ("explicit reset", upsertFanInAck), ("initialization", \key value -> void (initializeFanInAck key value))]
 
 keys :: [FanInAckKey]
 keys =

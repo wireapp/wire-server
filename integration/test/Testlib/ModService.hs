@@ -235,6 +235,7 @@ defaultOverrides resource =
               >=> setField "optSettings.setFederationDomain" resource.berDomain,
           cannonCfg =
             setField "rabbitmq.vHost" resource.berVHost
+              >=> setField "federationDomain" resource.berDomain
         }
 
     setKeyspace :: ServiceOverrides

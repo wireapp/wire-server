@@ -110,6 +110,11 @@ data FanInNotificationPage = FanInNotificationPage
 -- using the greatest UUIDv7 id, and are idempotent on replay of the same event.
 -- The partition timestamp is derived from the UUIDv7 id, so retries always
 -- target the same primary key. Pages exclude the supplied notification cursor.
+--
+-- TODO: Make cursor ordering safe for concurrent publishers. UUIDv7 allocation
+-- order can differ from commit order. If a lower ID commits after delivery has
+-- advanced past it, subsequent pages will skip that event. For the first load
+-- tests, use one publisher per stream and commit new IDs in increasing order.
 data FanInNotificationStore m a where
   -- | Append notifications to user streams. The store also updates each stream's
   -- last-notification cursor in the same transaction.

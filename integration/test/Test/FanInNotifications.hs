@@ -19,7 +19,9 @@
 
 module Test.FanInNotifications where
 
-import API.GundeckInternal (postFanInPush, putFanInMembership)
+import API.Brig (addClient)
+import API.Cannon
+import API.GundeckInternal (getPresence, postFanInPush, putFanInMembership)
 import Data.Bits
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
@@ -27,9 +29,11 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Network.WebSockets as WS
 import SetupHelpers
 import Testlib.PG (queryFanInSql)
 import Testlib.Prelude
+import UnliftIO (try)
 import UnliftIO.Async (concurrently_)
 
 -- TEMPORARY: these SQL assertions depart from the black-box integration-test
@@ -118,6 +122,139 @@ testFanInEmptyMembership = do
   put (2 ^ (63 :: Int) - 1) >>= \response -> response.status `shouldMatchInt` 409
   put (2 ^ (64 :: Int) - 1) >>= assertSuccess
   put (2 ^ (64 :: Int) - 1) >>= assertSuccess
+
+-- These assertions observe the public WebSocket, with no SQL access. Explicit
+-- wake-ups stand in for the background publishing job, which is a later slice.
+testFanInWebSocketRoundTrip :: (HasCallStack) => App ()
+testFanInWebSocketRoundTrip = do
+  user <- randomUser OwnDomain def
+  uid <- objId user
+  client <- addClient user def >>= getJSON 201
+  cid <- objId client
+  let targets = [target "FanInTargetUser" (toJSON uid)]
+      publish nid = do
+        let request = push nid targets False
+        postFanInPush user [request] >>= assertSuccess
+        wake request
+      wake request =
+        notifyFanInCannon user (object ["recipients" .= [object ["userId" .= uid, "clientId" .= cid]], "push" .= request]) >>= assertSuccess
+      receiveEvent socket expectedId = do
+        (nid, tag) <- receiveFanInTestEvent socket
+        nid `shouldMatch` expectedId
+        pure tag
+  -- The first connection establishes an empty-stream boundary. Leave its first delivery
+  -- unacknowledged so a fresh socket must replay it.
+  first <- withFanInWebSocket user (Just cid) $ \socket -> do
+    expectFanInSynchronization socket
+    -- Legacy Gundeck must not target this socket or count it as delivered.
+    getPresence user >>= getJSON 200 >>= (`shouldMatch` ([] :: [Value]))
+    -- UUIDv7 IDs define stream order. Allocate after initialization so the
+    -- event falls after the empty-stream starting cursor.
+    first <- notificationIdNow 0
+    publish first
+    _ <- receiveEvent socket first
+    pure first
+  second <- withFanInWebSocket user (Just cid) $ \socket -> do
+    tag <- receiveEvent socket first
+    expectFanInSynchronization socket
+    acknowledgeFanInEvent socket tag
+    -- Leave another event outstanding for reconnect. The close handshake
+    -- ensures the preceding acknowledgement is committed before reopening.
+    second <- notificationIdNow 1
+    publish second
+    _ <- receiveEvent socket second
+    pure second
+  withFanInWebSocket user (Just cid) $ \socket -> do
+    tag <- receiveEvent socket second
+    expectFanInSynchronization socket
+    acknowledgeFanInEvent socket tag
+    -- Sending a duplicate ack is harmless; the next wake is processed after it.
+    acknowledgeFanInEvent socket tag
+    wake (push second targets False)
+
+testFanInMixedStreamRoundTrip :: (HasCallStack) => App ()
+testFanInMixedStreamRoundTrip = do
+  (user, teamId, _) <- createTeam OwnDomain 1
+  peer <- randomUser OwnDomain def
+  connectTwoUsers user peer
+  qualifiedPeer <- peer %. "qualified_id"
+  uid <- objId user
+  cid <- addClient user def >>= getJSON 201 >>= objId
+  groupId <- Text.unpack . decodeUtf8 . Base64.encode . UUID.toASCIIBytes <$> liftIO UUID.nextRandom
+  let epoch = 7 :: Int
+      membership = object ["groupId" .= groupId, "epoch" .= epoch, "members" .= [object ["userId" .= uid, "clientId" .= cid]]]
+      -- Remote connection streams need federation authorization before Cannon can deliver them.
+      streams =
+        [ target "FanInTargetUser" (toJSON uid),
+          target "FanInTargetUserClients" (toJSON [toJSON uid, toJSON [cid]]),
+          target "FanInTargetTeam" (toJSON teamId),
+          target "FanInTargetEpoch" (toJSON [toJSON groupId, toJSON epoch]),
+          target "FanInTargetConnections" qualifiedPeer
+        ]
+  putFanInMembership user membership >>= assertSuccess
+
+  -- Initialize the empty cursors, then publish while the client is offline.
+  -- The next connection can catch up on any Cannon without a targeted wakeup.
+  withFanInWebSocket user (Just cid) expectFanInSynchronization
+  streamIds <- for streams $ \stream -> do
+    firstId <- notificationIdNow 1
+    secondId <- notificationIdNow 2
+    pure (stream, firstId, secondId)
+  let requests =
+        [ push nid [stream] False
+        | (stream, firstId, secondId) <- streamIds,
+          nid <- [firstId, secondId]
+        ]
+  postFanInPush user requests >>= assertSuccess
+
+  -- Acknowledge the first event from each stream and leave the others pending.
+  withFanInWebSocket user (Just cid) $ \socket -> do
+    delivered <- replicateM (length requests) (receiveFanInTestEvent socket)
+    expectFanInSynchronization socket
+    for_ streamIds $ \(stream, firstId, secondId) -> do
+      -- Streams can interleave. Only the IDs within each stream are ordered.
+      let expected = [firstId, secondId]
+          inStream = filter ((`elem` expected) . fst) delivered
+      addJSONToFailureContext "fan-in stream" stream
+        $ map fst inStream
+        `shouldMatch` expected
+      traverse_ (acknowledgeFanInEvent socket . snd) (take 1 inStream)
+
+  let unacknowledged = [secondId | (_, _, secondId) <- streamIds]
+  withFanInWebSocket user (Just cid) $ \socket -> do
+    replayed <- replicateM (length unacknowledged) (receiveFanInTestEvent socket)
+    map fst replayed `shouldMatchSet` unacknowledged
+    expectFanInSynchronization socket
+    traverse_ (acknowledgeFanInEvent socket . snd) replayed
+
+  withFanInWebSocket user (Just cid) expectFanInSynchronization
+
+-- Checking client ownership happens before accepting the upgraded connection.
+testFanInWebSocketRejectsForeignClient :: (HasCallStack) => App ()
+testFanInWebSocketRejectsForeignClient = do
+  user <- randomUser OwnDomain def
+  other <- randomUser OwnDomain def
+  foreignClient <- addClient other def >>= getJSON 201 >>= objId
+  result <- try @App @WS.HandshakeException (withFanInWebSocket user (Just foreignClient) (const (pure ())))
+  case result of
+    Left (WS.MalformedResponse response _) -> response.responseCode `shouldMatchInt` 403
+    Left err -> assertFailure ("Expected client-ownership rejection with status 403, got " <> displayException err)
+    Right () -> assertFailure "A user opened a fan-in stream using another user's client"
+
+expectFanInSynchronization :: (HasCallStack) => WS.Connection -> App ()
+expectFanInSynchronization socket =
+  receiveFanInMessage socket >>= (%. "type") >>= (`shouldMatch` ("synchronization" :: String))
+
+receiveFanInTestEvent :: (HasCallStack) => WS.Connection -> App (String, Value)
+receiveFanInTestEvent socket = do
+  message <- receiveFanInMessage socket
+  message %. "type" `shouldMatch` ("event" :: String)
+  message %. "data.event.payload.0.type" `shouldMatch` ("fan-in.test" :: String)
+  (,) <$> asString (message %. "data.event.id") <*> (message %. "data.delivery_tag")
+
+acknowledgeFanInEvent :: WS.Connection -> Value -> App ()
+acknowledgeFanInEvent socket tag =
+  sendFanInMessage socket (object ["type" .= ("ack" :: String), "delivery_tag" .= tag, "multiple" .= False])
 
 target :: String -> Value -> Value
 target tag contents = object ["tag" .= tag, "contents" .= contents]
