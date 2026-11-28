@@ -37,7 +37,6 @@ import Polysemy.Async (Async)
 import Polysemy.Async qualified as P
 import Polysemy.Error
 import Polysemy.Input (Input)
-import Polysemy.Resource (Resource)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
@@ -75,7 +74,6 @@ import Wire.UserList (toUserList)
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member Resource r,
     Member Async r,
     Member Random r,
     Member MLSCommitLockStore r,
