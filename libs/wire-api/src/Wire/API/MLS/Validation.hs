@@ -127,6 +127,9 @@ validateCredentialKey Ecdsa_secp384r1_sha384 pk1 (X509.PubKeyEC pk2) =
 validateCredentialKey Ecdsa_secp521r1_sha512 pk1 (X509.PubKeyEC pk2) =
   case pk2.pubkeyEC_pub of
     X509.SerializedPoint bs -> validateCredentialKeyBS pk1 bs
+-- FUTUREWORK: support x509 credentials with ML-DSA keys. Until then, an x509
+-- credential in an ML-DSA cipher suite is rejected, with 'SchemeMismatch' or
+-- with a parse failure if the certificate cannot be parsed.
 validateCredentialKey ss _ _ =
   Left $ SchemeMismatch ss
 

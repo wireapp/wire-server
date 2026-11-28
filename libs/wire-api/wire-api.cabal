@@ -138,6 +138,7 @@ library
     Wire.API.MLS.LeafNode
     Wire.API.MLS.Lifetime
     Wire.API.MLS.Message
+    Wire.API.MLS.MLDSA
     Wire.API.MLS.OutOfSync
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
@@ -726,6 +727,7 @@ test-suite wire-api-tests
     Test.Wire.API.Meeting
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
+    Test.Wire.API.MLS.PostQuantum
     Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson

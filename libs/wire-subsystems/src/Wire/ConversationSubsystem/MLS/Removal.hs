@@ -26,6 +26,7 @@ where
 
 import Control.Monad.Codensity
 import Data.Bifunctor
+import Data.Hex
 import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
@@ -43,6 +44,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group (GroupId (..))
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -92,12 +94,18 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> 
     Nothing -> k ()
     Just activeData -> do
       let cs = activeData.ciphersuite
-      mKeyPair <- getMLSRemovalKey (csSignatureScheme cs)
-      case mKeyPair of
-        Nothing -> do
+      eKeyPair <- getMLSRemovalKey (csSignatureScheme cs)
+      case eKeyPair of
+        Left RemovalKeyNotConfigured -> do
           warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
           k ()
-        Just (SomeKeyPair (_ :: Proxy ss) kp) -> do
+        Left (RemovalKeyUnsupported scheme) -> do
+          warn $
+            Log.msg ("The backend cannot sign remove proposals with this signature scheme yet. Not able to remove client from MLS conversation." :: Text)
+              . Log.field "signature_scheme" (signatureSchemeName scheme)
+              . Log.field "groupId" ("0x" <> hex (unGroupId (cnvmlsGroupId meta)))
+          k ()
+        Right (SomeKeyPair (_ :: Proxy ss) kp) -> do
           msgs <- for indices $ \idx -> do
             let proposal = mkRawMLS (RemoveProposal idx)
             pmsg <-

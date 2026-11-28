@@ -299,6 +299,9 @@ nginx_conf:
     - path: /mls/key-packages
       envs:
       - all
+      # Clients upload key packages in batches of 100. An ML-DSA-87 key package
+      # is about 15 KB, so such a batch is about 2 MB as base64 JSON.
+      max_body_size: 4m
     - path: /properties
       envs:
       - all

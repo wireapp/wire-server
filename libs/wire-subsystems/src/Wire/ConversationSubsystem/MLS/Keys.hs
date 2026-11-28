@@ -15,13 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ConversationSubsystem.MLS.Keys (getMLSRemovalKey, SomeKeyPair (..)) where
+module Wire.ConversationSubsystem.MLS.Keys
+  ( getMLSRemovalKey,
+    SomeKeyPair (..),
+    RemovalKeyError (..),
+  )
+where
 
-import Control.Error.Util (hush)
 import Data.Proxy
-import Imports hiding (getFirst)
+import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.MLS.CipherSuite
@@ -30,27 +33,41 @@ import Wire.API.MLS.Keys
 data SomeKeyPair where
   SomeKeyPair :: forall ss. (IsSignatureScheme ss) => Proxy ss -> KeyPair ss -> SomeKeyPair
 
+-- | Why the backend has no removal key for a signature scheme.
+data RemovalKeyError
+  = -- | No MLS private keys are configured (see 'mlsPrivateKeyPaths').
+    RemovalKeyNotConfigured
+  | -- | MLS private keys are configured, but the backend cannot sign with this
+    -- scheme until ML-DSA signing is implemented.
+    RemovalKeyUnsupported SignatureSchemeTag
+  deriving stock (Eq, Show)
+
 getMLSRemovalKey ::
   (Member (Input ConversationSubsystemConfig) r) =>
   SignatureSchemeTag ->
-  Sem r (Maybe SomeKeyPair)
-getMLSRemovalKey ss = fmap hush . runError @() $ do
-  keysByPurpose <- note () =<< inputs (.mlsKeys)
-  let keys = keysByPurpose.removal
-  case ss of
-    Ed25519 -> pure $ SomeKeyPair (Proxy @Ed25519) (mlsKeyPair_ed25519 keys)
-    Ecdsa_secp256r1_sha256 ->
-      pure $
-        SomeKeyPair
-          (Proxy @Ecdsa_secp256r1_sha256)
-          (mlsKeyPair_ecdsa_secp256r1_sha256 keys)
-    Ecdsa_secp384r1_sha384 ->
-      pure $
-        SomeKeyPair
-          (Proxy @Ecdsa_secp384r1_sha384)
-          (mlsKeyPair_ecdsa_secp384r1_sha384 keys)
-    Ecdsa_secp521r1_sha512 ->
-      pure $
-        SomeKeyPair
-          (Proxy @Ecdsa_secp521r1_sha512)
-          (mlsKeyPair_ecdsa_secp521r1_sha512 keys)
+  Sem r (Either RemovalKeyError SomeKeyPair)
+getMLSRemovalKey ss = inputs $ \cfg -> case cfg.mlsKeys of
+  Nothing -> Left RemovalKeyNotConfigured
+  Just keysByPurpose -> removalKeyFor keysByPurpose.removal
+  where
+    removalKeyFor :: MLSPrivateKeys -> Either RemovalKeyError SomeKeyPair
+    removalKeyFor keys = case ss of
+      Ed25519 -> Right $ SomeKeyPair (Proxy @Ed25519) (mlsKeyPair_ed25519 keys)
+      Ecdsa_secp256r1_sha256 ->
+        Right $
+          SomeKeyPair
+            (Proxy @Ecdsa_secp256r1_sha256)
+            (mlsKeyPair_ecdsa_secp256r1_sha256 keys)
+      Ecdsa_secp384r1_sha384 ->
+        Right $
+          SomeKeyPair
+            (Proxy @Ecdsa_secp384r1_sha384)
+            (mlsKeyPair_ecdsa_secp384r1_sha384 keys)
+      Ecdsa_secp521r1_sha512 ->
+        Right $
+          SomeKeyPair
+            (Proxy @Ecdsa_secp521r1_sha512)
+            (mlsKeyPair_ecdsa_secp521r1_sha512 keys)
+      Mldsa44 -> Left (RemovalKeyUnsupported ss)
+      Mldsa65 -> Left (RemovalKeyUnsupported ss)
+      Mldsa87 -> Left (RemovalKeyUnsupported ss)

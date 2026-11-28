@@ -78,6 +78,7 @@ import Data.Word
 import Imports
 import Web.HttpApiData
 import Wire.API.MLS.ECDSA qualified as ECDSA
+import Wire.API.MLS.MLDSA qualified as MLDSA
 import Wire.API.MLS.Serialisation
 import Wire.API.PostgresMarshall
 import Wire.Arbitrary
@@ -119,6 +120,20 @@ data CipherSuiteTag
   | MLS_128_DHKEMP256_AES128GCM_SHA256_P256
   | MLS_256_DHKEMP384_AES256GCM_SHA384_P384
   | MLS_256_DHKEMP521_AES256GCM_SHA512_P521
+  | -- Post-quantum suites from draft-ietf-mls-pq-ciphersuites. The draft has no
+    -- IANA codepoints yet, so these use Wire's private-use codepoints, which
+    -- must match the ones in core-crypto.
+    MLS_128_MLKEM768X25519_AES128GCM_SHA256_Ed25519
+  | MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519
+  | MLS_128_MLKEM768P256_AES128GCM_SHA256_P256
+  | MLS_128_MLKEM768P256_AES256GCM_SHA384_P256
+  | MLS_192_MLKEM1024P384_AES256GCM_SHA384_P384
+  | MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519
+  | MLS_128_MLKEM768_AES256GCM_SHA384_P256
+  | MLS_192_MLKEM1024_AES256GCM_SHA384_P384
+  | MLS_128_MLKEM768X25519_CHACHA20POLY1305_SHA384_MLDSA44
+  | MLS_192_MLKEM768_AES256GCM_SHA384_MLDSA65
+  | MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
 
@@ -183,6 +198,17 @@ tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 0x1
 tagCipherSuite MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = CipherSuite 0x2
 tagCipherSuite MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = CipherSuite 0x7
 tagCipherSuite MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = CipherSuite 0x5
+tagCipherSuite MLS_128_MLKEM768X25519_AES128GCM_SHA256_Ed25519 = CipherSuite 0xF001
+tagCipherSuite MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519 = CipherSuite 0xF002
+tagCipherSuite MLS_128_MLKEM768P256_AES128GCM_SHA256_P256 = CipherSuite 0xF003
+tagCipherSuite MLS_128_MLKEM768P256_AES256GCM_SHA384_P256 = CipherSuite 0xF004
+tagCipherSuite MLS_192_MLKEM1024P384_AES256GCM_SHA384_P384 = CipherSuite 0xF005
+tagCipherSuite MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519 = CipherSuite 0xF006
+tagCipherSuite MLS_128_MLKEM768_AES256GCM_SHA384_P256 = CipherSuite 0xF007
+tagCipherSuite MLS_192_MLKEM1024_AES256GCM_SHA384_P384 = CipherSuite 0xF008
+tagCipherSuite MLS_128_MLKEM768X25519_CHACHA20POLY1305_SHA384_MLDSA44 = CipherSuite 0xF009
+tagCipherSuite MLS_192_MLKEM768_AES256GCM_SHA384_MLDSA65 = CipherSuite 0xF00A
+tagCipherSuite MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87 = CipherSuite 0xF00B
 
 data SomeHashAlgorithm where
   SomeHashAlgorithm :: (HashAlgorithm a) => a -> SomeHashAlgorithm
@@ -192,19 +218,38 @@ csHashAlgorithm MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm
 csHashAlgorithm MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = SomeHashAlgorithm SHA256
 csHashAlgorithm MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = SomeHashAlgorithm SHA384
 csHashAlgorithm MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = SomeHashAlgorithm SHA512
+csHashAlgorithm MLS_128_MLKEM768X25519_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
+csHashAlgorithm MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_128_MLKEM768P256_AES128GCM_SHA256_P256 = SomeHashAlgorithm SHA256
+csHashAlgorithm MLS_128_MLKEM768P256_AES256GCM_SHA384_P256 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_192_MLKEM1024P384_AES256GCM_SHA384_P384 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_128_MLKEM768_AES256GCM_SHA384_P256 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_192_MLKEM1024_AES256GCM_SHA384_P384 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_128_MLKEM768X25519_CHACHA20POLY1305_SHA384_MLDSA44 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_192_MLKEM768_AES256GCM_SHA384_MLDSA65 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87 = SomeHashAlgorithm SHA384
 
 csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
 csHash cs ctx value = case csHashAlgorithm cs of
   SomeHashAlgorithm a -> convert . hashWith a . encodeMLS' $ RefHashInput ctx value
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
-csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
-csVerifySignature MLS_128_DHKEMP256_AES128GCM_SHA256_P256 =
+csVerifySignature = signatureSchemeVerify . csSignatureScheme
+
+-- | Verify a signature under a signature scheme. Each scheme fixes its own hash,
+-- so a suite whose MLS hash is SHA-384 still verifies P-256 with SHA-256.
+signatureSchemeVerify :: SignatureSchemeTag -> ByteString -> RawMLS a -> ByteString -> Bool
+signatureSchemeVerify Ed25519 = ed25519VerifySignature
+signatureSchemeVerify Ecdsa_secp256r1_sha256 =
   ECDSA.verifySignature (Proxy @Curve_P256R1) SHA256
-csVerifySignature MLS_256_DHKEMP384_AES256GCM_SHA384_P384 =
+signatureSchemeVerify Ecdsa_secp384r1_sha384 =
   ECDSA.verifySignature (Proxy @Curve_P384R1) SHA384
-csVerifySignature MLS_256_DHKEMP521_AES256GCM_SHA512_P521 =
+signatureSchemeVerify Ecdsa_secp521r1_sha512 =
   ECDSA.verifySignature (Proxy @Curve_P521R1) SHA512
+signatureSchemeVerify Mldsa44 = MLDSA.verifySignature (Proxy @MLDSA.MLDSA44)
+signatureSchemeVerify Mldsa65 = MLDSA.verifySignature (Proxy @MLDSA.MLDSA65)
+signatureSchemeVerify Mldsa87 = MLDSA.verifySignature (Proxy @MLDSA.MLDSA87)
 
 ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
 ed25519VerifySignature pub x sig =
@@ -261,6 +306,17 @@ csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
 csSignatureScheme MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha256
 csSignatureScheme MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
 csSignatureScheme MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = Ecdsa_secp521r1_sha512
+csSignatureScheme MLS_128_MLKEM768X25519_AES128GCM_SHA256_Ed25519 = Ed25519
+csSignatureScheme MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519 = Ed25519
+csSignatureScheme MLS_128_MLKEM768P256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha256
+csSignatureScheme MLS_128_MLKEM768P256_AES256GCM_SHA384_P256 = Ecdsa_secp256r1_sha256
+csSignatureScheme MLS_192_MLKEM1024P384_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
+csSignatureScheme MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519 = Ed25519
+csSignatureScheme MLS_128_MLKEM768_AES256GCM_SHA384_P256 = Ecdsa_secp256r1_sha256
+csSignatureScheme MLS_192_MLKEM1024_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
+csSignatureScheme MLS_128_MLKEM768X25519_CHACHA20POLY1305_SHA384_MLDSA44 = Mldsa44
+csSignatureScheme MLS_192_MLKEM768_AES256GCM_SHA384_MLDSA65 = Mldsa65
+csSignatureScheme MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87 = Mldsa87
 
 type family PrivateKey (ss :: SignatureSchemeTag)
 
@@ -296,6 +352,9 @@ data SignatureSchemeTag
   | Ecdsa_secp256r1_sha256
   | Ecdsa_secp384r1_sha384
   | Ecdsa_secp521r1_sha512
+  | Mldsa44
+  | Mldsa65
+  | Mldsa87
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
 
@@ -341,6 +400,9 @@ signatureSchemeName Ed25519 = "ed25519"
 signatureSchemeName Ecdsa_secp256r1_sha256 = "ecdsa_secp256r1_sha256"
 signatureSchemeName Ecdsa_secp384r1_sha384 = "ecdsa_secp384r1_sha384"
 signatureSchemeName Ecdsa_secp521r1_sha512 = "ecdsa_secp521r1_sha512"
+signatureSchemeName Mldsa44 = "mldsa44"
+signatureSchemeName Mldsa65 = "mldsa65"
+signatureSchemeName Mldsa87 = "mldsa87"
 
 signatureSchemeFromName :: Text -> Maybe SignatureSchemeTag
 signatureSchemeFromName name = getAlt $
