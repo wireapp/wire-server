@@ -17,6 +17,7 @@
 
 module Testlib.Certs where
 
+import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
 import qualified Crypto.PubKey.RSA as RSA
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
@@ -108,7 +109,7 @@ selfSignedCert ownerName (pubKey, privKey) =
     ownerName
 
 signMsgWithPrivateKey :: (HasCallStack) => RSA.PrivateKey -> ByteString -> ByteString
-signMsgWithPrivateKey privKey = fromRight (error "signing unsuccessful") . PKCS15.sign Nothing (Just SHA256) privKey
+signMsgWithPrivateKey privKey = fromRight (error "signing unsuccessful") . PKCS15.signDigest Nothing privKey . hashWith SHA256
 
 -- | create a signed certificate
 mkSignedCert ::

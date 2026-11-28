@@ -1,0 +1,40 @@
+diff --git a/src/Crypto/Store/CMS/Algorithms.hs b/src/Crypto/Store/CMS/Algorithms.hs
+index 30521c5..c6e4d36 100644
+--- a/src/Crypto/Store/CMS/Algorithms.hs
++++ b/src/Crypto/Store/CMS/Algorithms.hs
+@@ -6,6 +6,7 @@
+ -- Portability : unknown
+ --
+ -- Cryptographic Message Syntax algorithms
++{-# LANGUAGE CPP #-}
+ {-# LANGUAGE DataKinds #-}
+ {-# LANGUAGE ExistentialQuantification #-}
+ {-# LANGUAGE FlexibleContexts #-}
+@@ -19,6 +20,11 @@
+ {-# LANGUAGE StandaloneDeriving #-}
+ {-# LANGUAGE TupleSections #-}
+ {-# LANGUAGE TypeFamilies #-}
++#if defined(MIN_VERSION_crypton)
++#if MIN_VERSION_crypton(2,1,0)
++#define CHACHAPOLY_CHECKED_KEY
++#endif
++#endif
+ module Crypto.Store.CMS.Algorithms
+     ( DigestAlgorithm(..)
+     , DigestProxy(..)
+@@ -1333,9 +1339,15 @@ ccpInit :: (ByteArrayAccess key, ByteArrayAccess aad)
+         -> ChaChaPoly1305.Nonce
+         -> aad
+         -> Either StoreError ChaChaPoly1305.State
++#ifdef CHACHAPOLY_CHECKED_KEY
++ccpInit key nonce aad = case ChaChaPoly1305.key key of
++    CryptoPassed k -> return (addAAD (ChaChaPoly1305.initialize k nonce))
++    CryptoFailed e -> Left (CryptoError e)
++#else
+ ccpInit key nonce aad = case ChaChaPoly1305.initialize key nonce of
+     CryptoPassed s -> return (addAAD s)
+     CryptoFailed e -> Left (CryptoError e)
++#endif
+   where addAAD = ChaChaPoly1305.finalizeAAD . ChaChaPoly1305.appendAAD aad
+ 
+ ccpTag :: Poly1305.Auth -> AuthTag
