@@ -107,7 +107,9 @@ import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
+import Wire.FederationConfigStore.Cassandra (interpretFederationConfigStoreCassandra)
+import Wire.FederationConfigSubsystem (FederationConfigSubsystem)
+import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem, remotesMapFromCfgFile)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
@@ -278,6 +280,7 @@ type BrigLowerLevelEffects =
      Input InvitationUrlTemplates,
      Input ClientSubsystemConfig,
      GundeckAPIAccess,
+     FederationConfigSubsystem,
      FederationConfigStore,
      Jwk,
      JwtTools,
@@ -566,7 +569,8 @@ runBrigToIO e (AppT ma) = do
               . budgetStoreInterpreter
               . interpretJwtTools
               . interpretJwk
-              . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
+              . interpretFederationConfigStoreCassandra e.casClient
+              . interpretFederationConfigSubsystem e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
               . runInputConst clientSubsystemConfig
               . runInputConst (invitationUrlTemplates e)

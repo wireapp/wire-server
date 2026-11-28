@@ -17,6 +17,8 @@
 
 module Wire.MockInterpreters.FederationConfigStore where
 
+import Data.Domain
+import Data.Map qualified as Map
 import Imports
 import Polysemy
 import Polysemy.State
@@ -24,30 +26,27 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.FederationConfigStore
 
 inMemoryFederationConfigStoreInterpreter ::
-  (Member (State [FederationDomainConfig]) r) =>
+  (Member (State (Map Domain FederationDomainConfig)) r) =>
   InterpreterFor FederationConfigStore r
 inMemoryFederationConfigStoreInterpreter =
   interpret $ \case
-    GetFederationConfig domain -> gets $ find (\cfg -> cfg.domain == domain)
-    GetFederationConfigs -> do
-      remoteConfigs <- get
-      pure $ FederationDomainConfigs AllowDynamic remoteConfigs 1
+    GetFederationConfig domain -> gets $ Map.lookup domain
+    GetFederationConfigs -> gets $ Map.elems
     AddFederationConfig newCfg -> do
-      modify $ (newCfg :) . deleteBy (\a b -> a.domain == b.domain) newCfg
+      modify $ Map.insert newCfg.domain newCfg
       pure AddFederationRemoteSuccess
-    UpdateFederationConfig _ ->
-      error "UpdateFederationConfig not implemented in inMemoryFederationConfigStoreInterpreter"
+    UpdateFederationConfig newCfg -> do
+      modify $ Map.insert newCfg.domain newCfg
+      pure UpdateFederationSuccess
     AddFederationRemoteTeam _ _ ->
       error "AddFederationRemoteTeam not implemented in inMemoryFederationConfigStoreInterpreter"
     RemoveFederationRemoteTeam _ _ ->
       error "RemoveFederationRemoteTeam not implemented in inMemoryFederationConfigStoreInterpreter"
     GetFederationRemoteTeams _ ->
       error "GetFederationRemoteTeams not implemented in inMemoryFederationConfigStoreInterpreter"
-    BackendFederatesWith _ ->
-      error "BackendFederatesWith not implemented in inMemoryFederationConfigStoreInterpreter"
 
 runFederationConfigStoreInMemory :: InterpreterFor FederationConfigStore r
 runFederationConfigStoreInMemory =
-  evalState []
+  evalState Map.empty
     . inMemoryFederationConfigStoreInterpreter
     . raiseUnder

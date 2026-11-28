@@ -59,6 +59,7 @@ import Data.Domain
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (defUserLegalHoldStatus)
+import Data.Map qualified as Map
 import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
@@ -123,6 +124,8 @@ import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.FederationConfigStore
+import Wire.FederationConfigSubsystem
+import Wire.FederationConfigSubsystem.Interpreter (interpretFederationConfigSubsystem)
 import Wire.GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore
@@ -294,6 +297,7 @@ type MiniBackendLowerEffects =
      TeamCollaboratorsStore,
      UserKeyStore,
      IndexedUserStore,
+     FederationConfigSubsystem,
      FederationConfigStore,
      DRS.DomainRegistrationStore,
      PasswordResetCodeStore,
@@ -349,6 +353,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . runInMemoryPasswordResetCodeStore
     . inMemoryDomainRegistrationStoreInterpreter
     . runFederationConfigStoreInMemory
+    . interpretFederationConfigSubsystem Nothing Map.empty
     . inMemoryIndexedUserStoreInterpreter
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
