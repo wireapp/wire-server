@@ -1,0 +1,1 @@
+Handle re-index failures gracefully when CRUDding collaborators.
